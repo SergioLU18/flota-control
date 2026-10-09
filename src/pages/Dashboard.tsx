@@ -67,7 +67,7 @@ export default function Dashboard() {
                 const v = r && data.vehicles.find((x) => x.id === r.vehicleId)
                 return (
                   <tr key={dr.id}>
-                    <td><Link to={`/conductores/${dr.id}`}>{dr.name}</Link> {dr.blacklisted && <Badge tone="red">Lista negra</Badge>}</td>
+                    <td><Link to={`/conductores/${dr.id}`}>{dr.name}</Link></td>
                     <td className="muted">{v ? v.plates : 'Sin coche'}</td>
                     <td className="num neg">{mxn(balance)}</td>
                   </tr>

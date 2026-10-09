@@ -56,7 +56,7 @@ export default function Billing() {
         <Card><div className="table-wrap"><table className="table">
           <thead><tr><th>Conductor</th><th className="num">Cargado</th><th className="num">Pagado</th><th className="num">Saldo</th></tr></thead>
           <tbody>{byDriver.map(({ d, charged, paid, balance }) => (
-            <tr key={d.id}><td><Link to={`/conductores/${d.id}`}>{d.name}</Link> {d.blacklisted && <Badge tone="red">Lista negra</Badge>}</td><td className="num">{mxn(charged)}</td><td className="num">{mxn(paid)}</td><td className={`num ${balance > 0 ? 'neg' : ''}`}>{mxn(balance)}</td></tr>
+            <tr key={d.id}><td><Link to={`/conductores/${d.id}`}>{d.name}</Link></td><td className="num">{mxn(charged)}</td><td className="num">{mxn(paid)}</td><td className={`num ${balance > 0 ? 'neg' : ''}`}>{mxn(balance)}</td></tr>
           ))}</tbody>
           <tfoot><tr className="total"><td>Total</td><td className="num">{mxn(g.charged)}</td><td className="num">{mxn(g.paid)}</td><td className="num">{mxn(g.balance)}</td></tr></tfoot>
         </table></div></Card>

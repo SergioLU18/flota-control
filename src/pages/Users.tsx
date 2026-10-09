@@ -9,7 +9,6 @@ const PERMS: [string, boolean, boolean][] = [
   ['Iniciar y finalizar rentas', true, true],
   ['Editar tarifas y depósitos ya registrados', true, false],
   ['Cancelar pagos (con motivo)', true, false],
-  ['Lista negra de conductores', true, false],
   ['Finanzas: estado de resultados, rentabilidad y gastos', true, false],
   ['Usuarios, auditoría y configuración de Orión', true, false],
 ]

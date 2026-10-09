@@ -6,7 +6,7 @@ import { DriverForm } from '../components/forms'
 import { activeRentalOfDriver, driverBalance, licenseStatus } from '../lib/calc'
 import { fecha, mxn } from '../lib/format'
 
-type Filter = 'todos' | 'activos' | 'adeudo' | 'lista_negra'
+type Filter = 'todos' | 'activos' | 'adeudo'
 
 export default function Drivers() {
   const { data } = useStore()
@@ -17,14 +17,14 @@ export default function Drivers() {
 
   const rows = data.drivers.map((d) => ({ d, rental: activeRentalOfDriver(data, d.id), bal: driverBalance(data, d.id).balance, lic: licenseStatus(d), missing: d.documents.filter((x) => !x.uploaded).length }))
   const list = rows
-    .filter(({ d, rental, bal }) => filter === 'todos' || (filter === 'activos' && rental) || (filter === 'adeudo' && bal > 0) || (filter === 'lista_negra' && d.blacklisted))
+    .filter(({ rental, bal }) => filter === 'todos' || (filter === 'activos' && rental) || (filter === 'adeudo' && bal > 0))
     .filter(({ d }) => `${d.name} ${d.curp} ${d.phone}`.toLowerCase().includes(q.toLowerCase()))
 
   return (
     <>
       <PageHeader module="conductores" title="Conductores" subtitle={`${data.drivers.length} registrados`} actions={<button className="btn btn-primary" onClick={() => setAdding(true)}>＋ Nuevo conductor</button>} />
       <div className="toolbar">
-        <Tabs<Filter> value={filter} onChange={setFilter} tabs={[['todos', 'Todos'], ['activos', 'Con coche'], ['adeudo', 'Con adeudo'], ['lista_negra', 'Lista negra']]} />
+        <Tabs<Filter> value={filter} onChange={setFilter} tabs={[['todos', 'Todos'], ['activos', 'Con coche'], ['adeudo', 'Con adeudo']]} />
         <input className="search" placeholder="Buscar por nombre, CURP o teléfono…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <div className="table-wrap card">
@@ -35,7 +35,7 @@ export default function Drivers() {
               const v = rental && data.vehicles.find((x) => x.id === rental.vehicleId)
               return (
                 <tr key={d.id} className="clickable" onClick={() => nav(`/conductores/${d.id}`)}>
-                  <td><Link to={`/conductores/${d.id}`}>{d.name}</Link> {d.blacklisted && <Badge tone="red">Lista negra</Badge>}<div className="muted small">{d.curp}</div></td>
+                  <td><Link to={`/conductores/${d.id}`}>{d.name}</Link><div className="muted small">{d.curp}</div></td>
                   <td>{d.phone}</td>
                   <td>{v ? `${v.model} · ${v.plates}` : <span className="muted">—</span>}</td>
                   <td>{lic === 'ok' ? <span className="small">{fecha(d.licenseExpires)}</span> : <Badge tone={lic === 'vencida' ? 'red' : 'amber'}>{lic === 'vencida' ? 'Vencida' : 'Por vencer'}</Badge>}</td>

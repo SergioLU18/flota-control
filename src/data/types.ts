@@ -64,8 +64,6 @@ export interface Driver {
   licenseExpires: string
   documents: DriverDocument[]
   references: Reference[]
-  blacklisted: boolean
-  blacklistReason?: string
   notes?: string
   createdAt: string
 }

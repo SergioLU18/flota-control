@@ -34,8 +34,6 @@ export default function Orion() {
           {orion.syncs.length === 0 ? <Empty>Ninguna todavía. Usa “Simular sincronización”.</Empty> : (
             <ul className="plain">{orion.syncs.map((s, i) => <li key={i}>{fechaHora(s.at)} · {s.updated} coches actualizados · <span className="muted">{s.note}</span></li>)}</ul>
           )}
-          <h3 className="mt">Alertas de exceso de velocidad <Badge tone="gray">Futuro</Badge></h3>
-          <p className="muted small">Según las notas, Orión ya envía alertas de exceso de velocidad. Si la API las expone, podrían aparecer en el expediente del conductor.</p>
         </Card>
         <Card title={`Equipos vinculados (${linked.length})`} className="span-2">
           <div className="table-wrap"><table className="table compact">

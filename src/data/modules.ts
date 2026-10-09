@@ -19,7 +19,7 @@ export const MODULES: ModuleInfo[] = [
   { key: 'flota', path: '/flota', label: 'Flota', icon: 'car', anchor: '2-flota-vehículos', roles: ['admin', 'operador'],
     summary: 'Alta y edición de coches, estado (disponible, rentado o en taller) y expediente completo de cada coche con todo su historial.' },
   { key: 'conductores', path: '/conductores', label: 'Conductores', icon: 'user', anchor: '3-conductores', roles: ['admin', 'operador'],
-    summary: 'Expediente del conductor: contacto, licencia, documentos, referencias, lista negra, coches que ha rentado y estado de cuenta.' },
+    summary: 'Expediente del conductor: contacto, licencia, documentos, referencias, coches que ha rentado y estado de cuenta.' },
   { key: 'rentas', path: '/rentas', label: 'Rentas', icon: 'key', anchor: '4-rentas', roles: ['admin', 'operador'],
     summary: 'Asigna un coche a un conductor con tarifa semanal y depósito, y finaliza la renta con su km de devolución. Un coche solo puede tener una renta activa.' },
   { key: 'cobranza', path: '/cobranza', label: 'Cobranza', icon: 'cash', anchor: '5-cobranza', roles: ['admin', 'operador'],

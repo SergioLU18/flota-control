@@ -101,8 +101,6 @@ const drivers: Driver[] = FIRST.map((first, i) => {
       { name: `María ${am} ${LAST[(i + 5) % 24].split(' ')[0]}`, relation: 'Madre', phone: `999 ${300 + i * 7} 1${pad(i)}0` },
       { name: `${FIRST[(i + 3) % 24].split(' ')[0]} ${ap} ${am}`, relation: 'Hermano', phone: `999 ${500 + i * 9} 2${pad(i)}1` },
     ],
-    blacklisted: i === 23,
-    blacklistReason: i === 23 ? 'Entregó el coche con 4 semanas de adeudo y no volvió a pagar (mar 2026). No rentar.' : undefined,
     createdAt: addDays(TODAY, -(90 + i * 13)),
   }
 })
@@ -272,7 +270,6 @@ const audit: AuditEntry[] = [
   { id: 'a6', at: '2026-10-02T10:10:00-06:00', userId: 'u2', action: 'Envió a taller', entity: 'Vehículo YBH-118-A', detail: 'Carrocería' },
   { id: 'a7', at: '2026-09-28T16:45:00-06:00', userId: 'u3', action: 'Finalizó renta', entity: 'Renta r23', detail: 'Recepción con daños' },
   { id: 'a8', at: '2026-09-28T16:50:00-06:00', userId: 'u3', action: 'Registró inspección', entity: 'Inspección recepción', detail: '6 fotos' },
-  { id: 'a9', at: '2026-09-15T12:00:00-06:00', userId: 'u1', action: 'Agregó a lista negra', entity: 'Conductor d24', detail: 'Adeudo no pagado' },
 ]
 
 export const seed: Data = {

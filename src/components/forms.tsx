@@ -64,7 +64,7 @@ export function VehicleForm({ vehicle, onDone }: { vehicle?: Vehicle; onDone: ()
 export function DriverForm({ driver, onDone }: { driver?: Driver; onDone: (id: string) => void }) {
   const { data, saveDriver } = useStore()
   const [d, setD] = useState<Driver>(driver ?? {
-    id: newId('d'), name: '', phone: '', curp: '', address: '', licenseNumber: '', licenseExpires: '', blacklisted: false, createdAt: TODAY,
+    id: newId('d'), name: '', phone: '', curp: '', address: '', licenseNumber: '', licenseExpires: '', createdAt: TODAY,
     documents: (['ine', 'licencia', 'no_penales', 'domicilio', 'referencias'] as const).map((type) => ({ type, uploaded: false })),
     references: [{ name: '', relation: '', phone: '' }, { name: '', relation: '', phone: '' }],
   })
@@ -75,14 +75,13 @@ export function DriverForm({ driver, onDone }: { driver?: Driver; onDone: (id: s
   return (
     <FormShell submit="Guardar conductor" error={error} onSubmit={() => {
       if (!d.name || !d.phone) return setError('Nombre y teléfono son obligatorios.')
-      if (curpMatch?.blacklisted) return setError(`La CURP coincide con ${curpMatch.name}, que está en lista negra.`)
       saveDriver({ ...d, curp: d.curp.toUpperCase(), documents: d.documents.map((x) => (x.type === 'licencia' ? { ...x, expires: d.licenseExpires } : x)) })
       onDone(d.id)
     }}>
       <Field label="Nombre completo" full><input value={d.name} onChange={(e) => set('name', e.target.value)} /></Field>
       <Field label="Teléfono / WhatsApp"><input value={d.phone} onChange={(e) => set('phone', e.target.value)} /></Field>
       <Field label="Correo"><input type="email" value={d.email ?? ''} onChange={(e) => set('email', e.target.value)} /></Field>
-      <Field label="CURP" hint={curpMatch ? <span className={curpMatch.blacklisted ? 'neg' : ''}>Coincide con {curpMatch.name}{curpMatch.blacklisted ? ' (LISTA NEGRA)' : ''}</span> : 'Se compara contra la lista negra'}>
+      <Field label="CURP" hint={curpMatch ? <span className="neg">Ya está registrada: {curpMatch.name}</span> : undefined}>
         <input value={d.curp} onChange={(e) => set('curp', e.target.value.toUpperCase())} maxLength={18} />
       </Field>
       <Field label="Domicilio"><input value={d.address} onChange={(e) => set('address', e.target.value)} /></Field>
@@ -116,7 +115,6 @@ export function StartRentalForm({ vehicleId, onDone }: { vehicleId?: string; onD
   return (
     <FormShell submit="Iniciar renta" error={error} onSubmit={() => {
       if (!v || !driver) return setError('Elige coche y conductor.')
-      if (driver.blacklisted) return setError('El conductor está en lista negra.')
       if (activeRentalOf(data, v.id)) return setError('Ese coche ya tiene una renta activa.')
       startRental({ vehicleId: v.id, driverId: driver.id, startDate: f.startDate, weeklyRate: f.weeklyRate, deposit: f.deposit, startKm: v.currentKm })
       onDone()
@@ -127,10 +125,10 @@ export function StartRentalForm({ vehicleId, onDone }: { vehicleId?: string; onD
           {available.map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
         </select>
       </Field>
-      <Field label="Conductor" full hint={driver?.blacklisted ? <span className="neg">En lista negra: {driver.blacklistReason}</span> : 'Solo conductores sin renta activa'}>
+      <Field label="Conductor" full hint="Solo conductores sin renta activa">
         <select value={f.driverId} onChange={(e) => setF({ ...f, driverId: e.target.value })}>
           <option value="">Selecciona…</option>
-          {eligible.map((x) => <option key={x.id} value={x.id}>{x.name}{x.blacklisted ? ' — LISTA NEGRA' : ''}</option>)}
+          {eligible.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
         </select>
       </Field>
       <Field label="Fecha de inicio"><input type="date" value={f.startDate} onChange={(e) => setF({ ...f, startDate: e.target.value })} /></Field>

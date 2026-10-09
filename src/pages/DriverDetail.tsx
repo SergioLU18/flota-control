@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
-import { Badge, Card, Empty, Field, Modal, PageHeader, Stat, StatusBadge, Tabs } from '../components/ui'
+import { Card, Empty, Modal, PageHeader, Stat, StatusBadge, Tabs } from '../components/ui'
 import { DriverForm, PaymentForm, StartRentalForm } from '../components/forms'
 import { activeRentalOfDriver, driverBalance, licenseStatus, rentalBalance } from '../lib/calc'
 import { TODAY, fecha, mes, mxn } from '../lib/format'
@@ -15,12 +15,11 @@ type Tab = 'expediente' | 'cuenta' | 'estado' | 'rentas'
 
 export default function DriverDetail() {
   const { id } = useParams()
-  const { data, user, setBlacklist, saveDriver } = useStore()
+  const { data, saveDriver } = useStore()
   const L = useLookup()
   const d = data.drivers.find((x) => x.id === id)
   const [tab, setTab] = useState<Tab>('expediente')
-  const [modal, setModal] = useState<'edit' | 'pay' | 'rent' | 'black' | null>(null)
-  const [reason, setReason] = useState('')
+  const [modal, setModal] = useState<'edit' | 'pay' | 'rent' | null>(null)
   const [month, setMonth] = useState(TODAY.slice(0, 7))
   const [preview, setPreview] = useState<DriverDocument | null>(null)
   if (!d) return <Empty>No existe ese conductor. <Link to="/conductores">Volver</Link></Empty>
@@ -48,17 +47,13 @@ export default function DriverDetail() {
   return (
     <>
       <PageHeader module="conductores" title={d.name}
-        subtitle={<>{d.phone} · CURP {d.curp} {d.blacklisted && <Badge tone="red">Lista negra</Badge>}</>}
+        subtitle={<>{d.phone} · CURP {d.curp}</>}
         actions={<>
           <button className="btn" onClick={() => setModal('edit')}>Editar</button>
           {active ? <button className="btn btn-primary" onClick={() => setModal('pay')}>Registrar pago</button>
-            : !d.blacklisted && <button className="btn btn-primary" onClick={() => setModal('rent')}>Asignar coche</button>}
-          {user?.role === 'admin' && (d.blacklisted
-            ? <button className="btn" onClick={() => setBlacklist(d.id, false)}>Quitar de lista negra</button>
-            : <button className="btn btn-danger" onClick={() => setModal('black')}>Lista negra</button>)}
+            : <button className="btn btn-primary" onClick={() => setModal('rent')}>Asignar coche</button>}
         </>} />
       <p className="crumb"><Link to="/conductores">← Conductores</Link></p>
-      {d.blacklisted && <div className="banner banner-red"><b>En lista negra:</b> {d.blacklistReason}</div>}
 
       <div className="stats">
         <Stat label="Saldo / adeudo" value={mxn(bal.balance)} tone={bal.balance > 0 ? 'red' : 'green'} />
@@ -95,7 +90,6 @@ export default function DriverDetail() {
                 </li>
               ))}
             </ul>
-            <p className="muted small">Fase futura: la IA leerá los documentos para extraer datos como la vigencia de la licencia.</p>
           </Card>
           <Card title="Referencias familiares" className="span-2">
             {d.references.length === 0 ? <Empty>Sin referencias capturadas.</Empty> : (
@@ -152,7 +146,6 @@ export default function DriverDetail() {
               <tr className="total"><td></td><td>Saldo al cierre</td><td className="num">{mxn(monthRows.reduce((a, m) => a + m.charge, 0))}</td><td className="num">{mxn(monthRows.reduce((a, m) => a + m.payment, 0))}</td><td className="num">{mxn(monthRows.at(-1)?.balance ?? opening)}</td></tr>
             </tbody>
           </table>
-          <p className="muted small">Fase futura: enviar este estado de cuenta y recordatorios de pago por WhatsApp.</p>
         </Card>
       )}
 
@@ -169,13 +162,6 @@ export default function DriverDetail() {
       <Modal open={modal === 'edit'} title="Editar conductor" onClose={() => setModal(null)} wide><DriverForm driver={d} onDone={() => setModal(null)} /></Modal>
       <Modal open={modal === 'pay'} title="Registrar pago" onClose={() => setModal(null)}>{active && <PaymentForm rentalId={active.id} onDone={() => setModal(null)} />}</Modal>
       <Modal open={modal === 'rent'} title="Asignar coche" onClose={() => setModal(null)}><StartRentalForm onDone={() => setModal(null)} /></Modal>
-      <Modal open={modal === 'black'} title="Agregar a lista negra" onClose={() => setModal(null)}>
-        <form className="form" onSubmit={(e) => { e.preventDefault(); setBlacklist(d.id, true, reason || 'Sin motivo capturado'); setModal(null) }}>
-          <Field label="Motivo" full><textarea rows={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ej. abandonó el coche con adeudo" /></Field>
-          <p className="muted small">Al dar de alta un conductor nuevo, su CURP se compara contra la lista negra.</p>
-          <div className="form-actions"><button className="btn btn-danger" type="submit">Agregar a lista negra</button></div>
-        </form>
-      </Modal>
     </>
   )
 }

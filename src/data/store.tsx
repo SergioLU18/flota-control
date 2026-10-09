@@ -42,9 +42,6 @@ function useStoreValue() {
       commit((d) => ({ drivers: d.drivers.some((x) => x.id === dr.id) ? d.drivers.map((x) => (x.id === dr.id ? dr : x)) : [...d.drivers, dr] }),
         'Guardó conductor', dr.name),
 
-    setBlacklist: (id: string, blacklisted: boolean, reason?: string) =>
-      commit((d) => ({ drivers: d.drivers.map((x) => (x.id === id ? { ...x, blacklisted, blacklistReason: reason } : x)) }),
-        blacklisted ? 'Agregó a lista negra' : 'Quitó de lista negra', id, reason ?? ''),
 
     /** Regla: un coche solo puede tener una renta activa. */
     startRental: (r: Omit<Rental, 'id' | 'status' | 'depositStatus'>) => {
