@@ -1,4 +1,4 @@
-# Bitácora: módulos de la Fase 1
+# Flota Control: módulos de la Fase 1
 
 Sistema interno para una microempresa que renta coches a conductores de plataformas con **cobro semanal**. Junta dos cosas: la parte de rentera (rentas y cobranza) y la parte de agencia (historial del coche, mantenimiento e inspecciones con fotos).
 
@@ -34,13 +34,12 @@ Este documento explica qué hace cada módulo, qué reglas sigue y qué datos gu
 | Iniciar y finalizar rentas | ✔ | ✔ |
 | Editar tarifas y depósitos ya registrados | ✔ | — |
 | Cancelar pagos (con motivo) | ✔ | — |
-| Poner o quitar a alguien de la lista negra | ✔ | — |
 | Finanzas: estado de resultados, rentabilidad y gastos | ✔ | — |
 | Usuarios, auditoría y configuración de Orión | ✔ | — |
 
 **Datos:** `Usuario` (nombre, correo, rol, activo) y `Auditoría` (fecha y hora, usuario, acción, entidad, detalle).
 
-**En la demo:** en la pantalla de entrada se elige un usuario sin contraseña. Con un operador desaparecen Orión, Usuarios y la pestaña financiera del coche. En *Usuarios y auditoría → Bitácora* aparecen las acciones que vayas haciendo.
+**En la demo:** en la pantalla de entrada se elige un usuario sin contraseña. Con un operador desaparecen Orión, Usuarios y la pestaña financiera del coche. En *Usuarios y auditoría → Bitácora de cambios* aparecen las acciones que vayas haciendo.
 
 ---
 
@@ -79,11 +78,10 @@ Este documento explica qué hace cada módulo, qué reglas sigue y qué datos gu
   - 2 referencias familiares (nombre, parentesco y teléfono)
 - Historial de coches que ha rentado, con fechas, tarifa, km recorridos, depósito y saldo. **Fase 1**
 - Movimientos y **estado de cuenta mensual** (cargos, pagos y saldo), imprimible o en PDF y exportable a Excel. **Notas**
-- **Lista negra** con motivo. Al dar de alta a un conductor, su **CURP se compara** contra la lista negra, y a alguien en la lista negra no se le puede asignar un coche. **Notas**
 
-**Datos:** `Conductor` (CURP, licencia, referencias, en lista negra y motivo) y `Documento` (tipo, archivo y vigencia).
+**Datos:** `Conductor` (CURP, licencia, referencias) y `Documento` (tipo, archivo y vigencia).
 
-**Futuro:** que la IA lea los documentos y llene datos como la vigencia de la licencia. También una solicitud en línea donde el aspirante suba sus documentos.
+**Futuro:** que la IA lea los documentos y llene datos como la vigencia de la licencia. También una solicitud en línea donde el aspirante suba sus documentos. **Lista negra y verificación de conductores**: marcar a quien no debe volver a rentar y, al dar de alta a alguien, comparar su CURP y validarlo con servicios externos (CURP, antecedentes o listas compartidas). Requiere contratar esos servicios, con costo por consulta.
 
 ---
 
@@ -103,8 +101,7 @@ Este documento explica qué hace cada módulo, qué reglas sigue y qué datos gu
 **Reglas**
 1. Un coche solo puede tener **una renta activa** a la vez. Se valida en la interfaz y, en producción, también en la base de datos con un índice único parcial.
 2. Un conductor solo puede tener una renta activa a la vez.
-3. No se puede asignar un coche a un conductor que está en la lista negra.
-4. El km de devolución no puede ser menor que el de entrega.
+3. El km de devolución no puede ser menor que el de entrega.
 
 **Datos:** `Renta` (coche, conductor, inicio, fin, tarifa semanal, depósito y su estado, km de entrega y de devolución, estado).
 
@@ -265,7 +262,7 @@ Este documento explica qué hace cada módulo, qué reglas sigue y qué datos gu
 | Mantenimiento cada 10,000 km | Mantenimiento → alertas | Fase 1 |
 | Inversión vs generado | Finanzas → rentabilidad por coche y pestaña del coche | Notas |
 | Registro de a quién se le prestó | Rentas | Fase 1 |
-| Lista negra y coincidencia con CURP | Conductores | Notas |
+| Lista negra y coincidencia con CURP | Lista negra y verificación (requiere servicios externos) | Futuro |
 | Subir documentación (INE, no penales, 2 referencias familiares, domicilio) | Conductores → documentos | Fase 1 (archivos opcionales) |
 | IA que extraiga datos como la vigencia de la licencia | Conductores | Futuro |
 | Aplicar usuarios en línea (solicitud del aspirante) | — | Futuro |
@@ -287,7 +284,7 @@ Este documento explica qué hace cada módulo, qué reglas sigue y qué datos gu
 | Logs y auditoría de cada cambio, quién lo hizo | Usuarios → bitácora | Notas |
 | Investigar cómo trabajan las agencias en sus sistemas | — | Pendiente (investigación) |
 
-> Casi todo lo marcado como **Notas** es poco trabajo extra porque reutiliza tablas que ya existen: depósito, lista negra, catálogo, llantas, CSV y estado de cuenta. Lo que más pesa es la **auditoría**, seguida de **Finanzas**, que agrega la captura de gastos y sus reportes. Hay que acordar con el cliente qué entra en los $25,000 MXN y qué se cotiza aparte.
+> Casi todo lo marcado como **Notas** es poco trabajo extra porque reutiliza tablas que ya existen: depósito, catálogo, llantas, CSV y estado de cuenta. Lo que más pesa es la **auditoría**, seguida de **Finanzas**, que agrega la captura de gastos y sus reportes. Hay que acordar con el cliente qué entra en los $25,000 MXN y qué se cotiza aparte.
 
 ---
 

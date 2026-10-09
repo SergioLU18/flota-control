@@ -1,4 +1,4 @@
-# Bitácora (demo)
+# Flota Control (demo)
 
 Demo estática en React del sistema de gestión de flota y rentas semanales (Fase 1, web).
 Sirve para recorrer los módulos con el cliente antes de construir el backend.

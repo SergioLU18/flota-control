@@ -12,7 +12,7 @@ export default function Login() {
       <form className="login-card" onSubmit={(e) => { e.preventDefault(); login(user) }}>
         <div className="brand brand-lg">
           <span className="brand-mark">B</span>
-          <div><strong>Bitácora</strong><small>Gestión de flota y rentas</small></div>
+          <div><strong>Flota Control</strong><small>Gestión de flota y rentas</small></div>
         </div>
         <p className="muted">
           En la demo no hay contraseña: elige un usuario para ver la app con su rol.

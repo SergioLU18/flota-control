@@ -20,7 +20,7 @@ export default function Layout() {
         <div className="brand">
           <span className="brand-mark">B</span>
           <div>
-            <strong>Bitácora</strong>
+            <strong>Flota Control</strong>
             <small>Flota y rentas</small>
           </div>
         </div>
