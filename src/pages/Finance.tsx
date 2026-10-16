@@ -33,6 +33,7 @@ export default function Finance() {
   const tot = { income: cars.reduce((a, c) => a + c.income, 0), costs: cars.reduce((a, c) => a + c.costs, 0) }
   const best = sorted[0]
   const worst = [...cars].sort((a, b) => a.profitPerMonth - b.profitPerMonth)[0]
+  const pctOrDash = (x: number) => (Number.isFinite(x) ? pct(x) : '—')
 
   const expenses = data.expenses.filter((e) => (!cat || e.category === cat) && e.date >= period.from && e.date <= period.to).sort((a, b) => (a.date < b.date ? 1 : -1))
 
@@ -42,7 +43,7 @@ export default function Finance() {
 
   const exportCars = () => downloadCsv(`rentabilidad-${period.key}.csv`, [
     ['Coche', 'Placas', 'Ingresos', 'Mantenimiento', 'Incidentes', 'Otros gastos', 'Utilidad', 'Utilidad/mes', 'Ocupación', 'Precio compra', '% recuperado (histórico)'],
-    ...sorted.map((c) => [`${c.v.brand} ${c.v.model} ${c.v.year}`, c.v.plates, c.income, c.maintenance, c.incidents, c.other, c.profit, Math.round(c.profitPerMonth), pct(c.occupancy), c.v.purchasePrice, pct(c.recovery.recovered)]),
+    ...sorted.map((c) => [`${c.v.brand} ${c.v.model} ${c.v.year}`, c.v.plates, c.income, c.maintenance, c.incidents, c.other, c.profit, Math.round(c.profitPerMonth), pct(c.occupancy), c.v.purchasePrice, pctOrDash(c.recovery.recovered)]),
   ])
 
   return (
@@ -102,10 +103,10 @@ export default function Finance() {
 
       {tab === 'coches' && (
         <>
-          <div className="grid-2">
+          {best && <div className="grid-2">
             <Card title="Más rentable por mes"><p><Link to={`/flota/${best.v.id}`}>{best.v.brand} {best.v.model} {best.v.plates}</Link> · {mxn(best.profitPerMonth)} de utilidad al mes · ocupación {pct(best.occupancy)}</p></Card>
             <Card title="Menos rentable por mes"><p><Link to={`/flota/${worst.v.id}`}>{worst.v.brand} {worst.v.model} {worst.v.plates}</Link> · {mxn(worst.profitPerMonth)} al mes · ocupación {pct(worst.occupancy)} <StatusBadge value={worst.v.status} /></p></Card>
-          </div>
+          </div>}
           <Card title={`Rentabilidad por coche · ${period.label}`} actions={<button className="btn btn-sm" onClick={exportCars}>⬇ Exportar a Excel (CSV)</button>}>
             <div className="table-wrap"><table className="table compact">
               <thead><tr>
@@ -120,7 +121,7 @@ export default function Finance() {
                   <td className={`num ${c.profit < 0 ? 'neg' : ''}`}>{mxn(c.profit)}</td>
                   <td className="num">{mxn(c.profitPerMonth)}</td>
                   <td className="num">{pct(c.occupancy)}</td>
-                  <td className="recovery"><div className="recovery-cell"><Progress value={c.recovery.recovered} tone="green" /><span className="small">{pct(c.recovery.recovered)}</span></div></td>
+                  <td className="recovery"><div className="recovery-cell"><Progress value={c.recovery.recovered} tone="green" /><span className="small">{pctOrDash(c.recovery.recovered)}</span></div></td>
                   <td className="num small">{c.recovery.monthsToRecover === 0 ? <Badge tone="green">Recuperado</Badge> : c.recovery.monthsToRecover === Infinity ? '—' : `~${Math.ceil(c.recovery.monthsToRecover)} meses`}</td>
                 </tr>
               ))}</tbody>

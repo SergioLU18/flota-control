@@ -21,6 +21,7 @@ export default function VehicleDetail() {
   const [tab, setTab] = useState<Tab>('resumen')
   const [modal, setModal] = useState<ModalKind>(null)
   const [photo, setPhoto] = useState<PhotoRef | null>(null)
+  const [error, setError] = useState('')
   if (!v) return <Empty>No existe ese coche. <Link to="/flota">Volver a flota</Link></Empty>
 
   const r = activeRentalOf(data, v.id)
@@ -59,17 +60,18 @@ export default function VehicleDetail() {
       <PageHeader
         module="flota"
         title={`${v.brand} ${v.model} ${v.year}`}
-        subtitle={<><span className="plate">{v.plates}</span> · {v.color} · VIN {v.vin} · <StatusBadge value={v.status} /></>}
+        subtitle={<><span className="plate">{v.plates}</span> · {v.color}{v.vin && <> · VIN {v.vin}</>} · <StatusBadge value={v.status} /></>}
         actions={<>
           <button className="btn" onClick={() => setModal('edit')}>Editar</button>
           {r ? <button className="btn" onClick={() => setModal('end')}>Finalizar renta</button>
             : v.status === 'disponible' ? <button className="btn btn-primary" onClick={() => setModal('rent')}>Rentar</button> : null}
           {!r && (v.status === 'taller'
-            ? <button className="btn" onClick={() => setVehicleStatus(v.id, 'disponible')}>Marcar disponible</button>
-            : <button className="btn" onClick={() => setVehicleStatus(v.id, 'taller')}>Enviar a taller</button>)}
+            ? <button className="btn" onClick={() => setVehicleStatus(v.id, 'disponible').catch((e: Error) => setError(e.message))}>Marcar disponible</button>
+            : <button className="btn" onClick={() => setVehicleStatus(v.id, 'taller').catch((e: Error) => setError(e.message))}>Enviar a taller</button>)}
         </>}
       />
       <p className="crumb"><Link to="/flota">← Flota</Link></p>
+      {error && <div className="banner banner-red" onClick={() => setError('')}>{error}</div>}
       <Tabs value={tab} onChange={setTab} tabs={tabs} />
 
       {tab === 'resumen' && (
@@ -153,6 +155,7 @@ export default function VehicleDetail() {
             </div>
           </Card>
           <Card title="Llantas actuales" className="span-2">
+            {v.tires.length === 0 && <Empty>Sin llantas registradas.</Empty>}
             <div className="tires">
               {v.tires.map((t) => (
                 <div key={t.position} className="tire">
@@ -188,8 +191,8 @@ export default function VehicleDetail() {
               <Stat label="Ingresos cobrados" value={mxn(f.income)} hint={`desde la compra (${fecha(v.purchaseDate)})`} />
               <Stat label="Costos" value={mxn(f.costs)} hint={`Mantenimiento ${mxn(f.maintenance)} · incidentes ${mxn(f.incidents)} · seguro, refrendo y GPS ${mxn(f.other)}`} />
               <Stat label="Utilidad acumulada" value={mxn(f.profit)} tone={f.profit >= 0 ? 'green' : 'red'} hint={`${mxn(f.profitPerMonth)} al mes · ocupación ${Math.round(f.occupancy * 100)}%`} />
-              <Stat label="Recuperado del costo" value={`${Math.round(f.recovered * 100)}%`}
-                hint={<><Progress value={f.recovered} tone="green" />{f.monthsToRecover === 0 ? 'Ya recuperó su precio de compra' : f.monthsToRecover === Infinity ? 'Sin utilidad suficiente para estimar' : `Precio ${mxn(v.purchasePrice)} · faltan ${mxn(f.remaining)} (~${Math.ceil(f.monthsToRecover)} meses)`}</>} />
+              <Stat label="Recuperado del costo" value={v.purchasePrice ? `${Math.round(f.recovered * 100)}%` : '—'}
+                hint={!v.purchasePrice ? 'Captura el precio de compra para calcularlo' : <><Progress value={f.recovered} tone="green" />{f.monthsToRecover === 0 ? 'Ya recuperó su precio de compra' : f.monthsToRecover === Infinity ? 'Sin utilidad suficiente para estimar' : `Precio ${mxn(v.purchasePrice)} · faltan ${mxn(f.remaining)} (~${Math.ceil(f.monthsToRecover)} meses)`}</>} />
             </div>
             <p className="muted small">Adeudo pendiente del coche: <b className={bal.balance > 0 ? 'neg' : ''}>{mxn(bal.balance)}</b> (no cuenta como ingreso hasta que se cobra). <Link to="/finanzas">Comparar con el resto de la flota →</Link></p>
           </>

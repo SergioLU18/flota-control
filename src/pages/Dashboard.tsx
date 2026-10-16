@@ -35,7 +35,7 @@ export default function Dashboard() {
         <Stat label="Avisos" value={avisos.length} hint={`${avisos.filter((a) => a.level === 'alta').length} urgentes`} tone="amber" />
         <div className="stat stat-wide">
           <div className="stat-label">Coches por estado</div>
-          <div className="stat-value">{count('rentado')} / {total} <span className="small muted">rentados · {Math.round((count('rentado') / total) * 100)}% de ocupación</span></div>
+          <div className="stat-value">{count('rentado')} / {total} <span className="small muted">rentados · {total ? Math.round((count('rentado') / total) * 100) : 0}% de ocupación</span></div>
           <div className="fleet-bar" aria-label="Distribución de la flota">
             {(['rentado', 'disponible', 'taller'] as const).map((s) => (
               <div key={s} className={`seg seg-${s}`} style={{ flex: count(s) }} title={`${s}: ${count(s)}`} />

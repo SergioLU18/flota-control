@@ -1,8 +1,10 @@
-// Formatos y fechas. La demo usa una fecha "hoy" fija para que los datos sean reproducibles.
-// Las fechas se manejan como 'YYYY-MM-DD' (día calendario en America/Merida).
+// Formatos y fechas. Las fechas se manejan como 'YYYY-MM-DD' (día calendario en America/Merida).
 
 export const TZ = 'America/Merida'
-export const TODAY = '2026-10-08'
+// "Hoy" en Mérida al abrir la app (en-CA da el formato YYYY-MM-DD).
+export const TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date())
+// Fecha fija de los datos ficticios (src/data/mock.ts), para que las pruebas sean reproducibles.
+export const DEMO_TODAY = '2026-10-08'
 
 const money = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 })
 const dateFmt = new Intl.DateTimeFormat('es-MX', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' })
@@ -34,6 +36,4 @@ export const fuelLabel = (eighths: number) => {
   return map[eighths] ?? `${eighths}/8`
 }
 
-let seq = 0
-export const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}${(seq++).toString(36)}`
 export const nowIso = () => new Date().toISOString()

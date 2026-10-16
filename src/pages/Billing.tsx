@@ -5,10 +5,13 @@ import { Badge, Card, Field, Modal, PageHeader, Stat, StatusBadge, Tabs } from '
 import { PaymentForm } from '../components/forms'
 import { driverBalance, globalBalance, monthIncome, vehicleBalance, weekIncome } from '../lib/calc'
 import { CURRENT_MONDAY, TODAY, addDays, fecha, fechaCorta, mes, mxn } from '../lib/format'
+import type { PaymentMethod } from '../data/types'
 import { downloadCsv } from '../lib/files'
 import type { Payment } from '../data/types'
 
 type Tab = 'conductores' | 'coches' | 'pagos' | 'cargos'
+
+const METHOD: Record<PaymentMethod, string> = { efectivo: 'efectivo', transferencia: 'transferencia', deposito: 'depósito aplicado' }
 
 export default function Billing() {
   const { data, user, generateWeeklyCharges, voidPayment } = useStore()
@@ -18,6 +21,8 @@ export default function Billing() {
   const [msg, setMsg] = useState('')
   const [voiding, setVoiding] = useState<Payment | null>(null)
   const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
   const isAdmin = user?.role === 'admin'
   const g = globalBalance(data)
 
@@ -30,7 +35,7 @@ export default function Billing() {
     ['Fecha', 'Conductor', 'Coche', 'Monto', 'Método', 'Notas', 'Registró', 'Estado'],
     ...[...data.payments].sort((a, b) => (a.date < b.date ? -1 : 1)).map((p) => {
       const r = L.rental(p.rentalId)
-      return [p.date, L.driver(r.driverId)?.name, L.vehicle(r.vehicleId).plates, p.amount, p.method, p.notes, L.user(p.userId)?.name, p.voided ? `Cancelado: ${p.voided.reason}` : 'Vigente']
+      return [p.date, L.driver(r.driverId)?.name, L.vehicle(r.vehicleId).plates, p.amount, METHOD[p.method], p.notes, L.user(p.userId)?.name, p.voided ? `Cancelado: ${p.voided.reason}` : 'Vigente']
     }),
   ])
 
@@ -38,10 +43,17 @@ export default function Billing() {
     <>
       <PageHeader module="cobranza" title="Cobranza" subtitle="Solo se registra lo que ya se pagó; no hay cobro en línea."
         actions={<>
-          <button className="btn" onClick={() => { const n = generateWeeklyCharges(); setMsg(n ? `Se generaron ${n} cargos para la semana del ${fechaCorta(CURRENT_MONDAY)}.` : `Los cargos de la semana del ${fechaCorta(CURRENT_MONDAY)} ya estaban generados. No se duplicó nada.`) }}>Generar cargos de la semana</button>
+          <button className="btn" disabled={busy} onClick={async () => {
+            setBusy(true); setError('')
+            try {
+              const n = await generateWeeklyCharges()
+              setMsg(n ? `Se generaron ${n} cargos de renta pendientes hasta hoy.` : 'Los cargos ya estaban al día. No se duplicó nada.')
+            } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
+          }}>Generar cargos de la semana</button>
           <button className="btn btn-primary" onClick={() => setPaying(true)}>＋ Registrar pago</button>
         </>} />
       {msg && <div className="banner banner-green" onClick={() => setMsg('')}>{msg}</div>}
+      {error && <div className="banner banner-red" onClick={() => setError('')}>{error}</div>}
 
       <div className="stats">
         <Stat label="Cobrado esta semana" value={mxn(weekIncome(data))} />
@@ -83,7 +95,7 @@ export default function Billing() {
                   <td>{L.driver(r.driverId)?.name}{p.notes && <div className="muted small">{p.notes}</div>}
                     {p.voided && <div className="small"><Badge tone="red">Cancelado</Badge> <span className="muted">{p.voided.reason} · {L.user(p.voided.userId)?.name}</span></div>}</td>
                   <td>{L.vehicle(r.vehicleId).plates}</td>
-                  <td><Badge tone={p.method === 'efectivo' ? 'green' : 'blue'}>{p.method}</Badge></td>
+                  <td><Badge tone={p.method === 'efectivo' ? 'green' : p.method === 'deposito' ? 'amber' : 'blue'}>{METHOD[p.method]}</Badge></td>
                   <td className="num amount">{mxn(p.amount)}</td>
                   <td className="muted small">{L.user(p.userId)?.name}</td>
                   {isAdmin && <td className="row-actions">{!p.voided && <button className="btn btn-sm btn-ghost" onClick={() => { setReason(''); setVoiding(p) }}>Cancelar</button>}</td>}
@@ -109,11 +121,16 @@ export default function Billing() {
       <Modal open={paying} title="Registrar pago" onClose={() => setPaying(false)}><PaymentForm onDone={() => setPaying(false)} /></Modal>
       <Modal open={!!voiding} title="Cancelar pago" onClose={() => setVoiding(null)}>
         {voiding && (
-          <form className="form" onSubmit={(e) => { e.preventDefault(); if (!reason.trim()) return; voidPayment(voiding.id, reason.trim()); setVoiding(null) }}>
+          <form className="form" onSubmit={async (e) => {
+            e.preventDefault(); if (!reason.trim() || busy) return
+            setBusy(true); setError('')
+            try { await voidPayment(voiding.id, reason.trim()); setVoiding(null) } catch (err) { setError((err as Error).message) } finally { setBusy(false) }
+          }}>
             <p>{L.driver(L.rental(voiding.rentalId).driverId)?.name} · {fecha(voiding.date)} · <b>{mxn(voiding.amount)}</b> {voiding.method}</p>
             <Field label="Motivo (obligatorio)" full><input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ej. se capturó dos veces, monto equivocado" autoFocus /></Field>
             <p className="muted small">El pago no se borra: queda tachado en el historial, deja de contar para el saldo y la cancelación se guarda en la auditoría. Si el monto estaba mal, registra después el pago correcto.</p>
-            <div className="form-actions"><button className="btn btn-danger" type="submit" disabled={!reason.trim()}>Cancelar pago</button></div>
+            {error && <p className="form-error">{error}</p>}
+            <div className="form-actions"><button className="btn btn-danger" type="submit" disabled={!reason.trim() || busy}>Cancelar pago</button></div>
           </form>
         )}
       </Modal>

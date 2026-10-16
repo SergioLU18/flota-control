@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { HashRouter, Route, Routes } from 'react-router-dom'
 import { StoreProvider, useStore } from './data/store'
 import Layout from './components/Layout'
-import Login from './pages/Login'
+import Login, { Pending, Splash } from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Vehicles from './pages/Vehicles'
 import VehicleDetail from './pages/VehicleDetail'
@@ -21,8 +21,10 @@ import Finance from './pages/Finance'
 import './styles.css'
 
 function App() {
-  const { user } = useStore()
-  if (!user) return <Login />
+  const { user, status, loadError } = useStore()
+  if (status === 'sin-sesion') return <Login />
+  if (status === 'inactivo') return <Pending />
+  if (status !== 'listo' || !user) return <Splash error={status === 'error' ? loadError : undefined} />
   const admin = user.role === 'admin'
   return (
     <Routes>

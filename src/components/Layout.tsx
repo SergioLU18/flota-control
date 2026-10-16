@@ -7,7 +7,7 @@ import { Icon } from './Icon'
 import { TODAY, fecha } from '../lib/format'
 
 export default function Layout() {
-  const { user, logout, reset } = useStore()
+  const { user, logout } = useStore()
   const [menuOpen, setMenuOpen] = useState(false)
   const loc = useLocation()
   useEffect(() => { setMenuOpen(false); window.scrollTo(0, 0) }, [loc.pathname])
@@ -36,7 +36,6 @@ export default function Layout() {
             <strong>{user?.name}</strong>
             {user && <StatusBadge value={user.role} />}
           </div>
-          <button className="btn btn-ghost btn-sm" onClick={reset} title="Restaura los datos de ejemplo">Reiniciar datos</button>
           <button className="btn btn-ghost btn-sm" onClick={logout}>Salir</button>
         </div>
       </aside>
@@ -45,7 +44,7 @@ export default function Layout() {
       <div className="main">
         <div className="topbar">
           <button className="icon-btn menu-btn" onClick={() => setMenuOpen(true)} aria-label="Abrir menú">☰</button>
-          <span className="demo-pill">DEMO estática · datos ficticios · hoy es {fecha(TODAY)}</span>
+          <span className="demo-pill">Hoy es {fecha(TODAY)}</span>
         </div>
         <main className="content">
           <Outlet />

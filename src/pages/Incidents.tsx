@@ -8,6 +8,7 @@ import type { PhotoRef } from '../data/types'
 
 export default function Incidents() {
   const { data, closeIncident } = useStore()
+  const [error, setError] = useState('')
   const L = useLookup()
   const [tab, setTab] = useState<'abierto' | 'cerrado' | 'todos'>('abierto')
   const [adding, setAdding] = useState(false)
@@ -18,12 +19,13 @@ export default function Incidents() {
     <>
       <PageHeader module="incidentes" title="Incidentes y accidentes" actions={<button className="btn btn-primary" onClick={() => setAdding(true)}>＋ Registrar incidente</button>} />
       <Tabs value={tab} onChange={setTab} tabs={[['abierto', 'Abiertos'], ['cerrado', 'Cerrados'], ['todos', 'Todos']]} />
+      {error && <div className="banner banner-red" onClick={() => setError('')}>{error}</div>}
       <div className="stack">
         {list.map((i) => {
           const v = L.vehicle(i.vehicleId)
           const d = L.driver(i.driverId)
           return (
-            <Card key={i.id} title={<>{i.type} <StatusBadge value={i.status} /></>} actions={i.status === 'abierto' && <button className="btn btn-sm" onClick={() => closeIncident(i.id)}>Cerrar</button>}>
+            <Card key={i.id} title={<>{i.type} <StatusBadge value={i.status} /></>} actions={i.status === 'abierto' && <button className="btn btn-sm" onClick={() => closeIncident(i.id).catch((e: Error) => setError(e.message))}>Cerrar</button>}>
               <p className="muted small">
                 {fecha(i.date)} · <Link to={`/flota/${v.id}`}>{v.brand} {v.model} {v.plates}</Link>
                 {d && <> · <Link to={`/conductores/${d.id}`}>{d.name}</Link></>} · Costo {mxn(i.cost)} · Responsable: <b>{i.responsible}</b>

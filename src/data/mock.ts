@@ -1,5 +1,7 @@
-// Datos ficticios y deterministas para la demo (~30 coches, 24 conductores, 5 usuarios).
-import { CURRENT_MONDAY, TODAY, addDays } from '../lib/format'
+// Datos ficticios y deterministas de la demo (~30 coches, 24 conductores, 5 usuarios).
+// La app ya no los usa: solo los carga supabase/pruebas.mjs para probar el esquema.
+import { DEMO_TODAY as TODAY, addDays, mondayOf } from '../lib/format'
+import { COLOR_HEX, SHOPS } from './catalogs'
 import type {
   AuditEntry, Charge, Data, Driver, Expense, Incident, Inspection, MileageRecord, Payment, PhotoRef, Rental, Service, Tire, User, Vehicle,
 } from './types'
@@ -8,11 +10,9 @@ const pad = (n: number) => String(n).padStart(2, '0')
 const vid = (i: number) => `v${pad(i + 1)}`
 const did = (i: number) => `d${pad(i + 1)}`
 
-export const COLOR_HEX: Record<string, string> = {
-  Blanco: '#e9ecef', 'Gris plata': '#adb5bd', Negro: '#2b2f33', Rojo: '#b63a2e', Azul: '#2e5c9a', 'Gris oxford': '#5c636a',
-}
+const CURRENT_MONDAY = mondayOf(TODAY)
 
-export const SERVICE_TYPES = [
+const SERVICE_TYPES = [
   { type: 'Servicio 10,000 km', resetsCounter: true, hint: 'Aceite, filtros, revisión general' },
   { type: 'Frenos / balatas', resetsCounter: false, hint: 'Balatas, discos, líquido' },
   { type: 'Cambio de llantas', resetsCounter: false, hint: 'Registrar marca y año DOT' },
@@ -21,8 +21,6 @@ export const SERVICE_TYPES = [
   { type: 'Suspensión', resetsCounter: false, hint: '' },
   { type: 'Otro', resetsCounter: false, hint: '' },
 ]
-
-export const SHOPS = ['Taller Hnos. Pech', 'Servicio Automotriz Itzimná', 'Frenos y Clutch Canek', 'Llantera del Sureste', 'Hojalatería Chuburná']
 
 const MODELS: [string, string, number][] = [
   ['Nissan', 'Versa', 3200], ['Chevrolet', 'Aveo', 2900], ['Kia', 'Rio', 3300], ['Toyota', 'Yaris', 3300],
@@ -275,4 +273,5 @@ const audit: AuditEntry[] = [
 export const seed: Data = {
   users, vehicles, drivers, rentals, charges, payments, mileage, services, incidents, inspections, expenses, audit,
   orion: { status: 'pendiente', syncs: [] },
+  serviceTypes: SERVICE_TYPES.map((t, i) => ({ id: `t${i + 1}`, name: t.type, resetsCounter: t.resetsCounter, hint: t.hint })),
 }

@@ -12,7 +12,7 @@ export const ANGLES = ['Frente', 'Trasera', 'Lateral izq.', 'Lateral der.', 'Int
 export default function Inspections() {
   const { data } = useStore()
   const L = useLookup()
-  const [vehicleId, setVehicleId] = useState(data.vehicles.find((v) => data.inspections.some((i) => i.vehicleId === v.id && i.kind === 'recepcion'))?.id ?? data.vehicles[0].id)
+  const [vehicleId, setVehicleId] = useState(data.vehicles.find((v) => data.inspections.some((i) => i.vehicleId === v.id && i.kind === 'recepcion'))?.id ?? data.vehicles[0]?.id ?? '')
   const [photo, setPhoto] = useState<PhotoRef | null>(null)
   const recent = [...data.inspections].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 12)
 
@@ -88,22 +88,35 @@ export function NewInspection() {
   const [params] = useSearchParams()
   const nav = useNavigate()
   const [f, setF] = useState({
-    vehicleId: params.get('vehiculo') ?? data.vehicles[0].id,
+    vehicleId: params.get('vehiculo') ?? data.vehicles[0]?.id ?? '',
     kind: (params.get('tipo') as Inspection['kind']) ?? 'entrega',
     date: TODAY, km: 0, fuel: 8, notes: '',
   })
   const [photos, setPhotos] = useState<PhotoRef[]>([])
-  const v = data.vehicles.find((x) => x.id === f.vehicleId)!
-  const rentalId = params.get('renta') ?? activeRentalOf(data, v.id)?.id
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const v = data.vehicles.find((x) => x.id === f.vehicleId)
+  if (!v) return <Empty>Primero da de alta un coche en <Link to="/flota">Flota</Link>.</Empty>
+  // La renta del enlace (al iniciar o finalizar) solo aplica si no se cambió de coche.
+  const linked = data.rentals.find((r) => r.id === params.get('renta') && r.vehicleId === v.id)
+  const rentalId = linked?.id ?? (f.kind === 'entrega' ? activeRentalOf(data, v.id)?.id : undefined)
 
   return (
     <>
       <PageHeader module="inspecciones" title={`Inspección de ${f.kind === 'entrega' ? 'entrega' : 'recepción'}`} subtitle="Pensada para hacerse desde el iPad o el teléfono, junto al coche." />
       <p className="crumb"><Link to="/inspecciones">← Inspecciones</Link></p>
-      <form className="form card" onSubmit={(e) => {
+      <form className="form card" onSubmit={async (e) => {
         e.preventDefault()
-        addInspection({ ...f, km: f.km || v.currentKm, rentalId, photos })
-        nav(`/flota/${v.id}`)
+        if (busy) return
+        setBusy(true); setError('')
+        try {
+          await addInspection({ ...f, km: f.km || v.currentKm, rentalId, photos })
+          nav(`/flota/${v.id}`)
+        } catch (err) {
+          setError((err as Error).message)
+        } finally {
+          setBusy(false)
+        }
       }}>
         <div className="form-grid">
           <Field label="Coche" full>
@@ -120,7 +133,8 @@ export function NewInspection() {
           <Field label="Observaciones" full><textarea rows={3} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="Golpes, rayones, limpieza, accesorios (gato, refacción, tarjeta de circulación)…" /></Field>
           <Field label="Fotos (toca cada recuadro para abrir la cámara)" full><PhotoInput photos={photos} onChange={setPhotos} labels={ANGLES} /></Field>
         </div>
-        <div className="form-actions"><button className="btn btn-primary" type="submit">Guardar inspección</button></div>
+        {error && <p className="form-error">{error}</p>}
+        <div className="form-actions"><button className="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Subiendo fotos…' : 'Guardar inspección'}</button></div>
       </form>
     </>
   )

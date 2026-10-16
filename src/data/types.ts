@@ -1,4 +1,4 @@
-// Modelo de datos de la demo. Refleja las entidades propuestas para el backend real.
+// Modelo de datos de la app. src/data/load.ts lo arma a partir de las tablas de Supabase.
 
 export type Role = 'admin' | 'operador'
 
@@ -44,7 +44,7 @@ export interface DriverDocument {
   uploaded: boolean
   expires?: string
   fileName?: string
-  url?: string // archivo subido en esta sesión (en producción: URL del almacenamiento)
+  fileKey?: string // ruta en el bucket "archivos"; la URL firmada se pide al abrirlo
 }
 
 export interface Reference {
@@ -94,7 +94,7 @@ export interface Charge {
   concept: string
 }
 
-export type PaymentMethod = 'efectivo' | 'transferencia'
+export type PaymentMethod = 'efectivo' | 'transferencia' | 'deposito'
 
 export interface Payment {
   id: string
@@ -133,8 +133,8 @@ export interface Service {
 export interface PhotoRef {
   id: string
   label: string
-  url?: string // foto real subida (data URL en la demo, URL de S3 en producción)
-  color?: string // para el placeholder de la demo
+  url?: string // URL firmada del bucket, o data URL mientras no se ha guardado
+  color?: string // placeholder de los datos ficticios
   damage?: boolean
 }
 
@@ -192,6 +192,13 @@ export interface OrionState {
   syncs: { at: string; updated: number; note: string }[]
 }
 
+export interface ServiceType {
+  id: string
+  name: string
+  resetsCounter: boolean
+  hint: string
+}
+
 export interface Data {
   users: User[]
   vehicles: Vehicle[]
@@ -206,4 +213,5 @@ export interface Data {
   expenses: Expense[]
   audit: AuditEntry[]
   orion: OrionState
+  serviceTypes: ServiceType[]
 }

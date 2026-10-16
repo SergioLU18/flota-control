@@ -1,137 +1,221 @@
-// Estado en memoria de la demo. Cada acción equivale a un endpoint de la API real
-// y deja un registro en la bitácora de auditoría (quién hizo qué y cuándo).
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
-import { seed } from './mock'
-import type { Charge, Data, Driver, Expense, Incident, Inspection, MileageSource, Payment, Rental, Service, User, Vehicle } from './types'
-import { CURRENT_MONDAY, TODAY, addDays, newId, nowIso } from '../lib/format'
-import { activeRentalOf, vehicleLabel } from '../lib/calc'
+// Estado de la app sobre Supabase. Cada acción escribe en la base (insert/update directo o RPC)
+// y después recarga los datos. Las reglas (rentas, km, pagos) y la auditoría las aplica la base:
+// si algo no se permite, la acción lanza un Error con el mensaje para mostrar en el formulario.
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import type { Session } from '@supabase/supabase-js'
+import { BUCKET, must, supabase } from '../lib/supabase'
+import { EMPTY, loadData, loadProfile } from './load'
+import type { Data, DocType, Driver, Expense, Incident, Inspection, Payment, PhotoRef, Rental, Service, User, Vehicle } from './types'
+import { TODAY, nowIso } from '../lib/format'
+
+export type Status = 'cargando' | 'sin-sesion' | 'inactivo' | 'listo' | 'error'
 
 type Store = ReturnType<typeof useStoreValue>
 const Ctx = createContext<Store | null>(null)
 
+const orNull = (s?: string) => (s?.trim() ? s.trim() : null)
+
+/** Sube una foto (data URL ya comprimida) al bucket y registra su archivo. Regresa el id del archivo. */
+async function uploadPhoto(dataUrl: string): Promise<string> {
+  const blob = await (await fetch(dataUrl)).blob()
+  return uploadFile(blob, 'image/jpeg', (id) => `fotos/${id}.jpg`)
+}
+
+/** Registra el archivo como pendiente, lo sube y lo marca como subido. El id se genera aquí para que reintentar no duplique. */
+async function uploadFile(blob: Blob, mime: string, path: (id: string) => string): Promise<string> {
+  const id = crypto.randomUUID()
+  const clave = path(id)
+  must(await supabase.from('archivos').insert({ id, clave, tipo_mime: mime, bytes: blob.size || null }))
+  must(await supabase.storage.from(BUCKET).upload(clave, blob, { contentType: mime, upsert: true }))
+  must(await supabase.from('archivos').update({ estado: 'subido', subido_en: nowIso() }).eq('id', id))
+  return id
+}
+
+async function insertPhotos(photos: PhotoRef[], owner: { inspeccion_id: string } | { incidente_id: string }) {
+  for (const [i, p] of photos.entries()) {
+    if (!p.url) continue
+    const archivo_id = await uploadPhoto(p.url)
+    must(await supabase.from('fotos').insert({ ...owner, archivo_id, etiqueta: p.label, con_danio: !!p.damage, orden: i }))
+  }
+}
+
 function useStoreValue() {
-  const [data, setData] = useState<Data>(seed)
-  // ?as=u1 en la URL entra directo con ese usuario (útil para compartir la demo por rol)
-  const [user, setUser] = useState<User | null>(() => seed.users.find((u) => u.id === new URLSearchParams(window.location.search).get('as')) ?? null)
+  const [session, setSession] = useState<Session | null | undefined>(undefined)
+  const [user, setUser] = useState<User | null>(null)
+  const [data, setData] = useState<Data>(EMPTY)
+  const [status, setStatus] = useState<Status>('cargando')
+  const [loadError, setLoadError] = useState('')
 
-  const commit = (fn: (d: Data) => Partial<Data>, action: string, entity: string, detail = '') =>
-    setData((d) => {
-      const patch = fn(d)
-      const entry = { id: newId('a'), at: nowIso(), userId: user?.id ?? 'u1', action, entity, detail }
-      return { ...d, ...patch, audit: [entry, ...(patch.audit ?? d.audit)] }
-    })
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session))
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s))
+    return () => sub.subscription.unsubscribe()
+  }, [])
 
-  const addMileageIn = (d: Data, vehicleId: string, km: number, source: MileageSource, date = TODAY) => ({
-    mileage: [...d.mileage, { id: newId('m'), vehicleId, date, km, source }],
-    vehicles: d.vehicles.map((v) => (v.id === vehicleId && km > v.currentKm ? { ...v, currentKm: km } : v)),
-  })
+  const reload = useCallback(async () => setData(await loadData()), [])
 
-  const actions = {
-    login: (u: User) => setUser(u),
-    logout: () => setUser(null),
-    reset: () => setData(seed),
+  const uid = session?.user.id
+  useEffect(() => {
+    if (session === undefined) return
+    if (!uid) { setUser(null); setData(EMPTY); setStatus('sin-sesion'); return }
+    let cancelled = false
+    setStatus('cargando')
+    ;(async () => {
+      const profile = await loadProfile(uid)
+      if (cancelled) return
+      setUser(profile)
+      if (!profile?.active) return setStatus('inactivo')
+      const d = await loadData()
+      if (cancelled) return
+      setData(d)
+      setStatus('listo')
+    })().catch((e: Error) => { if (!cancelled) { setLoadError(e.message); setStatus('error') } })
+    return () => { cancelled = true }
+  }, [session === undefined, uid]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    saveVehicle: (v: Vehicle) =>
-      commit((d) => ({ vehicles: d.vehicles.some((x) => x.id === v.id) ? d.vehicles.map((x) => (x.id === v.id ? v : x)) : [...d.vehicles, v] }),
-        'Guardó vehículo', vehicleLabel(v)),
-
-    setVehicleStatus: (id: string, status: Vehicle['status']) =>
-      commit((d) => ({ vehicles: d.vehicles.map((v) => (v.id === id ? { ...v, status } : v)) }), 'Cambió estado de vehículo', id, status),
-
-    saveDriver: (dr: Driver) =>
-      commit((d) => ({ drivers: d.drivers.some((x) => x.id === dr.id) ? d.drivers.map((x) => (x.id === dr.id ? dr : x)) : [...d.drivers, dr] }),
-        'Guardó conductor', dr.name),
-
-
-    /** Regla: un coche solo puede tener una renta activa. */
-    startRental: (r: Omit<Rental, 'id' | 'status' | 'depositStatus'>) => {
-      if (activeRentalOf(data, r.vehicleId)) throw new Error('Ese coche ya tiene una renta activa.')
-      const id = newId('r')
-      commit((d) => {
-        const rental: Rental = { ...r, id, status: 'activa', depositStatus: 'retenido' }
-        const first: Charge = { id: newId('c'), rentalId: id, periodStart: r.startDate, periodEnd: addDays(r.startDate, 6), amount: r.weeklyRate, concept: 'Renta semana 1' }
-        const m = addMileageIn(d, r.vehicleId, r.startKm, 'entrega', r.startDate)
-        return {
-          rentals: [...d.rentals, rental],
-          charges: [...d.charges, first],
-          mileage: m.mileage,
-          vehicles: m.vehicles.map((v) => (v.id === r.vehicleId ? { ...v, status: 'rentado' } : v)),
-        }
-      }, 'Inició renta', r.vehicleId, `Conductor ${r.driverId} · $${r.weeklyRate}/semana`)
-      return id
-    },
-
-    endRental: (id: string, endDate: string, endKm: number, depositStatus: Rental['depositStatus']) =>
-      commit((d) => {
-        const r = d.rentals.find((x) => x.id === id)!
-        const m = addMileageIn(d, r.vehicleId, endKm, 'recepcion', endDate)
-        return {
-          rentals: d.rentals.map((x) => (x.id === id ? { ...x, endDate, endKm, depositStatus, status: 'finalizada' } : x)),
-          mileage: m.mileage,
-          vehicles: m.vehicles.map((v) => (v.id === r.vehicleId ? { ...v, status: 'disponible' } : v)),
-        }
-      }, 'Finalizó renta', id, `Km devolución ${endKm}`),
-
-    /** Idempotente: crea el cargo de la semana actual para cada renta activa que no lo tenga. */
-    generateWeeklyCharges: () => {
-      const missing = data.rentals.filter((r) => r.status === 'activa' && !data.charges.some((c) => c.rentalId === r.id && c.periodStart >= CURRENT_MONDAY))
-      commit((d) => ({
-        charges: [...d.charges, ...missing.map((r) => ({
-          id: newId('c'), rentalId: r.id, periodStart: CURRENT_MONDAY, periodEnd: addDays(CURRENT_MONDAY, 6), amount: r.weeklyRate, concept: 'Renta semanal',
-        }))],
-      }), 'Generó cargos semanales', 'Cobranza', `${missing.length} cargos nuevos`)
-      return missing.length
-    },
-
-    addPayment: (p: Omit<Payment, 'id' | 'userId'>) =>
-      commit((d) => ({ payments: [...d.payments, { ...p, id: newId('p'), userId: user?.id ?? 'u1' }] }), 'Registró pago', p.rentalId, `$${p.amount} ${p.method}`),
-
-    /** Solo admin. No borra el pago: lo marca como cancelado con su motivo. */
-    voidPayment: (id: string, reason: string) =>
-      commit((d) => ({ payments: d.payments.map((p) => (p.id === id ? { ...p, voided: { reason, userId: user?.id ?? 'u1', at: nowIso() } } : p)) }),
-        'Canceló pago', id, reason),
-
-    /** Solo admin. La nueva tarifa aplica a los cargos que se generen después; los ya generados no cambian. */
-    updateRental: (id: string, weeklyRate: number, deposit: number) => {
-      const before = data.rentals.find((r) => r.id === id)!
-      commit((d) => ({ rentals: d.rentals.map((r) => (r.id === id ? { ...r, weeklyRate, deposit } : r)) }),
-        'Editó renta', id, `Tarifa $${before.weeklyRate} → $${weeklyRate} · depósito $${before.deposit} → $${deposit}`)
-    },
-
-    addExpense: (e: Omit<Expense, 'id' | 'userId'>) =>
-      commit((d) => ({ expenses: [...d.expenses, { ...e, id: newId('e'), userId: user?.id ?? 'u1' }] }), 'Registró gasto', e.concept, `$${e.amount}`),
-
-    addMileage: (vehicleId: string, km: number, date: string, source: MileageSource = 'manual') =>
-      commit((d) => addMileageIn(d, vehicleId, km, source, date), 'Registró kilometraje', vehicleId, `${km} km (${source})`),
-
-    addService: (s: Omit<Service, 'id'>) =>
-      commit((d) => ({ services: [...d.services, { ...s, id: newId('s') }], ...addMileageIn(d, s.vehicleId, s.km, 'manual', s.date) }),
-        'Registró servicio', s.vehicleId, s.type),
-
-    addIncident: (i: Omit<Incident, 'id'>) =>
-      commit((d) => ({ incidents: [{ ...i, id: newId('i') }, ...d.incidents] }), 'Registró incidente', i.vehicleId, i.type),
-
-    closeIncident: (id: string) =>
-      commit((d) => ({ incidents: d.incidents.map((i) => (i.id === id ? { ...i, status: 'cerrado' } : i)) }), 'Cerró incidente', id),
-
-    addInspection: (ins: Omit<Inspection, 'id' | 'userId'>) =>
-      commit((d) => ({
-        inspections: [...d.inspections, { ...ins, id: newId('in'), userId: user?.id ?? 'u1' }],
-        ...addMileageIn(d, ins.vehicleId, ins.km, ins.kind, ins.date),
-      }), 'Registró inspección', ins.vehicleId, `${ins.kind} · ${ins.photos.length} fotos`),
-
-    /** Simula lo que haría el job de Orión: leer odómetros y crear registros de km. */
-    orionSync: () =>
-      commit((d) => {
-        const linked = d.vehicles.filter((v) => v.orionDeviceId && v.status === 'rentado')
-        let m: Pick<Data, 'mileage' | 'vehicles'> = { mileage: d.mileage, vehicles: d.vehicles }
-        linked.forEach((v, i) => { m = addMileageIn({ ...d, ...m }, v.id, v.currentKm + 120 + ((i * 37) % 180), 'orion') })
-        const at = nowIso()
-        return { ...m, orion: { status: 'conectado', lastSync: at, syncs: [{ at, updated: linked.length, note: 'Simulación (datos ficticios)' }, ...d.orion.syncs] } }
-      }, 'Sincronizó Orión (simulado)', 'Integración Orión'),
+  /** Corre una escritura y recarga los datos (aunque falle a medias, para no mostrar un estado viejo). */
+  const write = async <T,>(fn: () => Promise<T>): Promise<T> => {
+    try {
+      return await fn()
+    } finally {
+      await reload()
+    }
   }
 
-  return useMemo(() => ({ data, user, ...actions }), [data, user]) // eslint-disable-line react-hooks/exhaustive-deps
+  const currentKm = (vehicleId: string) => data.vehicles.find((v) => v.id === vehicleId)?.currentKm ?? 0
+
+  const actions = {
+    login: async (email: string, password: string) => {
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password })
+      if (error) throw new Error(error.message === 'Invalid login credentials' ? 'Correo o contraseña incorrectos.' : error.message)
+    },
+    logout: () => supabase.auth.signOut(),
+    reload,
+
+    /** Alta o edición. El km no se guarda en el coche: se registra como lectura manual si subió. */
+    saveVehicle: (v: Vehicle) => write(async () => {
+      const row = {
+        marca: v.brand.trim(), modelo: v.model.trim(), anio: v.year, placas: v.plates.trim().toUpperCase(), color: v.color,
+        vin: orNull(v.vin)?.toUpperCase() ?? null, estado: v.status, notas: v.notes, precio_compra: v.purchasePrice || null,
+        fecha_compra: v.purchaseDate || null, orion_equipo_id: orNull(v.orionDeviceId),
+      }
+      const id = v.id
+        ? (must(await supabase.from('vehiculos').update(row).eq('id', v.id).select('id').single())).id
+        : (must(await supabase.from('vehiculos').insert(row).select('id').single())).id
+      if (v.currentKm > (v.id ? currentKm(v.id) : 0)) {
+        must(await supabase.from('registros_km').insert({ vehiculo_id: id, fecha: TODAY, km: v.currentKm, origen: 'manual' }))
+      }
+      return id
+    }),
+
+    setVehicleStatus: (id: string, status: Vehicle['status']) =>
+      write(async () => { must(await supabase.from('vehiculos').update({ estado: status }).eq('id', id)) }),
+
+    /** Alta o edición del conductor y sus referencias (se reemplazan completas). Regresa el id. */
+    saveDriver: (d: Driver) => write(async () => {
+      const row = {
+        nombre: d.name.trim(), telefono: d.phone.trim(), correo: orNull(d.email)?.toLowerCase() ?? null, curp: orNull(d.curp)?.toUpperCase() ?? null,
+        domicilio: d.address, licencia_numero: orNull(d.licenseNumber), licencia_vence: d.licenseExpires || null, notas: d.notes ?? '',
+      }
+      const id = d.id
+        ? (must(await supabase.from('conductores').update(row).eq('id', d.id).select('id').single())).id
+        : (must(await supabase.from('conductores').insert(row).select('id').single())).id
+      if (d.id) must(await supabase.from('referencias_conductor').delete().eq('conductor_id', id))
+      const refs = d.references.filter((r) => r.name.trim())
+        .map((r, i) => ({ conductor_id: id, nombre: r.name.trim(), parentesco: r.relation, telefono: r.phone, orden: i }))
+      if (refs.length) must(await supabase.from('referencias_conductor').insert(refs))
+      return id
+    }),
+
+    /** Sube un documento del expediente. Reemplaza al vigente de ese tipo; el archivo anterior se conserva. */
+    uploadDriverDocument: (driverId: string, type: DocType, file: File, expires?: string) => write(async () => {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'bin'
+      const archivo_id = await uploadFile(file, file.type || 'application/octet-stream', (id) => `documentos/${driverId}/${id}.${ext}`)
+      must(await supabase.from('documentos_conductor').upsert(
+        { conductor_id: driverId, tipo: type, archivo_id, vence: expires || null },
+        { onConflict: 'conductor_id,tipo' },
+      ))
+    }),
+
+    /** URL temporal (1 hora) para ver un archivo del bucket privado. */
+    fileUrl: async (key: string) => must(await supabase.storage.from(BUCKET).createSignedUrl(key, 3600)).signedUrl,
+
+    /** La base valida que el coche esté disponible y que nadie tenga otra renta activa; genera el primer cargo. */
+    startRental: (r: Omit<Rental, 'id' | 'status' | 'depositStatus'>) => write(async () =>
+      must(await supabase.rpc('iniciar_renta', {
+        p_vehiculo_id: r.vehicleId, p_conductor_id: r.driverId, p_tarifa_semanal: r.weeklyRate, p_deposito: r.deposit,
+        p_fecha_inicio: r.startDate, p_km_entrega: r.startKm, p_notas: r.notes ?? '',
+      }))),
+
+    endRental: (id: string, endDate: string, endKm: number, depositStatus: Rental['depositStatus']) => write(async () => {
+      must(await supabase.rpc('finalizar_renta', { p_renta_id: id, p_km_devolucion: endKm, p_deposito_estado: depositStatus, p_fecha_fin: endDate }))
+    }),
+
+    /** Idempotente: crea las semanas de renta que falten hasta hoy. Regresa cuántos cargos creó. */
+    generateWeeklyCharges: () => write(async () => must(await supabase.rpc('generar_cargos'))),
+
+    addPayment: (p: Omit<Payment, 'id' | 'userId'>) => write(async () => {
+      must(await supabase.from('pagos').insert({ renta_id: p.rentalId, fecha: p.date, monto: p.amount, metodo: p.method, notas: p.notes ?? '' }))
+    }),
+
+    /** Solo admin. No borra el pago: lo marca como cancelado con su motivo. */
+    voidPayment: (id: string, reason: string) => write(async () => {
+      must(await supabase.rpc('cancelar_pago', { p_pago_id: id, p_motivo: reason }))
+    }),
+
+    /** Solo admin. La nueva tarifa aplica a los cargos que se generen después; los ya generados no cambian. */
+    updateRental: (id: string, weeklyRate: number, deposit: number) => write(async () => {
+      must(await supabase.rpc('editar_renta', { p_renta_id: id, p_tarifa_semanal: weeklyRate, p_deposito: deposit }))
+    }),
+
+    addExpense: (e: Omit<Expense, 'id' | 'userId'>) => write(async () => {
+      must(await supabase.from('gastos').insert({ fecha: e.date, categoria: e.category, vehiculo_id: e.vehicleId ?? null, monto: e.amount, concepto: e.concept }))
+    }),
+
+    addMileage: (vehicleId: string, km: number, date: string) => write(async () => {
+      must(await supabase.from('registros_km').insert({ vehiculo_id: vehicleId, fecha: date, km, origen: 'manual' }))
+    }),
+
+    addService: (s: Omit<Service, 'id' | 'type'>, typeId: string) => write(async () => {
+      must(await supabase.from('servicios').insert({
+        vehiculo_id: s.vehicleId, tipo_servicio_id: typeId, fecha: s.date, km: s.km, costo: s.cost, taller: s.shop, notas: s.notes ?? '', reinicia_contador: s.resetsCounter,
+      }))
+      if (s.km > currentKm(s.vehicleId)) {
+        must(await supabase.from('registros_km').insert({ vehiculo_id: s.vehicleId, fecha: s.date, km: s.km, origen: 'manual' }))
+      }
+    }),
+
+    addIncident: (i: Omit<Incident, 'id'>) => write(async () => {
+      const { id } = must(await supabase.from('incidentes').insert({
+        vehiculo_id: i.vehicleId, conductor_id: i.driverId ?? null, fecha: i.date, tipo: i.type, descripcion: i.description,
+        costo: i.cost, responsable: i.responsible,
+      }).select('id').single())
+      await insertPhotos(i.photos, { incidente_id: id })
+    }),
+
+    closeIncident: (id: string) => write(async () => {
+      must(await supabase.from('incidentes').update({ estado: 'cerrado', cerrado_en: nowIso(), cerrado_por: uid }).eq('id', id))
+    }),
+
+    /** Guarda la inspección, su lectura de km (si es mayor a la última) y sus fotos. */
+    addInspection: (ins: Omit<Inspection, 'id' | 'userId'>) => write(async () => {
+      const id = crypto.randomUUID()
+      must(await supabase.from('inspecciones').insert({
+        id, vehiculo_id: ins.vehicleId, renta_id: ins.rentalId ?? null, tipo: ins.kind, fecha: ins.date, km: ins.km, combustible: ins.fuel, notas: ins.notes,
+      }))
+      if (ins.km > currentKm(ins.vehicleId)) {
+        must(await supabase.from('registros_km').insert({ vehiculo_id: ins.vehicleId, fecha: ins.date, km: ins.km, origen: ins.kind, renta_id: ins.rentalId ?? null }))
+      }
+      await insertPhotos(ins.photos, { inspeccion_id: id })
+    }),
+
+    /** Solo admin: rol, nombre y si la cuenta está activa. */
+    saveUser: (u: User) => write(async () => {
+      must(await supabase.from('usuarios').update({ nombre: u.name.trim(), rol: u.role, activo: u.active }).eq('id', u.id))
+    }),
+  }
+
+  return { data, user, status, loadError, ...actions }
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {

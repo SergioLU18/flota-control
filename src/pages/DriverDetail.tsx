@@ -15,13 +15,15 @@ type Tab = 'expediente' | 'cuenta' | 'estado' | 'rentas'
 
 export default function DriverDetail() {
   const { id } = useParams()
-  const { data, saveDriver } = useStore()
+  const { data, uploadDriverDocument, fileUrl } = useStore()
   const L = useLookup()
   const d = data.drivers.find((x) => x.id === id)
   const [tab, setTab] = useState<Tab>('expediente')
   const [modal, setModal] = useState<'edit' | 'pay' | 'rent' | null>(null)
   const [month, setMonth] = useState(TODAY.slice(0, 7))
-  const [preview, setPreview] = useState<DriverDocument | null>(null)
+  const [preview, setPreview] = useState<(DriverDocument & { url?: string }) | null>(null)
+  const [docError, setDocError] = useState('')
+  const [uploading, setUploading] = useState<DocType | null>(null)
   if (!d) return <Empty>No existe ese conductor. <Link to="/conductores">Volver</Link></Empty>
 
   const rentals = data.rentals.filter((r) => r.driverId === d.id).sort((a, b) => (a.startDate < b.startDate ? 1 : -1))
@@ -29,6 +31,18 @@ export default function DriverDetail() {
   const bal = driverBalance(data, d.id)
   const rentalIds = new Set(rentals.map((r) => r.id))
   const lic = licenseStatus(d)
+
+  const upload = async (doc: DriverDocument, f: File) => {
+    setUploading(doc.type); setDocError('')
+    try { await uploadDriverDocument(d.id, doc.type, f, doc.type === 'licencia' ? d.licenseExpires : undefined) }
+    catch (e) { setDocError((e as Error).message) }
+    finally { setUploading(null) }
+  }
+  const open = async (doc: DriverDocument) => {
+    setDocError('')
+    try { setPreview({ ...doc, url: doc.fileKey ? await fileUrl(doc.fileKey) : undefined }) }
+    catch (e) { setDocError((e as Error).message) }
+  }
 
   // movimientos (cargos y pagos) para estado de cuenta
   const moves = [
@@ -47,7 +61,7 @@ export default function DriverDetail() {
   return (
     <>
       <PageHeader module="conductores" title={d.name}
-        subtitle={<>{d.phone} · CURP {d.curp}</>}
+        subtitle={<>{d.phone}{d.curp && <> · CURP {d.curp}</>}</>}
         actions={<>
           <button className="btn" onClick={() => setModal('edit')}>Editar</button>
           {active ? <button className="btn btn-primary" onClick={() => setModal('pay')}>Registrar pago</button>
@@ -77,16 +91,21 @@ export default function DriverDetail() {
             </dl>
           </Card>
           <Card title="Documentos">
+            {docError && <p className="form-error">{docError}</p>}
             <ul className="doc-list">
               {d.documents.map((doc) => (
                 <li key={doc.type}>
                   <span>{doc.uploaded ? <span className="doc-ok">✓</span> : <span className="doc-missing">○</span>} {DOC_LABEL[doc.type]}</span>
                   <span className="muted small">{doc.expires && `vence ${fecha(doc.expires)}`}</span>
-                  {doc.uploaded ? <button className="btn btn-sm btn-ghost" onClick={() => setPreview(doc)}>Ver</button>
-                    : <label className="btn btn-sm">Subir<input type="file" hidden accept="image/*,application/pdf" onChange={(e) => {
-                      const f = e.target.files?.[0]; if (!f) return
-                      saveDriver({ ...d, documents: d.documents.map((x) => (x.type === doc.type ? { ...x, uploaded: true, fileName: f.name, url: URL.createObjectURL(f) } : x)) })
-                    }} /></label>}
+                  <span className="row-actions">
+                    {doc.uploaded && <button className="btn btn-sm btn-ghost" onClick={() => open(doc)}>Ver</button>}
+                    <label className="btn btn-sm">{uploading === doc.type ? 'Subiendo…' : doc.uploaded ? 'Reemplazar' : 'Subir'}
+                      <input type="file" hidden disabled={!!uploading} accept="image/jpeg,image/png,image/webp,image/heic,application/pdf" onChange={(e) => {
+                        const f = e.target.files?.[0]; e.target.value = ''
+                        if (f) upload(doc, f)
+                      }} />
+                    </label>
+                  </span>
                 </li>
               ))}
             </ul>
@@ -154,7 +173,7 @@ export default function DriverDetail() {
           <div className="doc-preview">
             {preview.url
               ? (preview.fileName?.toLowerCase().endsWith('.pdf') ? <iframe src={preview.url} title={preview.fileName} /> : <img src={preview.url} alt={preview.fileName} />)
-              : <div className="doc-placeholder"><strong>{preview.fileName}</strong><span className="muted small">Documento de ejemplo: la demo no incluye archivos reales. Si subes uno, se ve aquí.</span></div>}
+              : <div className="doc-placeholder"><strong>{preview.fileName}</strong><span className="muted small">No se encontró el archivo.</span></div>}
             <p className="muted small">{preview.fileName}{preview.expires && ` · vence ${fecha(preview.expires)}`}</p>
           </div>
         )}

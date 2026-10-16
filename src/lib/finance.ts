@@ -95,8 +95,9 @@ export function vehicleRecovery(d: Data, v: Vehicle) {
   const remaining = Math.max(0, v.purchasePrice - all.profit)
   return {
     ...all,
-    recovered: all.profit / v.purchasePrice,
+    // Sin precio de compra capturado no hay contra qué comparar.
+    recovered: v.purchasePrice ? all.profit / v.purchasePrice : NaN,
     remaining,
-    monthsToRecover: remaining === 0 ? 0 : all.profitPerMonth > 0 ? remaining / all.profitPerMonth : Infinity,
+    monthsToRecover: !v.purchasePrice ? Infinity : remaining === 0 ? 0 : all.profitPerMonth > 0 ? remaining / all.profitPerMonth : Infinity,
   }
 }

@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
-import { SERVICE_TYPES } from '../data/mock'
 import { Badge, Card, Modal, PageHeader, Progress, StatusBadge, Tabs } from '../components/ui'
 import { MileageForm, ServiceForm } from '../components/forms'
 import { maintenanceStatus, MAINTENANCE_INTERVAL } from '../lib/calc'
@@ -67,9 +66,9 @@ export default function Maintenance() {
       {tab === 'catalogo' && (
         <Card title="Catálogo de tipos de servicio">
           <table className="table compact"><thead><tr><th>Tipo</th><th>Reinicia contador 10k</th><th>Notas</th></tr></thead>
-            <tbody>{SERVICE_TYPES.map((t) => <tr key={t.type}><td>{t.type}</td><td>{t.resetsCounter ? <Badge tone="green">Sí</Badge> : 'No'}</td><td className="muted">{t.hint}</td></tr>)}</tbody>
+            <tbody>{data.serviceTypes.map((t) => <tr key={t.id}><td>{t.name}</td><td>{t.resetsCounter ? <Badge tone="green">Sí</Badge> : 'No'}</td><td className="muted">{t.hint}</td></tr>)}</tbody>
           </table>
-          <p className="muted small">El catálogo lo podrá editar un administrador. Los cambios de llantas registran marca y año (DOT) para tener el historial por coche.</p>
+          <p className="muted small">Por ahora el catálogo se edita desde Supabase (tabla tipos_servicio). Los cambios de llantas registran marca y año (DOT) para tener el historial por coche.</p>
         </Card>
       )}
 

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useStore } from '../data/store'
-import { COLOR_HEX } from '../data/mock'
+import { COLOR_HEX } from '../data/catalogs'
 import { Modal, PageHeader, StatusBadge, Tabs } from '../components/ui'
 import { VehicleForm } from '../components/forms'
 import { activeRentalOf, maintenanceStatus } from '../lib/calc'

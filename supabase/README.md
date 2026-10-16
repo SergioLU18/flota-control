@@ -22,15 +22,24 @@ supabase/
 npm run db:test   # no necesita Docker ni conexión: usa PGlite (Postgres en WASM) imitando a Supabase
 ```
 
-## Crear el proyecto
+## Proyecto
+
+Proyecto `flota-control` (ref `twdbrwapuwabvcabbdyw`, org ChichenIT, `us-east-1`). Ya tiene las cuatro migraciones, el bucket `archivos` y el cron `generar-cargos`.
+La contraseña de la base está en `.env.local` (`SUPABASE_DB_PASSWORD`), que no se sube a git.
+
+Para subir una migración nueva:
+
+```bash
+npx supabase login                                   # una vez por equipo
+npx supabase link --project-ref twdbrwapuwabvcabbdyw # una vez por clon del repo
+npx supabase db push
+npx supabase gen types typescript --linked --schema public > src/lib/database.types.ts
+```
+
+### Desde cero (otro entorno)
 
 1. En [supabase.com](https://supabase.com) crea el proyecto. Región sugerida: `us-east-1`, la más cercana a Mérida entre las disponibles.
-2. Liga el repo y sube las migraciones:
-   ```bash
-   npx supabase login
-   npx supabase link --project-ref <ref-del-proyecto>
-   npx supabase db push
-   ```
+2. Liga el repo y sube las migraciones como arriba.
 3. En el panel, haz estos ajustes, que **no** se aplican con `db push` (`config.toml` solo afecta al entorno local):
    - **Authentication → Sign In / Providers:** desactiva *Allow new users to sign up*. Así solo entra quien des de alta. Aunque alguien lograra registrarse, su perfil nace inactivo y no ve nada.
    - **Authentication → URL Configuration:** pon la URL de Netlify como *Site URL*.
@@ -110,6 +119,7 @@ Aunque la app tenga un error, la base no deja guardar datos que rompan estas reg
 
 ## Pendiente
 
-- **Crear usuarios desde la app** requiere la service role key, así que va en una Edge Function. Mientras tanto se crean en el panel (paso 4).
+- **Crear usuarios desde la app** requiere la service role key, así que va en una Edge Function. Mientras tanto se crean en el panel (paso 4). Activarlos y cambiarles el rol sí se hace desde la pantalla de Usuarios.
+- **Llantas y catálogo de servicios:** la app los muestra, pero aún no tiene pantallas para editarlos. Por ahora se editan desde el panel.
 - **Tarea de Orión:** una Edge Function programada con la service role key, en cuanto se confirme la API (pregunta 1).
 - No hay estado "vendido" para dar de baja coches. La lista negra, las alertas de Orión, WhatsApp y CFDI quedan para el Futuro.

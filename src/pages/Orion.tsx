@@ -4,15 +4,14 @@ import { Badge, Card, Empty, PageHeader, StatusBadge } from '../components/ui'
 import { fechaHora, km } from '../lib/format'
 
 export default function Orion() {
-  const { data, orionSync } = useStore()
+  const { data } = useStore()
   const { orion } = data
   const linked = data.vehicles.filter((v) => v.orionDeviceId)
 
   return (
     <>
       <PageHeader module="orion" title="Integración con Orión GPS"
-        subtitle={<>Estado: {orion.status === 'pendiente' ? <Badge tone="amber">Pendiente de confirmar API</Badge> : <Badge tone="green">Simulación activa</Badge>}</>}
-        actions={<button className="btn btn-primary" onClick={orionSync}>Simular sincronización</button>} />
+        subtitle={<>Estado: {orion.status === 'pendiente' ? <Badge tone="amber">Pendiente de confirmar API</Badge> : orion.status === 'error' ? <Badge tone="red">Última sincronización con error</Badge> : <Badge tone="green">Conectado</Badge>}</>} />
 
       <div className="banner banner-amber">
         Aún no se confirma si Orión tiene API o exportación de datos. Este módulo está <b>aislado</b>: si no existe o se retrasa,
@@ -31,7 +30,7 @@ export default function Orion() {
           <p className="muted small">Si Orión solo exporta archivos, la misma tarea puede importar un CSV o Excel subido a mano.</p>
         </Card>
         <Card title="Sincronizaciones">
-          {orion.syncs.length === 0 ? <Empty>Ninguna todavía. Usa “Simular sincronización”.</Empty> : (
+          {orion.syncs.length === 0 ? <Empty>Ninguna todavía. Las hará la tarea programada en cuanto se confirme la API.</Empty> : (
             <ul className="plain">{orion.syncs.map((s, i) => <li key={i}>{fechaHora(s.at)} · {s.updated} coches actualizados · <span className="muted">{s.note}</span></li>)}</ul>
           )}
         </Card>
