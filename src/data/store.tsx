@@ -215,7 +215,9 @@ function useStoreValue() {
     }),
   }
 
-  return { data, user, status, loadError, ...actions }
+  // undefined mientras se lee la sesión guardada (un instante); con sesión, la app ya muestra el layout mientras carga.
+  const hasSession = session === undefined ? undefined : !!session
+  return { data, user, status, loadError, hasSession, ...actions }
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {

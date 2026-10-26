@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { HashRouter, Route, Routes } from 'react-router-dom'
 import { StoreProvider, useStore } from './data/store'
 import Layout from './components/Layout'
+import { PageSkeleton } from './components/ui'
 import Login, { Pending, Splash } from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Vehicles from './pages/Vehicles'
@@ -21,10 +22,21 @@ import Finance from './pages/Finance'
 import './styles.css'
 
 function App() {
-  const { user, status, loadError } = useStore()
+  const { user, status, loadError, hasSession } = useStore()
   if (status === 'sin-sesion') return <Login />
   if (status === 'inactivo') return <Pending />
-  if (status !== 'listo' || !user) return <Splash error={status === 'error' ? loadError : undefined} />
+  if (status === 'error') return <Splash error={loadError} />
+  if (status !== 'listo' || !user) {
+    if (!hasSession) return null // se está leyendo la sesión guardada
+    // Con sesión: menú y esqueleto del módulo mientras llegan el perfil y los datos.
+    return (
+      <Routes>
+        <Route element={<Layout />}>
+          <Route path="*" element={<PageSkeleton />} />
+        </Route>
+      </Routes>
+    )
+  }
   const admin = user.role === 'admin'
   return (
     <Routes>

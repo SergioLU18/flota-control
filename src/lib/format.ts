@@ -9,7 +9,8 @@ export const DEMO_TODAY = '2026-10-08'
 const money = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 })
 const dateFmt = new Intl.DateTimeFormat('es-MX', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' })
 const shortFmt = new Intl.DateTimeFormat('es-MX', { timeZone: 'UTC', day: '2-digit', month: 'short' })
-const monthFmt = new Intl.DateTimeFormat('es-MX', { timeZone: 'UTC', month: 'long', year: 'numeric' })
+const longFmt = new Intl.DateTimeFormat('es-MX', { timeZone: 'UTC', day: 'numeric', month: 'long' })
+const monthFmt =new Intl.DateTimeFormat('es-MX', { timeZone: 'UTC', month: 'long', year: 'numeric' })
 const dateTimeFmt = new Intl.DateTimeFormat('es-MX', { timeZone: TZ, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 
 const toDate = (iso: string) => new Date(iso + 'T12:00:00Z')
@@ -17,6 +18,11 @@ const toDate = (iso: string) => new Date(iso + 'T12:00:00Z')
 export const mxn = (n: number) => money.format(n)
 export const fecha = (iso?: string) => (iso ? dateFmt.format(toDate(iso)) : '—')
 export const fechaCorta = (iso: string) => shortFmt.format(toDate(iso))
+/** "26 de octubre al 1 de noviembre"; si es el mismo mes, "2 al 8 de noviembre". */
+export const rangoFechas = (desde: string, hasta: string) => {
+  const [a, b] = [longFmt.format(toDate(desde)), longFmt.format(toDate(hasta))]
+  return desde.slice(0, 7) === hasta.slice(0, 7) ? `${a.split(' de ')[0]} al ${b}` : `${a} al ${b}`
+}
 export const mes = (yyyymm: string) => monthFmt.format(toDate(yyyymm + '-01'))
 export const fechaHora = (isoDateTime: string) => dateTimeFmt.format(new Date(isoDateTime))
 export const km = (n: number) => `${Math.round(n).toLocaleString('es-MX')} km`

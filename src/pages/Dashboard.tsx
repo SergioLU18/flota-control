@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useStore } from '../data/store'
 import { Badge, Card, PageHeader, Progress, Stat, StatusBadge } from '../components/ui'
 import { activeRentalOfDriver, alerts, driverBalance, globalBalance, maintenanceStatus, monthIncome, weekIncome, MAINTENANCE_INTERVAL } from '../lib/calc'
-import { CURRENT_MONDAY, TODAY, addDays, fechaCorta, km, mes, mxn } from '../lib/format'
+import { CURRENT_MONDAY, TODAY, addDays, km, mes, mxn, rangoFechas } from '../lib/format'
 
 export default function Dashboard() {
   const { data, user } = useStore()
@@ -26,7 +26,7 @@ export default function Dashboard() {
 
   return (
     <>
-      <PageHeader module="dashboard" title={`Hola, ${user?.name.split(' ')[0]}`} subtitle={`Semana del ${fechaCorta(CURRENT_MONDAY)} al ${fechaCorta(addDays(CURRENT_MONDAY, 6))}`} />
+      <PageHeader module="dashboard" title={`Hola, ${user?.name.split(' ')[0]}`} subtitle={`Semana del ${rangoFechas(CURRENT_MONDAY, addDays(CURRENT_MONDAY, 6))}`} />
 
       <div className="stats">
         <Stat label="Ingresos de la semana" value={mxn(weekIncome(data))} hint={`${weekPending} rentas sin pago esta semana`} />

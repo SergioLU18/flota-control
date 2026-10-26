@@ -4,6 +4,7 @@ import { MODULES } from '../data/modules'
 import { useStore } from '../data/store'
 import { StatusBadge } from './ui'
 import { Icon } from './Icon'
+import { Logo } from './Logo'
 import { TODAY, fecha } from '../lib/format'
 
 export default function Layout() {
@@ -18,23 +19,27 @@ export default function Layout() {
     <div className="shell">
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
         <div className="brand">
-          <span className="brand-mark">B</span>
+          <Logo className="brand-mark" />
           <div>
             <strong>Flota Control</strong>
             <small>Flota y rentas</small>
           </div>
         </div>
-        <nav>
-          {items.map((m) => (
-            <NavLink key={m.key} to={m.path} end={m.path === '/'}>
-              <Icon name={m.icon} className="nav-icon" />{m.label}
-            </NavLink>
-          ))}
+        <nav aria-busy={!user}>
+          {user
+            ? items.map((m) => (
+              <NavLink key={m.key} to={m.path} end={m.path === '/'}>
+                <Icon name={m.icon} className="nav-icon" />{m.label}
+              </NavLink>
+            ))
+            // Aún no se conoce el rol (y con él, qué módulos ve): marcadores del tamaño de cada opción.
+            : Array.from({ length: 9 }, (_, i) => (
+              <span key={i} className="nav-skeleton"><span className="sk sk-icon" /><span className="sk" style={{ width: `${55 + ((i * 23) % 35)}%` }} /></span>
+            ))}
         </nav>
         <div className="sidebar-foot">
           <div className="who">
-            <strong>{user?.name}</strong>
-            {user && <StatusBadge value={user.role} />}
+            {user ? <><strong>{user.name}</strong><StatusBadge value={user.role} /></> : <span className="sk" style={{ width: '60%' }} />}
           </div>
           <button className="btn btn-ghost btn-sm" onClick={logout}>Salir</button>
         </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
-import { moduleByKey } from '../data/modules'
+import { Link, useLocation } from 'react-router-dom'
+import { MODULES, moduleByKey } from '../data/modules'
 import type { PhotoRef } from '../data/types'
 
 export type Tone = 'green' | 'blue' | 'amber' | 'red' | 'gray' | 'violet'
@@ -47,6 +47,30 @@ export function PageHeader({ module, title, subtitle, actions }: { module?: stri
         </div>
       )}
     </header>
+  )
+}
+
+/** Lo que se ve en el contenido mientras cargan los datos: el título real del módulo y la forma de la pantalla. */
+export function PageSkeleton() {
+  const { pathname } = useLocation()
+  const m = MODULES.find((x) => (x.path === '/' ? pathname === '/' : pathname.startsWith(x.path)))
+  return (
+    <div aria-busy="true">
+      <span className="sr-only">Cargando…</span>
+      <header className="page-header">
+        {m ? <h1>{m.label}</h1> : <span className="sk sk-title" />}
+        <span className="sk sk-line" style={{ width: 'min(320px, 70%)' }} />
+      </header>
+      <div className="stats">
+        {Array.from({ length: 4 }, (_, i) => (
+          <div key={i} className="stat"><span className="sk" style={{ width: '50%' }} /><span className="sk sk-value" /></div>
+        ))}
+      </div>
+      <div className="card">
+        <span className="sk sk-line" style={{ width: '30%' }} />
+        {Array.from({ length: 6 }, (_, i) => <span key={i} className="sk sk-row" />)}
+      </div>
+    </div>
   )
 }
 

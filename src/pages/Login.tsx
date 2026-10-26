@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../data/store'
+import { Logo } from '../components/Logo'
 
 export default function Login() {
   const { login } = useStore()
@@ -47,20 +48,18 @@ export function Pending() {
   )
 }
 
-/** Mensaje de carga o de error mientras se leen los datos. */
-export function Splash({ error }: { error?: string }) {
+/** Error al leer los datos. Mientras cargan, la app muestra el layout con el esqueleto del módulo. */
+export function Splash({ error }: { error: string }) {
   const { logout } = useStore()
   return (
     <div className="login">
       <div className="login-card">
         <Brand />
-        {error ? <>
-          <p className="form-error">No se pudieron cargar los datos: {error}</p>
-          <div className="form-actions">
-            <button className="btn" onClick={logout}>Salir</button>
-            <button className="btn btn-primary" onClick={() => window.location.reload()}>Reintentar</button>
-          </div>
-        </> : <p className="muted">Cargando…</p>}
+        <p className="form-error">No se pudieron cargar los datos: {error}</p>
+        <div className="form-actions">
+          <button className="btn" onClick={logout}>Salir</button>
+          <button className="btn btn-primary" onClick={() => window.location.reload()}>Reintentar</button>
+        </div>
       </div>
     </div>
   )
@@ -69,7 +68,7 @@ export function Splash({ error }: { error?: string }) {
 function Brand() {
   return (
     <div className="brand brand-lg">
-      <span className="brand-mark">B</span>
+      <Logo className="brand-mark" />
       <div><strong>Flota Control</strong><small>Gestión de flota y rentas</small></div>
     </div>
   )
