@@ -1,15 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { MODULES } from '../data/modules'
 import { useStore } from '../data/store'
 import { StatusBadge } from './ui'
 import { Icon } from './Icon'
 import { Logo } from './Logo'
+import { Tour } from './Tour'
 import { TODAY, fecha } from '../lib/format'
 
 export default function Layout() {
   const { user, logout } = useStore()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [touring, setTouring] = useState(false)
+  const endTour = useCallback(() => setTouring(false), [])
   const loc = useLocation()
   useEffect(() => { setMenuOpen(false); window.scrollTo(0, 0) }, [loc.pathname])
 
@@ -50,11 +53,13 @@ export default function Layout() {
         <div className="topbar">
           <button className="icon-btn menu-btn" onClick={() => setMenuOpen(true)} aria-label="Abrir menú">☰</button>
           <span className="demo-pill">Hoy es {fecha(TODAY)}</span>
+          {user && <button className="btn btn-sm tour-btn" data-tour="start" onClick={() => setTouring(true)}>Tour guiado</button>}
         </div>
         <main className="content">
           <Outlet />
         </main>
       </div>
+      {touring && user && <Tour onClose={endTour} />}
     </div>
   )
 }

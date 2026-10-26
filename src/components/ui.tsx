@@ -1,6 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { MODULES, moduleByKey } from '../data/modules'
+import { useEffect, type ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
+import { MODULES } from '../data/modules'
 import type { PhotoRef } from '../data/types'
 
 export type Tone = 'green' | 'blue' | 'amber' | 'red' | 'gray' | 'violet'
@@ -25,10 +25,9 @@ export function StatusBadge({ value }: { value: string }) {
 }
 
 export function PageHeader({ module, title, subtitle, actions }: { module?: string; title: string; subtitle?: ReactNode; actions?: ReactNode }) {
-  const m = module ? moduleByKey(module) : undefined
-  const [open, setOpen] = useState(false)
+  // `data-module` es lo que resalta el tour guiado (components/Tour.tsx) en cada pantalla.
   return (
-    <header className="page-header">
+    <header className="page-header" data-module={module}>
       <div className="page-title-row">
         <div>
           <h1>{title}</h1>
@@ -36,16 +35,6 @@ export function PageHeader({ module, title, subtitle, actions }: { module?: stri
         </div>
         {actions && <div className="actions">{actions}</div>}
       </div>
-      {m && (
-        <div className={`module-info ${open ? 'open' : ''}`}>
-          <button className="link" onClick={() => setOpen(!open)}>ⓘ ¿Qué hace este módulo?</button>
-          {open && (
-            <p>
-              {m.summary} <Link to={`/documentacion#${m.anchor}`}>Ver documentación →</Link>
-            </p>
-          )}
-        </div>
-      )}
     </header>
   )
 }

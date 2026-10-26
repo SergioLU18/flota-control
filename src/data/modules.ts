@@ -1,4 +1,4 @@
-// Registro de módulos: alimenta el menú y el recuadro "¿Qué hace este módulo?" de cada pantalla.
+// Registro de módulos: alimenta el menú y el tour guiado (components/Tour.tsx).
 // La documentación completa está en docs/MODULOS.md (visible en /documentacion).
 import type { Role } from './types'
 import type { IconName } from '../components/Icon'
@@ -39,5 +39,3 @@ export const MODULES: ModuleInfo[] = [
   { key: 'docs', path: '/documentacion', label: 'Documentación', icon: 'book', anchor: '', roles: ['admin', 'operador'],
     summary: 'Qué hace cada módulo, sus reglas y qué queda para fases futuras.' },
 ]
-
-export const moduleByKey = (key: string) => MODULES.find((m) => m.key === key)!

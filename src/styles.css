@@ -70,6 +70,7 @@ input[type="range"] { padding: 0; border: 0; accent-color: var(--primary); }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .topbar { display: flex; align-items: center; gap: 10px; padding: 10px 24px; }
 .topbar .menu-btn { display: none; }
+.tour-btn { margin-left: auto; }
 .demo-pill { font-size: .78rem; color: var(--muted); background: var(--gray-soft); border: 1px solid var(--border); padding: 3px 10px; border-radius: 999px; }
 .content { padding: 4px 24px 48px; width: 100%; }
 .scrim { display: none; }
@@ -105,9 +106,24 @@ input[type="range"] { padding: 0; border: 0; accent-color: var(--primary); }
 .page-title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .page-title-row p { margin: 4px 0 0; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.module-info { margin-top: 10px; }
-.module-info p { margin: 6px 0 0; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; font-size: .9rem; }
 .crumb { margin: -8px 0 12px; font-size: .9rem; }
+
+/* ---------- Tour guiado ---------- */
+.tour-catcher { position: fixed; inset: 0; z-index: 60; }
+.tour-dim { position: fixed; inset: 0; z-index: 61; background: rgb(0 0 0 / .45); pointer-events: none; }
+.tour-spot {
+  position: fixed; z-index: 61; border-radius: 10px; pointer-events: none;
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / .45); transition: top .2s, left .2s, width .2s, height .2s;
+}
+.tour-pop {
+  position: fixed; z-index: 62; width: min(360px, calc(100vw - 32px)); padding: 16px 18px 14px;
+  background: var(--surface); border-radius: 12px; box-shadow: 0 20px 60px rgb(0 0 0 / .25); outline: none;
+}
+.tour-pop h2 { margin: 2px 0 6px; }
+.tour-pop p { margin: 0 0 14px; font-size: .92rem; }
+.tour-count { font-size: .75rem; color: var(--muted); }
+.tour-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+@media (prefers-reduced-motion: reduce) { .tour-spot { transition: none; } }
 
 /* ---------- Buttons ---------- */
 .btn {
