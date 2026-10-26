@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { Badge, Card, Modal, PageHeader, Progress, Stat, StatusBadge, Tabs } from '../components/ui'
+import { Icon } from '../components/Icon'
 import { ExpenseForm } from '../components/forms'
 import { EXPENSE_LABEL, financePeriods, incomeStatement, lastMonths, vehicleProfit, vehicleRecovery } from '../lib/finance'
 import { fecha, mes, mxn } from '../lib/format'
@@ -54,7 +55,7 @@ export default function Finance() {
             <optgroup label="Rangos">{periods.slice(0, 3).map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</optgroup>
             <optgroup label="Mes">{periods.slice(3).map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</optgroup>
           </select>
-          <button className="btn btn-primary" onClick={() => setAdding(true)}>＋ Registrar gasto</button>
+          <button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="plus" />Registrar gasto</button>
         </>} />
 
       <div className="stats">

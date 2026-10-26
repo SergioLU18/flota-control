@@ -19,7 +19,9 @@ import Orion from './pages/Orion'
 import Users from './pages/Users'
 import Docs from './pages/Docs'
 import Finance from './pages/Finance'
+import Settings from './pages/Settings'
 import './styles.css'
+import './lib/theme'
 
 function App() {
   const { user, status, loadError, hasSession } = useStore()
@@ -56,6 +58,7 @@ function App() {
         {admin && <Route path="orion" element={<Orion />} />}
         {admin && <Route path="usuarios" element={<Users />} />}
         <Route path="documentacion" element={<Docs />} />
+        <Route path="ajustes" element={<Settings />} />
         <Route path="*" element={<Dashboard />} />
       </Route>
     </Routes>

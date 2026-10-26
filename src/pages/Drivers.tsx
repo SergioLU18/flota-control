@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../data/store'
 import { Badge, Modal, PageHeader, Tabs } from '../components/ui'
+import { Icon } from '../components/Icon'
 import { DriverForm } from '../components/forms'
 import { activeRentalOfDriver, driverBalance, licenseStatus } from '../lib/calc'
 import { fecha, mxn } from '../lib/format'
@@ -22,7 +23,7 @@ export default function Drivers() {
 
   return (
     <>
-      <PageHeader module="conductores" title="Conductores" subtitle={`${data.drivers.length} registrados`} actions={<button className="btn btn-primary" onClick={() => setAdding(true)}>＋ Nuevo conductor</button>} />
+      <PageHeader module="conductores" title="Conductores" subtitle={`${data.drivers.length} registrados`} actions={<button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="plus" />Nuevo conductor</button>} />
       <div className="toolbar">
         <Tabs<Filter> value={filter} onChange={setFilter} tabs={[['todos', 'Todos'], ['activos', 'Con coche'], ['adeudo', 'Con adeudo']]} />
         <input className="search" placeholder="Buscar por nombre, CURP o teléfono…" value={q} onChange={(e) => setQ(e.target.value)} />

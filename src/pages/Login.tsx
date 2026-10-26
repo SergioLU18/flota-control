@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../data/store'
-import { Logo } from '../components/Logo'
+import { Brand as BrandMark } from '../components/Logo'
 
 export default function Login() {
   const { login } = useStore()
@@ -23,6 +23,7 @@ export default function Login() {
         }
       }}>
         <Brand />
+        <div className="login-intro"><h1>Inicia sesión</h1><p className="muted">Entra con tu correo y contraseña.</p></div>
         <label className="field"><span>Correo</span><input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus /></label>
         <label className="field"><span>Contraseña</span><input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
         {error && <p className="form-error">{error}</p>}
@@ -66,10 +67,5 @@ export function Splash({ error }: { error: string }) {
 }
 
 function Brand() {
-  return (
-    <div className="brand brand-lg">
-      <Logo className="brand-mark" />
-      <div><strong>Flota Control</strong><small>Gestión de flota y rentas</small></div>
-    </div>
-  )
+  return <BrandMark large sub="Gestión de flota y rentas" />
 }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { Modal, PageHeader, StatusBadge, Tabs } from '../components/ui'
+import { Icon } from '../components/Icon'
 import { EditRentalForm, EndRentalForm, PaymentForm, StartRentalForm } from '../components/forms'
 import { carName, rentalBalance } from '../lib/calc'
 import { TODAY, diffDays, fecha, mxn } from '../lib/format'
@@ -23,7 +24,7 @@ export default function Rentals() {
   return (
     <>
       <PageHeader module="rentas" title="Rentas" subtitle={`${active.length} activas · ${mxn(weekly)} por cobrar por semana`}
-        actions={<button className="btn btn-primary" onClick={() => setCreating(true)}>＋ Nueva renta</button>} />
+        actions={<button className="btn btn-primary" onClick={() => setCreating(true)}><Icon name="plus" />Nueva renta</button>} />
       <Tabs value={tab} onChange={setTab} tabs={[['activa', `Activas (${active.length})`], ['finalizada', 'Finalizadas']]} />
       <div className="table-wrap card">
         <table className="table">

@@ -37,7 +37,7 @@ export function Tour({ onClose }: { onClose: () => void }) {
     const mods = MODULES.filter((m) => user && m.roles.includes(user.role))
     return [
       {
-        targets: ['.sidebar nav', '.menu-btn'],
+        targets: ['.sidebar nav', '.tabbar'],
         title: 'Bienvenido a Flota Control',
         body: <>Vamos a recorrer los {mods.length} módulos que tienes disponibles. Puedes avanzar con las flechas del teclado y salir cuando quieras con Esc.</>,
       },

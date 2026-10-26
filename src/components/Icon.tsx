@@ -14,13 +14,20 @@ const PATHS = {
   return: <path d="M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3" />,
   plus: <path d="M12 5v14M5 12h14" />,
   chart: <><path d="M4 20V4M4 20h16" /><path d="M8 16v-4M12 16V8M16 16v-6" /></>,
+  check: <path d="M5 12.5 10 17.5 19 7" />,
+  back: <path d="M15 4.5 7.5 12l7.5 7.5" />,
+  forward: <path d="M9 4.5 16.5 12 9 19.5" />,
+  close: <path d="M7 7l10 10M17 7 7 17" />,
+  more: <><circle cx="5.5" cy="12" r="1.3" fill="currentColor" /><circle cx="12" cy="12" r="1.3" fill="currentColor" /><circle cx="18.5" cy="12" r="1.3" fill="currentColor" /></>,
+  logout: <><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" /><path d="M10 16.5 5.5 12 10 7.5M5.5 12H15" /></>,
+  compass: <><circle cx="12" cy="12" r="9" /><path d="m15.5 8.5-2 5-5 2 2-5z" /></>,
 }
 
 export type IconName = keyof typeof PATHS
 
 export function Icon({ name, className = 'icon' }: { name: IconName; className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       {PATHS[name]}
     </svg>
   )

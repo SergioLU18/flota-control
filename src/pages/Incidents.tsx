@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { Card, Lightbox, Modal, PageHeader, Photo, StatusBadge, Tabs } from '../components/ui'
+import { Icon } from '../components/Icon'
 import { IncidentForm } from '../components/forms'
 import { fecha, mxn } from '../lib/format'
 import type { PhotoRef } from '../data/types'
@@ -18,7 +19,7 @@ export default function Incidents() {
 
   return (
     <>
-      <PageHeader module="incidentes" title="Incidentes y accidentes" actions={<button className="btn btn-primary" onClick={() => setAdding(true)}>＋ Registrar incidente</button>} />
+      <PageHeader module="incidentes" title="Incidentes y accidentes" actions={<button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="plus" />Registrar incidente</button>} />
       <Tabs value={tab} onChange={setTab} tabs={[['abierto', 'Abiertos'], ['cerrado', 'Cerrados'], ['todos', 'Todos']]} />
       {error && <div className="banner banner-red" onClick={() => setError('')}>{error}</div>}
       <div className="stack">

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { Badge, Card, Modal, PageHeader, Progress, StatusBadge, Tabs } from '../components/ui'
+import { Icon } from '../components/Icon'
 import { MileageForm, ServiceForm } from '../components/forms'
 import { carName, maintenanceStatus, MAINTENANCE_INTERVAL } from '../lib/calc'
 import { fecha, km, mxn } from '../lib/format'
@@ -22,7 +23,7 @@ export default function Maintenance() {
   return (
     <>
       <PageHeader module="mantenimiento" title="Kilometraje y mantenimiento" subtitle={`${due} coches requieren servicio pronto`}
-        actions={<><button className="btn" onClick={() => setModal('km')}>＋ Registrar km</button><button className="btn btn-primary" onClick={() => setModal('service')}>＋ Registrar servicio</button></>} />
+        actions={<><button className="btn" onClick={() => setModal('km')}><Icon name="plus" />Registrar km</button><button className="btn btn-primary" onClick={() => setModal('service')}><Icon name="plus" />Registrar servicio</button></>} />
       <Tabs value={tab} onChange={setTab} tabs={[['alertas', 'Alertas de 10,000 km'], ['servicios', 'Servicios'], ['km', 'Registros de km'], ['catalogo', 'Catálogo']]} />
 
       {tab === 'alertas' && (

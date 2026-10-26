@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { Badge, Card, Field, Modal, PageHeader, Stat, StatusBadge, Tabs } from '../components/ui'
+import { Icon } from '../components/Icon'
 import { PaymentForm } from '../components/forms'
 import { carName, driverBalance, globalBalance, monthIncome, vehicleBalance, weekIncome } from '../lib/calc'
 import { CURRENT_MONDAY, TODAY, addDays, fecha, fechaCorta, mes, mxn } from '../lib/format'
@@ -50,7 +51,7 @@ export default function Billing() {
               setMsg(n ? `Se generaron ${n} cargos de renta pendientes hasta hoy.` : 'Los cargos ya estaban al día. No se duplicó nada.')
             } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
           }}>Generar cargos de la semana</button>
-          <button className="btn btn-primary" onClick={() => setPaying(true)}>＋ Registrar pago</button>
+          <button className="btn btn-primary" onClick={() => setPaying(true)}><Icon name="plus" />Registrar pago</button>
         </>} />
       {msg && <div className="banner banner-green" onClick={() => setMsg('')}>{msg}</div>}
       {error && <div className="banner banner-red" onClick={() => setError('')}>{error}</div>}

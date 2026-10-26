@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
-import { Card, Empty, Field, Lightbox, PageHeader, Photo, StatusBadge } from '../components/ui'
+import { BackLink, Card, Empty, Field, Lightbox, PageHeader, Photo, StatusBadge } from '../components/ui'
+import { Icon } from '../components/Icon'
 import { PhotoInput } from '../components/forms'
 import { activeRentalOf, vehicleLabel } from '../lib/calc'
 import { TODAY, fecha, fuelLabel, km } from '../lib/format'
@@ -18,7 +19,7 @@ export default function Inspections() {
 
   return (
     <>
-      <PageHeader module="inspecciones" title="Inspecciones con fotos" actions={<Link className="btn btn-primary" to="/inspecciones/nueva">＋ Nueva inspección</Link>} />
+      <PageHeader module="inspecciones" title="Inspecciones con fotos" actions={<Link className="btn btn-primary" to="/inspecciones/nueva"><Icon name="plus" />Nueva inspección</Link>} />
       <div className="grid-2">
         <Card title="Recientes" className="span-2">
           <div className="table-wrap"><table className="table compact">
@@ -103,8 +104,8 @@ export function NewInspection() {
 
   return (
     <>
+      <BackLink to="/inspecciones">Inspecciones</BackLink>
       <PageHeader module="inspecciones" title={`Inspección de ${f.kind === 'entrega' ? 'entrega' : 'recepción'}`} subtitle="Pensada para hacerse desde el iPad o el teléfono, junto al coche." />
-      <p className="crumb"><Link to="/inspecciones">← Inspecciones</Link></p>
       <form className="form card" onSubmit={async (e) => {
         e.preventDefault()
         if (busy) return

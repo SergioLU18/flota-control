@@ -324,7 +324,7 @@ export function PhotoInput({ photos, onChange, labels }: { photos: PhotoRef[]; o
       ) : (
         <div className="photo-grid">
           {photos.map((p) => <Photo key={p.id} photo={p} onClick={() => onChange(photos.filter((x) => x.id !== p.id))} />)}
-          <label className="photo-slot"><span>＋ Agregar fotos</span><input type="file" accept="image/*" multiple hidden onChange={(e) => add(e.target.files)} /></label>
+          <label className="photo-slot"><span><Icon name="plus" />Agregar fotos</span><input type="file" accept="image/*" multiple hidden onChange={(e) => add(e.target.files)} /></label>
         </div>
       )}
       <small className="muted">{busy ? 'Procesando…' : info || 'En iPad/teléfono abre la cámara. Las fotos se redimensionan a 1280 px y se comprimen antes de subir.'}</small>

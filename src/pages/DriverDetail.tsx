@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
-import { Card, Empty, Modal, PageHeader, Stat, StatusBadge, Tabs } from '../components/ui'
+import { BackLink, Card, Empty, Modal, PageHeader, Stat, StatusBadge, Tabs } from '../components/ui'
 import { DriverForm, PaymentForm, StartRentalForm } from '../components/forms'
 import { carName, activeRentalOfDriver, driverBalance, licenseStatus, rentalBalance } from '../lib/calc'
 import { TODAY, fecha, mes, mxn } from '../lib/format'
@@ -60,6 +60,7 @@ export default function DriverDetail() {
 
   return (
     <>
+      <BackLink to="/conductores">Conductores</BackLink>
       <PageHeader module="conductores" title={d.name}
         subtitle={<>{d.phone}{d.curp && <> · CURP {d.curp}</>}</>}
         actions={<>
@@ -67,7 +68,6 @@ export default function DriverDetail() {
           {active ? <button className="btn btn-primary" onClick={() => setModal('pay')}>Registrar pago</button>
             : <button className="btn btn-primary" onClick={() => setModal('rent')}>Asignar coche</button>}
         </>} />
-      <p className="crumb"><Link to="/conductores">← Conductores</Link></p>
 
       <div className="stats">
         <Stat label="Saldo / adeudo" value={mxn(bal.balance)} tone={bal.balance > 0 ? 'red' : 'green'} />

@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useStore } from '../data/store'
 import { COLOR_HEX } from '../data/catalogs'
 import { Modal, PageHeader, StatusBadge, Tabs } from '../components/ui'
+import { Icon } from '../components/Icon'
 import { VehicleForm } from '../components/forms'
 import { activeRentalOf, maintenanceStatus, vehicleBalance, type MaintLevel } from '../lib/calc'
 import { km, mxn } from '../lib/format'
@@ -11,9 +12,13 @@ type Filter = 'todos' | 'disponible' | 'rentado' | 'taller'
 type View = 'tabla' | 'grid'
 type SortKey = 'coche' | 'modelo' | 'km' | 'servicio' | 'renta' | 'saldo'
 
-const VIEW_KEY = 'flota.vista'
+export const FLEET_VIEW_KEY = 'flota.vista'
 const readView = (): View => {
-  try { return localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'tabla' } catch { return 'tabla' }
+  // Sin preferencia guardada: tarjetas en el celular, tabla en pantallas anchas.
+  let saved: string | null = null
+  try { saved = localStorage.getItem(FLEET_VIEW_KEY) } catch { /* sin almacenamiento */ }
+  if (saved) return saved === 'grid' ? 'grid' : 'tabla'
+  return window.matchMedia('(max-width: 760px)').matches ? 'grid' : 'tabla'
 }
 
 export default function Vehicles() {
@@ -34,7 +39,7 @@ export default function Vehicles() {
   const [view, setViewState] = useState<View>(readView)
   const setView = (v: View) => {
     setViewState(v)
-    try { localStorage.setItem(VIEW_KEY, v) } catch { /* sin almacenamiento */ }
+    try { localStorage.setItem(FLEET_VIEW_KEY, v) } catch { /* sin almacenamiento */ }
   }
 
   const rows = data.vehicles
@@ -87,7 +92,7 @@ export default function Vehicles() {
 
   return (
     <>
-      <PageHeader module="flota" title="Flota" subtitle={`${data.vehicles.length} coches`} actions={<button className="btn btn-primary" onClick={() => setAdding(true)}>＋ Nuevo coche</button>} />
+      <PageHeader module="flota" title="Flota" subtitle={`${data.vehicles.length} coches`} actions={<button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="plus" />Nuevo coche</button>} />
       <Tabs<Filter> value={filter} onChange={(f) => setParam('estado', f === 'todos' ? '' : f)}
         tabs={[['todos', `Todos (${count('todos')})`], ['rentado', `Rentados (${count('rentado')})`], ['disponible', `Disponibles (${count('disponible')})`], ['taller', `En taller (${count('taller')})`]]} />
       <div className="toolbar toolbar-row">

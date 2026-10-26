@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
-import { Badge, Card, Empty, Lightbox, Modal, PageHeader, Photo, Progress, Stat, StatusBadge, Tabs } from '../components/ui'
+import { BackLink, Badge, Card, Empty, Lightbox, Modal, PageHeader, Photo, Progress, Stat, StatusBadge, Tabs } from '../components/ui'
 import { EndRentalForm, IncidentForm, MileageForm, ServiceForm, StartRentalForm, VehicleForm } from '../components/forms'
 import { activeRentalOf, maintenanceStatus, rentalBalance, vehicleBalance, MAINTENANCE_INTERVAL } from '../lib/calc'
 import { vehicleRecovery } from '../lib/finance'
@@ -57,6 +57,7 @@ export default function VehicleDetail() {
 
   return (
     <>
+      <BackLink to="/flota">Flota</BackLink>
       <PageHeader
         module="flota"
         title={`${v.unit ? `${v.unit} · ` : ''}${v.brand} ${v.model} ${v.year}`}
@@ -70,7 +71,6 @@ export default function VehicleDetail() {
             : <button className="btn" onClick={() => setVehicleStatus(v.id, 'taller').catch((e: Error) => setError(e.message))}>Enviar a taller</button>)}
         </>}
       />
-      <p className="crumb"><Link to="/flota">← Flota</Link></p>
       {error && <div className="banner banner-red" onClick={() => setError('')}>{error}</div>}
       <Tabs value={tab} onChange={setTab} tabs={tabs} />
 
@@ -135,7 +135,7 @@ export default function VehicleDetail() {
       )}
 
       {tab === 'km' && (
-        <Card title="Registros de kilometraje" actions={<button className="btn btn-sm" onClick={() => setModal('km')}>＋ Registrar km</button>}>
+        <Card title="Registros de kilometraje" actions={<button className="btn btn-sm" onClick={() => setModal('km')}><Icon name="plus" />Registrar km</button>}>
           <table className="table">
             <thead><tr><th>Fecha</th><th className="num">Odómetro</th><th>Origen</th></tr></thead>
             <tbody>{mileage.map((x) => <tr key={x.id}><td>{fecha(x.date)}</td><td className="num">{km(x.km)}</td><td><StatusBadge value={x.source} /></td></tr>)}</tbody>
@@ -145,7 +145,7 @@ export default function VehicleDetail() {
 
       {tab === 'mantenimiento' && (
         <div className="grid-2">
-          <Card title="Servicios" actions={<button className="btn btn-sm" onClick={() => setModal('service')}>＋ Registrar servicio</button>} className="span-2">
+          <Card title="Servicios" actions={<button className="btn btn-sm" onClick={() => setModal('service')}><Icon name="plus" />Registrar servicio</button>} className="span-2">
             <div className="table-wrap">
               <table className="table">
                 <thead><tr><th>Fecha</th><th>Tipo</th><th className="num">Km</th><th>Taller</th><th className="num">Costo</th><th>Notas</th></tr></thead>
@@ -171,7 +171,7 @@ export default function VehicleDetail() {
       )}
 
       {tab === 'incidentes' && (
-        <Card title="Incidentes" actions={<button className="btn btn-sm" onClick={() => setModal('incident')}>＋ Registrar incidente</button>}>
+        <Card title="Incidentes" actions={<button className="btn btn-sm" onClick={() => setModal('incident')}><Icon name="plus" />Registrar incidente</button>}>
           {incidents.length === 0 ? <Empty>Sin incidentes registrados.</Empty> : incidents.map((i) => (
             <div key={i.id} className="incident">
               <div className="incident-head"><strong>{i.type}</strong> <StatusBadge value={i.status} /> <span className="muted small">{fecha(i.date)} · {mxn(i.cost)} · responsable: {i.responsible}</span></div>

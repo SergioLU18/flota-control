@@ -1,7 +1,8 @@
 import { useEffect, type ReactNode } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { MODULES } from '../data/modules'
 import type { PhotoRef } from '../data/types'
+import { Icon } from './Icon'
 
 export type Tone = 'green' | 'blue' | 'amber' | 'red' | 'gray' | 'violet'
 
@@ -108,14 +109,20 @@ export function Modal({ open, title, onClose, children, wide }: { open: boolean;
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
       <div className={`modal ${wide ? 'modal-wide' : ''}`} role="dialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="modal-grabber" aria-hidden />
         <div className="modal-head">
           <h2>{title}</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="Cerrar">✕</button>
+          <button className="close-btn" onClick={onClose} aria-label="Cerrar"><Icon name="close" /></button>
         </div>
         <div className="modal-body">{children}</div>
       </div>
     </div>
   )
+}
+
+/** Regreso a la lista, como el botón "atrás" de iOS. */
+export function BackLink({ to, children }: { to: string; children: ReactNode }) {
+  return <p className="crumb"><Link to={to} className="back-link"><Icon name="back" />{children}</Link></p>
 }
 
 export function Field({ label, children, hint, full }: { label: string; children: ReactNode; hint?: ReactNode; full?: boolean }) {
