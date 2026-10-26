@@ -1,3 +1,9 @@
 node_modules
 dist
 *.local
+.env
+# Datos reales de clientes: el concentrado y lo que se genera de él no se suben
+*.xlsx
+supabase/historial/concentrado.sql
+supabase/historial/esperado.json
+supabase/historial/REPORTE.md

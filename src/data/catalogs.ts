@@ -2,6 +2,7 @@
 
 export const COLOR_HEX: Record<string, string> = {
   Blanco: '#e9ecef', 'Gris plata': '#adb5bd', Negro: '#2b2f33', Rojo: '#b63a2e', Azul: '#2e5c9a', 'Gris oxford': '#5c636a',
+  'Gris claro': '#ced4da', 'Gris oscuro': '#495057', 'Azul oscuro': '#1f3a63',
 }
 
 // Sugerencias para el campo "Taller"; se puede escribir cualquier otro.

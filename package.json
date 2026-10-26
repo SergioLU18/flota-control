@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "db:test": "node supabase/pruebas.mjs"
+    "db:test": "node supabase/pruebas.mjs",
+    "db:historial": "node supabase/historial/probar.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

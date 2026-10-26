@@ -52,6 +52,19 @@ npx supabase gen types typescript --linked --schema public > src/lib/database.ty
 
 La app solo necesita la URL del proyecto y la **publishable/anon key** (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`). La service role key **nunca** va en el frontend. Solo la usa la futura tarea de Orión.
 
+## Historial (concentrado de rentas)
+
+El historial previo a la app viene de `CONCENTRADO RENTA.xlsx` (una hoja por semana desde el 13/07/2026). Ni el Excel ni lo que se genera de él se suben a git porque traen datos personales.
+
+```bash
+py supabase/historial/importar_concentrado.py   # genera concentrado.sql, REPORTE.md y esperado.json
+npm run db:historial                            # prueba la carga en PGlite: saldos, estados y que generar_cargos no duplique
+```
+
+`REPORTE.md` muestra cada renta con su saldo y lo que conviene revisar a mano. Las reglas de interpretación están al inicio de `importar_concentrado.py`. En resumen: los pagos semanales salen de PAGADO/NO PAGADO, y un ajuste por renta deja el saldo igual a la deuda anotada en la última semana.
+
+Para cargarlo en Supabase se necesita que ya exista un admin activo (paso 5). Los pagos quedan a su nombre y la bitácora los marca como "Importó historial del concentrado". El archivo es un solo bloque `do`, porque el SQL Editor no respeta `begin`/`commit`: si algo falla no se guarda nada, y si se corre dos veces la segunda se rechaza. Para aplicarlo, pega `concentrado.sql` en el SQL Editor o córrelo con `psql "<connection string>" -f supabase/historial/concentrado.sql`.
+
 ## Tablas
 
 | Módulo | Tablas |
