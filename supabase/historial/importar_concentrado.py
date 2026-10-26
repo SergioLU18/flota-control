@@ -189,12 +189,24 @@ for placas, semanas in por_placas.items():
     if vin and len(vin) != 17:
         avisos.append(f'El VIN de {placas} ({vin}) tiene {len(vin)} caracteres; se guardó tal cual.')
     unidad = ultimo(semanas, 'unidad')
-    notas = f'Unidad {unidad}.' + (f" Transmisión {'automática' if trans.startswith('AUTO') else 'estándar'}." if trans else '')
+    notas = f"Transmisión {'automática' if trans.startswith('AUTO') else 'estándar'}." if trans else ''
     vehiculos[placas] = {
         'id': uid('vehiculo', placas), 'unidad': unidad, 'marca': marca.capitalize(),
         'modelo': modelo.title() if not re.search(r'\d', modelo) else modelo.upper(), 'anio': anio,
         'placas': placas, 'color': color, 'vin': vin, 'notas': notas,
     }
+
+# Una unidad repetida no se le asigna a ninguno de sus coches: queda en las notas para resolverla a mano.
+por_unidad = defaultdict(list)
+for v in vehiculos.values():
+    por_unidad[v['unidad']].append(v)
+for u, vs in por_unidad.items():
+    for v in vs:
+        v['unidad_bd'] = u if len(vs) == 1 else None
+        if len(vs) > 1:
+            v['notas'] = f"Unidad {u}. {v['notas']}".strip()
+    if len(vs) > 1:
+        avisos.append(f"La unidad {u} aparece en {len(vs)} coches ({', '.join(v['placas'] for v in vs)}); se dejaron sin unidad.")
 
 # ------------------------------------------------------------
 # Kilometraje: la cadena más larga de lecturas que no retroceden ni saltan de más
@@ -396,8 +408,8 @@ w("""if not exists (select 1 from public.usuarios where rol = 'admin' and activo
   raise exception 'Primero da de alta y activa un admin (ver supabase/README.md)';
 end if;""")
 w('')
-w('insert into public.vehiculos (id, marca, modelo, anio, placas, color, vin, notas) values')
-w(',\n'.join(f"  ({sql(v['id'])}, {sql(v['marca'])}, {sql(v['modelo'])}, {v['anio']}, {sql(v['placas'])}, {sql(v['color'])}, {sql(v['vin'])}, {sql(v['notas'])})"
+w('insert into public.vehiculos (id, unidad, marca, modelo, anio, placas, color, vin, notas) values')
+w(',\n'.join(f"  ({sql(v['id'])}, {sql(v['unidad_bd'])}, {sql(v['marca'])}, {sql(v['modelo'])}, {v['anio']}, {sql(v['placas'])}, {sql(v['color'])}, {sql(v['vin'])}, {sql(v['notas'])})"
              for v in sorted(vehiculos.values(), key=lambda v: int(v['unidad'][2:]))) + ';')
 w('')
 w('insert into public.conductores (id, nombre, notas) values')

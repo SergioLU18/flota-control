@@ -55,8 +55,8 @@ export function alerts(d: Data) {
   const out: { level: 'alta' | 'media'; text: string; to: string }[] = []
   d.vehicles.forEach((v) => {
     const m = maintenanceStatus(v, d.services)
-    if (m.level === 'vencido') out.push({ level: 'alta', text: `${v.brand} ${v.model} ${v.plates}: servicio vencido (${m.since.toLocaleString('es-MX')} km desde el último)`, to: `/flota/${v.id}` })
-    else if (m.level === 'proximo') out.push({ level: 'media', text: `${v.brand} ${v.model} ${v.plates}: servicio en ${m.remaining.toLocaleString('es-MX')} km`, to: `/flota/${v.id}` })
+    if (m.level === 'vencido') out.push({ level: 'alta', text: `${carName(v)} ${v.plates}: servicio vencido (${m.since.toLocaleString('es-MX')} km desde el último)`, to: `/flota/${v.id}` })
+    else if (m.level === 'proximo') out.push({ level: 'media', text: `${carName(v)} ${v.plates}: servicio en ${m.remaining.toLocaleString('es-MX')} km`, to: `/flota/${v.id}` })
   })
   d.drivers.forEach((dr) => {
     const active = activeRentalOfDriver(d, dr.id)
@@ -69,9 +69,11 @@ export function alerts(d: Data) {
   })
   d.incidents.filter((i) => i.status === 'abierto').forEach((i) => {
     const v = d.vehicles.find((x) => x.id === i.vehicleId)!
-    out.push({ level: 'media', text: `Incidente abierto: ${i.type} · ${v.brand} ${v.model} ${v.plates}`, to: '/incidentes' })
+    out.push({ level: 'media', text: `Incidente abierto: ${i.type} · ${carName(v)} ${v.plates}`, to: '/incidentes' })
   })
   return out.sort((a, b) => (a.level === b.level ? 0 : a.level === 'alta' ? -1 : 1))
 }
 
-export const vehicleLabel = (v: Vehicle) => `${v.brand} ${v.model} · ${v.plates}`
+/** "C-14 · Kia K3"; sin unidad, solo marca y modelo. */
+export const carName = (v: Vehicle) => `${v.unit ? `${v.unit} · ` : ''}${v.brand} ${v.model}`
+export const vehicleLabel = (v: Vehicle) => `${carName(v)} · ${v.plates}`

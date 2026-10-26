@@ -53,7 +53,7 @@ const vehicles: Vehicle[] = Array.from({ length: 30 }, (_, i) => {
   }))
   const status = i < 22 ? 'rentado' : i >= 27 ? 'taller' : 'disponible'
   return {
-    id: vid(i), brand, model, year,
+    id: vid(i), unit: `C-${i + 1}`, brand, model, year,
     plates: `Y${String.fromCharCode(65 + (i % 26))}${String.fromCharCode(65 + ((i * 7) % 26))}-${101 + i * 17}-A`,
     color: COLORS[i % COLORS.length],
     vin: ('3N1' + brand.slice(0, 2).toUpperCase() + (100000000000 + i * 7351331917).toString(36).toUpperCase()).padEnd(17, '7').slice(0, 17),

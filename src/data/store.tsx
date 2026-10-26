@@ -95,7 +95,7 @@ function useStoreValue() {
     /** Alta o edición. El km no se guarda en el coche: se registra como lectura manual si subió. */
     saveVehicle: (v: Vehicle) => write(async () => {
       const row = {
-        marca: v.brand.trim(), modelo: v.model.trim(), anio: v.year, placas: v.plates.trim().toUpperCase(), color: v.color,
+        unidad: orNull(v.unit)?.toUpperCase() ?? null, marca: v.brand.trim(), modelo: v.model.trim(), anio: v.year, placas: v.plates.trim().toUpperCase(), color: v.color,
         vin: orNull(v.vin)?.toUpperCase() ?? null, estado: v.status, notas: v.notes, precio_compra: v.purchasePrice || null,
         fecha_compra: v.purchaseDate || null, orion_equipo_id: orNull(v.orionDeviceId),
       }

@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useStore } from '../data/store'
 import { Badge, Card, PageHeader, Progress, Stat, StatusBadge } from '../components/ui'
-import { activeRentalOfDriver, alerts, driverBalance, globalBalance, maintenanceStatus, monthIncome, weekIncome, MAINTENANCE_INTERVAL } from '../lib/calc'
+import { carName, activeRentalOfDriver, alerts, driverBalance, globalBalance, maintenanceStatus, monthIncome, weekIncome, MAINTENANCE_INTERVAL } from '../lib/calc'
 import { CURRENT_MONDAY, TODAY, addDays, km, mes, mxn, rangoFechas } from '../lib/format'
 
 export default function Dashboard() {
@@ -83,7 +83,7 @@ export default function Dashboard() {
             <tbody>
               {upcoming.map(({ v, m }) => (
                 <tr key={v.id}>
-                  <td><Link to={`/flota/${v.id}`}>{v.brand} {v.model}</Link><div className="muted small">{v.plates}</div></td>
+                  <td><Link to={`/flota/${v.id}`}>{carName(v)}</Link><div className="muted small">{v.plates}</div></td>
                   <td style={{ minWidth: 140 }}>
                     <Progress value={m.since / MAINTENANCE_INTERVAL} tone={m.level === 'vencido' ? 'red' : m.level === 'proximo' ? 'amber' : 'green'} />
                     <span className="small muted">{km(m.since)}</span>

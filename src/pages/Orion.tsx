@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useStore } from '../data/store'
 import { Badge, Card, Empty, PageHeader, StatusBadge } from '../components/ui'
 import { fechaHora, km } from '../lib/format'
+import { carName } from '../lib/calc'
 
 export default function Orion() {
   const { data } = useStore()
@@ -39,7 +40,7 @@ export default function Orion() {
             <thead><tr><th>Equipo</th><th>Coche</th><th>Estado</th><th className="num">Km actual</th><th>Última lectura Orión</th></tr></thead>
             <tbody>{linked.map((v) => {
               const last = data.mileage.filter((m) => m.vehicleId === v.id && m.source === 'orion').sort((a, b) => (a.date < b.date ? 1 : -1))[0]
-              return <tr key={v.id}><td><code>{v.orionDeviceId}</code></td><td><Link to={`/flota/${v.id}`}>{v.brand} {v.model} {v.plates}</Link></td><td><StatusBadge value={v.status} /></td><td className="num">{km(v.currentKm)}</td><td className="small">{last ? `${last.date} · ${km(last.km)}` : '—'}</td></tr>
+              return <tr key={v.id}><td><code>{v.orionDeviceId}</code></td><td><Link to={`/flota/${v.id}`}>{carName(v)} {v.plates}</Link></td><td><StatusBadge value={v.status} /></td><td className="num">{km(v.currentKm)}</td><td className="small">{last ? `${last.date} · ${km(last.km)}` : '—'}</td></tr>
             })}</tbody>
           </table></div>
         </Card>

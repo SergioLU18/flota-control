@@ -14,7 +14,7 @@ export const BUCKET = 'archivos'
 /** Traduce los errores de Postgres/PostgREST a un mensaje para el usuario. Los triggers ya hablan en español. */
 export function friendly(e: { code?: string; message: string }): string {
   if (e.code === '42501' || /row-level security/i.test(e.message)) return 'No tienes permiso para esta acción.'
-  if (e.code === '23505') return 'Ya existe un registro con esos datos (placas, VIN, CURP o correo repetidos).'
+  if (e.code === '23505') return 'Ya existe un registro con esos datos (unidad, placas, VIN, CURP o correo repetidos).'
   if (e.code === '23P01') return 'Se traslapa con otra renta o cargo del mismo coche o conductor.'
   if (e.code === '23514') return `Algún dato no es válido (${e.message}).`
   return e.message

@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { Card, Empty, Modal, PageHeader, Stat, StatusBadge, Tabs } from '../components/ui'
 import { DriverForm, PaymentForm, StartRentalForm } from '../components/forms'
-import { activeRentalOfDriver, driverBalance, licenseStatus, rentalBalance } from '../lib/calc'
+import { carName, activeRentalOfDriver, driverBalance, licenseStatus, rentalBalance } from '../lib/calc'
 import { TODAY, fecha, mes, mxn } from '../lib/format'
 import { downloadCsv } from '../lib/files'
 import type { DocType, DriverDocument } from '../data/types'
@@ -127,7 +127,7 @@ export default function DriverDetail() {
               const v = L.vehicle(r.vehicleId)
               return (
                 <tr key={r.id}>
-                  <td><Link to={`/flota/${v.id}`}>{v.brand} {v.model}</Link> <span className="muted small">{v.plates}</span></td>
+                  <td><Link to={`/flota/${v.id}`}>{carName(v)}</Link> <span className="muted small">{v.plates}</span></td>
                   <td>{fecha(r.startDate)}</td><td>{r.endDate ? fecha(r.endDate) : <StatusBadge value="activa" />}</td>
                   <td className="num">{mxn(r.weeklyRate)}</td>
                   <td className="num">{((r.endKm ?? v.currentKm) - r.startKm).toLocaleString('es-MX')}</td>

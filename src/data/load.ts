@@ -68,7 +68,7 @@ export async function loadData(): Promise<Data> {
   return {
     users: usuarios.map((u) => ({ id: u.id, name: u.nombre, email: u.correo, role: u.rol as User['role'], active: u.activo })),
     vehicles: vehiculos.map((v) => ({
-      id: v.id, brand: v.marca, model: v.modelo, year: v.anio, plates: v.placas, color: v.color, vin: v.vin ?? '',
+      id: v.id, unit: v.unidad ?? undefined, brand: v.marca, model: v.modelo, year: v.anio, plates: v.placas, color: v.color, vin: v.vin ?? '',
       currentKm: v.km_actual, status: v.estado as Data['vehicles'][number]['status'], notes: v.notas,
       purchasePrice: v.precio_compra ?? 0, purchaseDate: v.fecha_compra ?? v.creado_en.slice(0, 10),
       orionDeviceId: v.orion_equipo_id ?? undefined, tires: tiresByVehicle.get(v.id) ?? [],
@@ -133,7 +133,7 @@ const TABLE_LABEL: Record<string, string> = {
 }
 const OP_LABEL: Record<string, string> = { alta: 'Alta de', cambio: 'Cambio en', baja: 'Baja de' }
 // Campos que identifican el registro en una alta o baja, en orden de preferencia.
-const SUMMARY = ['placas', 'nombre', 'concepto', 'tipo', 'monto', 'km', 'fecha']
+const SUMMARY = ['placas', 'unidad','nombre', 'concepto', 'tipo', 'monto', 'km', 'fecha']
 
 const show = (v: Json | undefined) => (v === null || v === undefined || v === '' ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v))
 const obj = (j: Json | null) => (j && typeof j === 'object' && !Array.isArray(j) ? j : {})

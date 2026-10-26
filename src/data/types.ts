@@ -22,6 +22,8 @@ export interface Tire {
 
 export interface Vehicle {
   id: string
+  /** Número de unidad con el que el negocio identifica el coche (C-1, C-2…). */
+  unit?: string
   brand: string
   model: string
   year: number

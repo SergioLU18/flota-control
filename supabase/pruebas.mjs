@@ -54,7 +54,7 @@ for (const u of seed.users) {
 
 for (const v of seed.vehicles) {
   await insert('vehiculos', {
-    id: id(v.id), marca: v.brand, modelo: v.model, anio: v.year, placas: v.plates, color: v.color, vin: v.vin,
+    id: id(v.id), unidad: v.unit ?? null, marca: v.brand, modelo: v.model, anio: v.year, placas: v.plates, color: v.color, vin: v.vin,
     estado: v.status === 'taller' ? 'taller' : 'disponible', // 'rentado' lo pone la renta
     notas: v.notes, precio_compra: v.purchasePrice, fecha_compra: v.purchaseDate, orion_equipo_id: v.orionDeviceId ?? null,
   })

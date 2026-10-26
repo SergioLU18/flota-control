@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { Modal, PageHeader, StatusBadge, Tabs } from '../components/ui'
 import { EditRentalForm, EndRentalForm, PaymentForm, StartRentalForm } from '../components/forms'
-import { rentalBalance } from '../lib/calc'
+import { carName, rentalBalance } from '../lib/calc'
 import { TODAY, diffDays, fecha, mxn } from '../lib/format'
 import type { Rental } from '../data/types'
 
@@ -35,7 +35,7 @@ export default function Rentals() {
               const bal = rentalBalance(data, r.id).balance
               return (
                 <tr key={r.id}>
-                  <td><Link to={`/flota/${v.id}`}>{v.brand} {v.model}</Link><div className="muted small">{v.plates}</div></td>
+                  <td><Link to={`/flota/${v.id}`}>{carName(v)}</Link><div className="muted small">{v.plates}</div></td>
                   <td><Link to={`/conductores/${d.id}`}>{d.name}</Link></td>
                   <td>{fecha(r.startDate)}<div className="muted small">{Math.floor(diffDays(r.endDate ?? TODAY, r.startDate) / 7)} semanas</div></td>
                   {tab === 'finalizada' && <td>{fecha(r.endDate)}</td>}

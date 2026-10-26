@@ -59,7 +59,7 @@ export default function VehicleDetail() {
     <>
       <PageHeader
         module="flota"
-        title={`${v.brand} ${v.model} ${v.year}`}
+        title={`${v.unit ? `${v.unit} · ` : ''}${v.brand} ${v.model} ${v.year}`}
         subtitle={<><span className="plate">{v.plates}</span> · {v.color}{v.vin && <> · VIN {v.vin}</>} · <StatusBadge value={v.status} /></>}
         actions={<>
           <button className="btn" onClick={() => setModal('edit')}>Editar</button>
@@ -98,6 +98,7 @@ export default function VehicleDetail() {
           </Card>
           <Card title="Datos del coche">
             <dl className="dl">
+              <dt>Unidad</dt><dd>{v.unit ?? <span className="muted">Sin unidad</span>}</dd>
               <dt>Marca / modelo</dt><dd>{v.brand} {v.model}</dd>
               <dt>Año</dt><dd>{v.year}</dd>
               <dt>Placas</dt><dd>{v.plates}</dd>

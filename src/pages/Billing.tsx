@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { Badge, Card, Field, Modal, PageHeader, Stat, StatusBadge, Tabs } from '../components/ui'
 import { PaymentForm } from '../components/forms'
-import { driverBalance, globalBalance, monthIncome, vehicleBalance, weekIncome } from '../lib/calc'
+import { carName, driverBalance, globalBalance, monthIncome, vehicleBalance, weekIncome } from '../lib/calc'
 import { CURRENT_MONDAY, TODAY, addDays, fecha, fechaCorta, mes, mxn } from '../lib/format'
 import type { PaymentMethod } from '../data/types'
 import { downloadCsv } from '../lib/files'
@@ -78,7 +78,7 @@ export default function Billing() {
         <Card><div className="table-wrap"><table className="table">
           <thead><tr><th>Coche</th><th>Estado</th><th className="num">Cargado</th><th className="num">Pagado</th><th className="num">Saldo</th></tr></thead>
           <tbody>{byVehicle.map(({ v, charged, paid, balance }) => (
-            <tr key={v.id}><td><Link to={`/flota/${v.id}`}>{v.brand} {v.model}</Link> <span className="muted small">{v.plates}</span></td><td><StatusBadge value={v.status} /></td><td className="num">{mxn(charged)}</td><td className="num">{mxn(paid)}</td><td className={`num ${balance > 0 ? 'neg' : ''}`}>{mxn(balance)}</td></tr>
+            <tr key={v.id}><td><Link to={`/flota/${v.id}`}>{carName(v)}</Link> <span className="muted small">{v.plates}</span></td><td><StatusBadge value={v.status} /></td><td className="num">{mxn(charged)}</td><td className="num">{mxn(paid)}</td><td className={`num ${balance > 0 ? 'neg' : ''}`}>{mxn(balance)}</td></tr>
           ))}</tbody>
         </table></div></Card>
       )}

@@ -42,19 +42,24 @@ const num = (s: string) => Number(s.replace(/[^\d.]/g, '')) || 0
 
 // ---------- Vehículo ----------
 export function VehicleForm({ vehicle, onDone }: { vehicle?: Vehicle; onDone: () => void }) {
-  const { saveVehicle } = useStore()
+  const { data, saveVehicle } = useStore()
   const [v, setV] = useState<Vehicle>(vehicle ?? {
     id: '', brand: '', model: '', year: new Date().getFullYear(), plates: '', color: 'Blanco', vin: '', currentKm: 0, status: 'disponible',
     notes: '', purchasePrice: 0, purchaseDate: TODAY, tires: [],
   })
   const [error, setError] = useState('')
   const set = <K extends keyof Vehicle>(k: K, val: Vehicle[K]) => setV({ ...v, [k]: val })
+  const unitTaken = v.unit?.trim() ? data.vehicles.find((x) => x.id !== v.id && x.unit === v.unit?.trim().toUpperCase()) : undefined
   return (
     <FormShell submit="Guardar coche" error={error} onSubmit={async () => {
       if (!v.brand || !v.model || !v.plates) return setError('Marca, modelo y placas son obligatorios.')
+      if (unitTaken) return setError(`La unidad ${unitTaken.unit} ya la tiene ${unitTaken.brand} ${unitTaken.model} ${unitTaken.plates}.`)
       setError('')
       await saveVehicle(v); onDone()
     }}>
+      <Field label="Unidad" hint={unitTaken ? <span className="neg">Ya la tiene {unitTaken.brand} {unitTaken.model} {unitTaken.plates}</span> : 'Ej. C-27'}>
+        <input value={v.unit ?? ''} onChange={(e) => set('unit', e.target.value.toUpperCase() || undefined)} placeholder="C-27" />
+      </Field>
       <Field label="Marca"><input value={v.brand} onChange={(e) => set('brand', e.target.value)} placeholder="Nissan" /></Field>
       <Field label="Modelo"><input value={v.model} onChange={(e) => set('model', e.target.value)} placeholder="Versa" /></Field>
       <Field label="Año"><input type="number" value={v.year} onChange={(e) => set('year', num(e.target.value))} /></Field>

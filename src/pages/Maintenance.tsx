@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { Badge, Card, Modal, PageHeader, Progress, StatusBadge, Tabs } from '../components/ui'
 import { MileageForm, ServiceForm } from '../components/forms'
-import { maintenanceStatus, MAINTENANCE_INTERVAL } from '../lib/calc'
+import { carName, maintenanceStatus, MAINTENANCE_INTERVAL } from '../lib/calc'
 import { fecha, km, mxn } from '../lib/format'
 
 type Tab = 'alertas' | 'servicios' | 'km' | 'catalogo'
@@ -32,7 +32,7 @@ export default function Maintenance() {
             <thead><tr><th>Coche</th><th>Último servicio</th><th style={{ minWidth: 160 }}>Km desde servicio</th><th className="num">Próximo a los</th><th>Estado</th></tr></thead>
             <tbody>{status.map(({ v, m }) => (
               <tr key={v.id}>
-                <td><Link to={`/flota/${v.id}`}>{v.brand} {v.model}</Link><div className="muted small">{v.plates} · <StatusBadge value={v.status} /></div></td>
+                <td><Link to={`/flota/${v.id}`}>{carName(v)}</Link><div className="muted small">{v.plates} · <StatusBadge value={v.status} /></div></td>
                 <td>{m.last ? fecha(m.last.date) : '—'}<div className="muted small">{m.last && km(m.last.km)}</div></td>
                 <td><Progress value={m.since / MAINTENANCE_INTERVAL} tone={m.level === 'vencido' ? 'red' : m.level === 'proximo' ? 'amber' : 'green'} /><span className="small">{km(m.since)}</span></td>
                 <td className="num">{km(m.nextKm)}</td>

@@ -1119,6 +1119,7 @@ export type Database = {
           orion_equipo_id: string | null
           placas: string
           precio_compra: number | null
+          unidad: string | null
           vin: string | null
         }
         Insert: {
@@ -1136,6 +1137,7 @@ export type Database = {
           orion_equipo_id?: string | null
           placas: string
           precio_compra?: number | null
+          unidad?: string | null
           vin?: string | null
         }
         Update: {
@@ -1153,6 +1155,7 @@ export type Database = {
           orion_equipo_id?: string | null
           placas?: string
           precio_compra?: number | null
+          unidad?: string | null
           vin?: string | null
         }
         Relationships: []

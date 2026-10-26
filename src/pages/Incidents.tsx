@@ -5,6 +5,7 @@ import { Card, Lightbox, Modal, PageHeader, Photo, StatusBadge, Tabs } from '../
 import { IncidentForm } from '../components/forms'
 import { fecha, mxn } from '../lib/format'
 import type { PhotoRef } from '../data/types'
+import { carName } from '../lib/calc'
 
 export default function Incidents() {
   const { data, closeIncident } = useStore()
@@ -27,7 +28,7 @@ export default function Incidents() {
           return (
             <Card key={i.id} title={<>{i.type} <StatusBadge value={i.status} /></>} actions={i.status === 'abierto' && <button className="btn btn-sm" onClick={() => closeIncident(i.id).catch((e: Error) => setError(e.message))}>Cerrar</button>}>
               <p className="muted small">
-                {fecha(i.date)} · <Link to={`/flota/${v.id}`}>{v.brand} {v.model} {v.plates}</Link>
+                {fecha(i.date)} · <Link to={`/flota/${v.id}`}>{carName(v)} {v.plates}</Link>
                 {d && <> · <Link to={`/conductores/${d.id}`}>{d.name}</Link></>} · Costo {mxn(i.cost)} · Responsable: <b>{i.responsible}</b>
               </p>
               <p>{i.description}</p>
