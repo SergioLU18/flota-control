@@ -364,8 +364,9 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 .stat-amber .stat-value { color: var(--amber); }
 @media (max-width: 600px) { .stat-value { font-size: 1.25rem; } .stat { padding: 14px; } .card { padding: 16px; } }
 
-.banner { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: var(--radius-sm); margin-bottom: 16px; font-size: .875rem; font-weight: 500; border: 1px solid transparent; }
-.banner::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.banner { display: flex; align-items: flex-start; gap: 10px; padding: 11px 14px; border-radius: var(--radius-sm); margin-bottom: 16px; font-size: .875rem; font-weight: 500; line-height: 1.5; border: 1px solid transparent; }
+/* El punto se alinea con la primera línea; el texto con <b>/<a> va dentro de un <span> para no partirse en columnas. */
+.banner::before { content: ""; width: 7px; height: 7px; margin-top: calc(.75em - 3.5px); border-radius: 50%; background: currentColor; flex-shrink: 0; }
 .banner-red { background: var(--red-soft); color: var(--red); border-color: color-mix(in srgb, var(--sys-red) 25%, transparent); }
 .banner-amber { background: var(--amber-soft); color: var(--amber); border-color: color-mix(in srgb, var(--sys-orange) 30%, transparent); }
 .banner-green { background: var(--green-soft); color: var(--green); border-color: color-mix(in srgb, var(--sys-green) 28%, transparent); cursor: pointer; }
@@ -533,6 +534,25 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 .field.inline { flex-direction: row; align-items: center; gap: 10px; }
 .field.inline > span { white-space: nowrap; }
 .field-full { grid-column: 1 / -1; }
+
+/* Indicador de combustible (octavos) */
+.fuel-gauge { --fuel: var(--sys-green); display: flex; flex-direction: column; gap: 8px; }
+.fuel-mid { --fuel: var(--sys-orange); }
+.fuel-low { --fuel: var(--sys-red); }
+.fuel-head { display: flex; align-items: baseline; gap: 8px; }
+.fuel-head .icon { color: var(--fuel); align-self: center; }
+.fuel-head strong { font-size: 1rem; font-weight: 600; }
+.fuel-track { display: flex; align-items: center; gap: 8px; }
+.fuel-end { flex: none; width: 32px; height: 32px; min-height: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--muted); font-weight: 600; font-size: .8rem; cursor: pointer; padding: 0; }
+.fuel-end:hover { color: var(--text); background: var(--surface-2); }
+.fuel-cells { flex: 1; display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+.fuel-cells button { height: 32px; min-height: 0; border: 0; padding: 0; border-radius: 5px; background: var(--fill-strong); cursor: pointer; transition: background .15s; }
+.fuel-cells button:hover:not(.on) { background: color-mix(in srgb, var(--fuel) 30%, var(--fill-strong)); }
+.fuel-cells button.on { background: var(--fuel); }
+.fuel-cells button:focus-visible, .fuel-end:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 2px; }
+.fuel-ticks { position: relative; height: 1em; margin: -4px 40px 0; font-size: .75rem; line-height: 1; color: var(--tertiary); }
+.fuel-ticks span { position: absolute; top: 0; transform: translateX(-50%); }
+.fuel-ticks span:nth-child(1) { left: 25%; } .fuel-ticks span:nth-child(2) { left: 50%; } .fuel-ticks span:nth-child(3) { left: 75%; }
 .inline-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px; }
 .check {
   display: flex; gap: 12px; align-items: center; justify-content: space-between; font-size: .875rem; cursor: pointer;

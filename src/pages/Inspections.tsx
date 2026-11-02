@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { BackLink, Card, Empty, Field, Lightbox, PageHeader, Photo, StatusBadge } from '../components/ui'
 import { Icon } from '../components/Icon'
-import { PhotoInput } from '../components/forms'
+import { FuelGauge, PhotoInput } from '../components/forms'
 import { activeRentalOf, inFleet, vehicleLabel } from '../lib/calc'
 import { TODAY, fecha, fuelLabel, km } from '../lib/format'
 import type { Inspection, PhotoRef } from '../data/types'
@@ -130,7 +130,8 @@ export function NewInspection() {
           </Field>
           <Field label="Fecha"><input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
           <Field label="Kilometraje" hint={`Último registrado: ${km(v.currentKm)}`}><input inputMode="numeric" value={f.km || ''} placeholder={String(v.currentKm)} onChange={(e) => setF({ ...f, km: Number(e.target.value.replace(/\D/g, '')) })} /></Field>
-          <Field label={`Combustible: ${fuelLabel(f.fuel)}`}><input type="range" min={0} max={8} step={1} value={f.fuel} onChange={(e) => setF({ ...f, fuel: Number(e.target.value) })} /></Field>
+          {/* div y no Field (<label>): un clic en el título activaría el primer botón del indicador. */}
+          <div className="field"><span>Combustible</span><FuelGauge value={f.fuel} onChange={(fuel) => setF({ ...f, fuel })} /></div>
           <Field label="Observaciones" full><textarea rows={3} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="Golpes, rayones, limpieza, accesorios (gato, refacción, tarjeta de circulación)…" /></Field>
           <Field label="Fotos (toca cada recuadro para abrir la cámara)" full><PhotoInput photos={photos} onChange={setPhotos} labels={ANGLES} /></Field>
         </div>

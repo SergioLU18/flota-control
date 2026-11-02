@@ -15,8 +15,8 @@ export default function Orion() {
         subtitle={<>Estado: {orion.status === 'pendiente' ? <Badge tone="amber">Pendiente de confirmar API</Badge> : orion.status === 'error' ? <Badge tone="red">Última sincronización con error</Badge> : <Badge tone="green">Conectado</Badge>}</>} />
 
       <div className="banner banner-amber">
-        Aún no se confirma si Orión tiene API o exportación de datos. Este módulo está <b>aislado</b>: si no existe o se retrasa,
-        el kilometraje se sigue capturando a mano y en entregas/recepciones, y el resto del sistema funciona igual.
+        <span>Aún no se confirma si Orión tiene API o exportación de datos. Este módulo está <b>aislado</b>: si no existe o se retrasa,
+        el kilometraje se sigue capturando a mano y en entregas/recepciones, y el resto del sistema funciona igual.</span>
       </div>
 
       <div className="grid-2">

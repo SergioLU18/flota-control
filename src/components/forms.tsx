@@ -7,7 +7,7 @@ import { COLOR_HEX, SHOPS } from '../data/catalogs'
 import type { Driver, ExpenseCategory, Incident, PaymentMethod, PhotoRef, Rental, Vehicle } from '../data/types'
 import { EXPENSE_LABEL } from '../lib/finance'
 import { activeRentalOf, activeRentalOfDriver, inFleet, rentalBalance, vehicleLabel } from '../lib/calc'
-import { TODAY, mxn } from '../lib/format'
+import { TODAY, fuelLabel, mxn } from '../lib/format'
 import { Field, Photo } from './ui'
 import { compressImage } from '../lib/files'
 import { Icon } from './Icon'
@@ -342,6 +342,32 @@ export function PhotoInput({ photos, onChange, labels }: { photos: PhotoRef[]; o
         </div>
       )}
       <small className="muted">{busy ? 'Procesando…' : info || 'En iPad/teléfono abre la cámara. Las fotos se redimensionan a 1280 px y se comprimen antes de subir.'}</small>
+    </div>
+  )
+}
+
+// ---------- Combustible ----------
+/** Indicador tipo tablero en octavos: se toca el segmento hasta donde llega la aguja; E deja el tanque vacío. */
+export function FuelGauge({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const tone = value <= 2 ? 'low' : value <= 4 ? 'mid' : 'ok'
+  return (
+    <div className={`fuel-gauge fuel-${tone}`}>
+      <div className="fuel-head">
+        <Icon name="fuel" />
+        <strong>{fuelLabel(value)}</strong>
+        <span className="muted small">{Math.round((value / 8) * 100)}%</span>
+      </div>
+      <div className="fuel-track" role="radiogroup" aria-label="Nivel de combustible">
+        <button type="button" className="fuel-end" aria-label="Vacío" onClick={() => onChange(0)}>E</button>
+        <div className="fuel-cells">
+          {Array.from({ length: 8 }, (_, i) => (
+            <button type="button" key={i} role="radio" aria-checked={value === i + 1} aria-label={fuelLabel(i + 1)}
+              className={i < value ? 'on' : ''} onClick={() => onChange(i + 1)} />
+          ))}
+        </div>
+        <button type="button" className="fuel-end" aria-label="Lleno" onClick={() => onChange(8)}>F</button>
+      </div>
+      <div className="fuel-ticks" aria-hidden><span>¼</span><span>½</span><span>¾</span></div>
     </div>
   )
 }
