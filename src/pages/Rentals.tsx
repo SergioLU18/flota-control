@@ -7,6 +7,7 @@ import { EditRentalForm, EndRentalForm, PaymentForm, StartRentalForm } from '../
 import { carName, rentalBalance } from '../lib/calc'
 import { TODAY, diffDays, fecha, mxn } from '../lib/format'
 import type { Rental } from '../data/types'
+import { can } from '../data/permissions'
 
 export default function Rentals() {
   const { data, user } = useStore()
@@ -45,7 +46,7 @@ export default function Rentals() {
                   <td className={`num ${bal > 0 ? 'neg' : ''}`}>{mxn(bal)}</td>
                   <td className="row-actions">
                     {(r.status === 'activa' || bal > 0) && <button className="btn btn-sm" onClick={() => setPaying(r)}>Pago</button>}
-                    {r.status === 'activa' && user?.role === 'admin' && <button className="btn btn-sm btn-ghost" onClick={() => setEditing(r)}>Editar</button>}
+                    {r.status === 'activa' && can(user, 'editar_rentas') && <button className="btn btn-sm btn-ghost" onClick={() => setEditing(r)}>Editar</button>}
                     {r.status === 'activa' && <button className="btn btn-sm btn-ghost" onClick={() => setEnding(r)}>Finalizar</button>}
                   </td>
                 </tr>

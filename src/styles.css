@@ -558,6 +558,20 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
   display: flex; gap: 12px; align-items: center; justify-content: space-between; font-size: .875rem; cursor: pointer;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 14px; flex-direction: row-reverse;
 }
+.input-with-action { display: flex; gap: 8px; }
+.input-with-action input { flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.perm-list { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.perm-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.perm-row:last-child { border-bottom: 0; }
+.perm-row > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.perm-row strong { font-size: .875rem; font-weight: 500; color: var(--text); }
+.perm-row small { font-size: .76rem; color: var(--muted); }
+.perm-row.locked { cursor: default; }
+.perm-row.locked input { opacity: .6; cursor: default; }
+.pw-section { padding-top: 14px; border-top: 1px solid var(--line); }
+.user-cell { display: flex; align-items: center; gap: 10px; }
+.user-cell .avatar { flex-shrink: 0; }
+.page-note { margin: 12px 4px 0; line-height: 1.5; }
 .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 .form .form-actions .btn-primary { min-width: 150px; min-height: 40px; }
 .form-error { display: flex; align-items: center; gap: 8px; color: var(--red); background: var(--red-soft); border: 1px solid color-mix(in srgb, var(--sys-red) 25%, transparent); padding: 9px 12px; border-radius: var(--radius-sm); margin: 14px 0 0; font-size: .85rem; font-weight: 500; }

@@ -2,6 +2,7 @@
 // La app ya no los usa: solo los carga supabase/pruebas.mjs para probar el esquema.
 import { DEMO_TODAY as TODAY, addDays, mondayOf } from '../lib/format'
 import { COLOR_HEX, SHOPS } from './catalogs'
+import { ALL_PERMISSIONS } from './permissions'
 import type {
   AuditEntry, Charge, Data, Driver, Expense, Incident, Inspection, MileageRecord, Payment, PhotoRef, Rental, Service, Tire, User, Vehicle,
 } from './types'
@@ -35,11 +36,11 @@ const daysForKm = (k: number) => Math.round((k / KM_PER_WEEK) * 7)
 const KM_SINCE: Record<number, number> = { 1: 10450, 4: 11200, 6: 9300, 11: 9650, 18: 9100 }
 
 export const users: User[] = [
-  { id: 'u1', name: 'Ana Canul', email: 'ana@empresa.mx', role: 'admin', active: true },
-  { id: 'u2', name: 'Jorge Pech', email: 'jorge@empresa.mx', role: 'admin', active: true },
-  { id: 'u3', name: 'Lupita May', email: 'lupita@empresa.mx', role: 'operador', active: true },
-  { id: 'u4', name: 'Carlos Dzib', email: 'carlos@empresa.mx', role: 'operador', active: true },
-  { id: 'u5', name: 'Mariana Poot', email: 'mariana@empresa.mx', role: 'operador', active: true },
+  { id: 'u1', name: 'Ana Canul', email: 'ana@empresa.mx', role: 'superadmin', permissions: [], active: true },
+  { id: 'u2', name: 'Jorge Pech', email: 'jorge@empresa.mx', role: 'admin', permissions: ALL_PERMISSIONS, active: true },
+  { id: 'u3', name: 'Lupita May', email: 'lupita@empresa.mx', role: 'operador', permissions: [], active: true },
+  { id: 'u4', name: 'Carlos Dzib', email: 'carlos@empresa.mx', role: 'operador', permissions: [], active: true },
+  { id: 'u5', name: 'Mariana Poot', email: 'mariana@empresa.mx', role: 'operador', permissions: ['finanzas'], active: true },
 ]
 
 const vehicles: Vehicle[] = Array.from({ length: 30 }, (_, i) => {

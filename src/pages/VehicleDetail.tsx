@@ -7,6 +7,7 @@ import { activeRentalOf, maintenanceStatus, rentalBalance, vehicleBalance, MAINT
 import { vehicleRecovery } from '../lib/finance'
 import { fecha, fuelLabel, km, mxn } from '../lib/format'
 import type { PhotoRef } from '../data/types'
+import { can } from '../data/permissions'
 import { InspectionCompare } from './Inspections'
 import { Icon, type IconName } from '../components/Icon'
 
@@ -33,7 +34,8 @@ export default function VehicleDetail() {
   const incidents = data.incidents.filter((x) => x.vehicleId === v.id)
   const inspections = data.inspections.filter((x) => x.vehicleId === v.id).sort((a, b) => (a.date < b.date ? 1 : -1))
   const bal = vehicleBalance(data, v.id)
-  const isAdmin = user?.role === 'admin'
+  const seesFinance = can(user, 'finanzas')
+  const canRetire = can(user, 'bajas')
 
   // Línea de vida del vehículo: todo lo que le ha pasado, en orden.
   const timeline: { date: string; icon: IconName; text: ReactNode }[] = [
@@ -46,13 +48,13 @@ export default function VehicleDetail() {
     ...services.map((s) => ({ date: s.date, icon: 'wrench' as IconName, text: <>{s.type} en {s.shop} · {km(s.km)} · {mxn(s.cost)}</> })),
     ...incidents.map((i) => ({ date: i.date, icon: 'alert' as IconName, text: <>{i.type}: {i.description} ({mxn(i.cost)})</> })),
     ...inspections.map((i) => ({ date: i.date, icon: 'camera' as IconName, text: <>Inspección de {i.kind === 'entrega' ? 'entrega' : 'recepción'} · {i.photos.length} fotos · combustible {fuelLabel(i.fuel)}</> })),
-    { date: v.purchaseDate, icon: 'car' as IconName, text: <>Alta en la flota{isAdmin ? ` · compra ${mxn(v.purchasePrice)}` : ''}</> },
+    { date: v.purchaseDate, icon: 'car' as IconName, text: <>Alta en la flota{seesFinance ? ` · compra ${mxn(v.purchasePrice)}` : ''}</> },
   ].sort((a, b) => (a.date < b.date ? 1 : -1))
 
   const tabs: [Tab, string][] = [
     ['resumen', 'Resumen'], ['historial', 'Historial'], ['km', 'Kilometraje'], ['mantenimiento', 'Mantenimiento y llantas'],
     ['incidentes', `Incidentes (${incidents.length})`], ['inspecciones', `Inspecciones (${inspections.length})`],
-    ...(isAdmin ? [['finanzas', 'Rentabilidad'] as [Tab, string]] : []),
+    ...(seesFinance ? [['finanzas', 'Rentabilidad'] as [Tab, string]] : []),
   ]
 
   return (
@@ -65,14 +67,14 @@ export default function VehicleDetail() {
         actions={<>
           <button className="btn" onClick={() => setModal('edit')}>Editar</button>
           {v.status === 'baja' ? (
-            isAdmin && <button className="btn" onClick={() => setVehicleStatus(v.id, 'disponible').catch((e: Error) => setError(e.message))}>Reactivar</button>
+            canRetire && <button className="btn" onClick={() => setVehicleStatus(v.id, 'disponible').catch((e: Error) => setError(e.message))}>Reactivar</button>
           ) : <>
             {r ? <button className="btn" onClick={() => setModal('end')}>Finalizar renta</button>
               : v.status === 'disponible' ? <button className="btn btn-primary" onClick={() => setModal('rent')}>Rentar</button> : null}
             {!r && (v.status === 'taller'
               ? <button className="btn" onClick={() => setVehicleStatus(v.id, 'disponible').catch((e: Error) => setError(e.message))}>Marcar disponible</button>
               : <button className="btn" onClick={() => setVehicleStatus(v.id, 'taller').catch((e: Error) => setError(e.message))}>Enviar a taller</button>)}
-            {!r && isAdmin && <button className="btn btn-danger" onClick={() => setModal('baja')}>Dar de baja</button>}
+            {!r && canRetire && <button className="btn btn-danger" onClick={() => setModal('baja')}>Dar de baja</button>}
           </>}
         </>}
       />
@@ -190,7 +192,7 @@ export default function VehicleDetail() {
 
       {tab === 'inspecciones' && <InspectionCompare vehicleId={v.id} onPhoto={setPhoto} />}
 
-      {tab === 'finanzas' && isAdmin && (() => {
+      {tab === 'finanzas' && seesFinance && (() => {
         const f = vehicleRecovery(data, v)
         return (
           <>

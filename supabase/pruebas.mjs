@@ -49,7 +49,7 @@ const t0 = Date.now()
 // Como en Supabase: se crea la cuenta en auth.users, el trigger crea el perfil inactivo y un admin lo activa.
 for (const u of seed.users) {
   await insert('auth.users', { id: id(u.id), email: u.email, raw_user_meta_data: { nombre: u.name } })
-  await db.query('update usuarios set rol = $2, activo = $3 where id = $1', [id(u.id), u.role, u.active])
+  await db.query('update usuarios set rol = $2, permisos = $3, activo = $4 where id = $1', [id(u.id), u.role, u.permissions, u.active])
 }
 
 for (const v of seed.vehicles) {
@@ -320,7 +320,7 @@ const como = async (demoUserId, fn) => {
 }
 const intenta = async (fn) => { try { await fn(); return null } catch (e) { return e } }
 const cuenta = async (tabla) => num((await one(`select count(*) n from ${tabla}`)).n)
-const ADMIN = 'u1', OPERADOR = 'u3'
+const SUPER = 'u1', ADMIN = 'u2', OPERADOR = 'u3', CON_FINANZAS = 'u5'
 
 console.log('\nPermisos · sin sesión')
 ok(/permission denied/.test((await como(null, () => intenta(() => q('select * from vehiculos'))))?.message), 'anon no lee ninguna tabla')
@@ -339,13 +339,14 @@ ok(/row-level security/.test((await como(OPERADOR, () => intenta(() => insert('p
 ok(/row-level security/.test((await como(OPERADOR, () => intenta(() => insert('cargos', { renta_id: id('r01'), tipo: 'renta', fecha: '2026-11-30', periodo_inicio: '2026-11-30', periodo_fin: '2026-12-06', monto: 1, concepto: 'x' }))))?.message), 'no crea semanas de renta a mano')
 ok(/Sin permiso/.test((await como(OPERADOR, () => intenta(() => q('select cancelar_pago($1, $2)', [id(seed.payments[0].id), 'x']))))?.message), 'no cancela pagos')
 ok(/Sin permiso/.test((await como(OPERADOR, () => intenta(() => q('select editar_renta($1, 1, 1)', [id('r01')]))))?.message), 'no edita tarifas')
-ok(/Solo un admin/.test((await como(OPERADOR, () => intenta(() => q("update vehiculos set estado = 'baja' where id = $1", [id('v23')]))))?.message), 'no da de baja coches')
+ok(/No tienes permiso para dar de baja/.test((await como(OPERADOR, () => intenta(() => q("update vehiculos set estado = 'baja' where id = $1", [id('v23')]))))?.message), 'no da de baja coches')
 await como(OPERADOR, async () => {
   const r = await db.query('update rentas set tarifa_semanal = 1 where id = $1', [id('r01')])
-  const u = await db.query("update usuarios set rol = 'admin' where id = $1", [id(OPERADOR)])
   const k = await db.query('delete from registros_km where vehiculo_id = $1', [id('v01')])
-  ok(r.affectedRows === 0 && u.affectedRows === 0 && k.affectedRows === 0, 'no toca rentas directo, no se sube de rol y no borra kilometraje')
+  ok(r.affectedRows === 0 && k.affectedRows === 0, 'no toca rentas directo ni borra kilometraje')
 })
+ok(/permission denied/.test((await como(OPERADOR, () => intenta(() => q("update usuarios set rol = 'admin' where id = $1", [id(OPERADOR)]))))?.message), 'no edita usuarios directo')
+ok(/Sin permiso/.test((await como(OPERADOR, () => intenta(() => q("select guardar_usuario($1, 'Lupita May', 'admin', '{usuarios}', true)", [id(OPERADOR)]))))?.message), 'ni se sube de rol por RPC')
 await como(OPERADOR, async () => {
   await insert('pagos', { id: id('p-op'), renta_id: id('r01'), fecha: '2026-10-14', monto: 500, metodo: 'efectivo' })
   await insert('cargos', { renta_id: id('r01'), tipo: 'danio', fecha: '2026-10-14', monto: 1200, concepto: 'Rayón en puerta' })
@@ -384,8 +385,51 @@ await como(ADMIN, async () => {
   const r = await one('select tarifa_semanal, deposito from rentas where id = $1', [id('r10')])
   const c = await one('select cancelado_por from pagos where id = $1', [id(pago.id)])
   ok(c.cancelado_por === id(ADMIN) && num(r.tarifa_semanal) === 2750 && num(r.deposito) === 6000, 'cancela pagos y edita tarifas')
-  const u = await db.query("update usuarios set activo = false where id = $1", [id('u5')])
-  ok(u.affectedRows === 1, 'administra usuarios')
+  await q("select guardar_usuario($1, 'Mariana Poot', 'operador', '{finanzas}', false)", [id('u5')])
+  ok((await one('select activo from usuarios where id = $1', [id('u5')])).activo === false, 'administra usuarios')
+})
+
+console.log('\nPermisos · por usuario')
+// Cada rechazo va en su propia sesión: dentro de una transacción, el primer error invalida lo que sigue.
+const rechazaComo = (u, sql, params = []) => como(u, () => intenta(() => q(sql, params))).then((e) => e?.message ?? 'la base lo aceptó')
+const guardar = "select guardar_usuario($1, $2, $3, $4, $5)"
+
+await como(CON_FINANZAS, async () => {
+  ok((await cuenta('gastos')) === seed.expenses.length && (await cuenta('auditoria')) === 0, 'un operador con permiso de finanzas ve gastos, pero no la bitácora')
+})
+ok(/Sin permiso/.test(await rechazaComo(CON_FINANZAS, 'select editar_renta($1, 1, 1)', [id('r01')])), 'y sigue sin editar tarifas')
+await como(SUPER, async () => {
+  ok((await cuenta('gastos')) === seed.expenses.length && (await cuenta('auditoria')) > 0, 'el superadmin lo ve todo sin lista de permisos')
+  await q(guardar, [id(OPERADOR), 'Lupita May', 'operador', ['finanzas', 'cancelar_pagos', 'finanzas'], true])
+  const u = await one('select permisos from usuarios where id = $1', [id(OPERADOR)])
+  ok(u.permisos.join() === 'cancelar_pagos,finanzas', 'otorga permisos sueltos (ordenados y sin repetir)', u.permisos.join())
+  await q(guardar, [id(ADMIN), 'Jorge Pech', 'superadmin', ['finanzas'], true])
+  const j = await one('select rol, permisos from usuarios where id = $1', [id(ADMIN)])
+  ok(j.rol === 'superadmin' && j.permisos.length === 0, 'nombra a otro superadmin (sin lista)')
+})
+ok(/tu propio rol/.test(await rechazaComo(SUPER, guardar, [id(SUPER), 'Ana Canul', 'admin', [], true])), 'el superadmin no se quita su propio rol')
+ok(/Solo un superadmin puede modificar/.test(await rechazaComo(ADMIN, guardar, [id(SUPER), 'Ana', 'superadmin', [], false])), 'un admin no toca al superadmin')
+ok(/Solo un superadmin puede nombrar/.test(await rechazaComo(ADMIN, guardar, [id(OPERADOR), 'Lupita May', 'superadmin', [], true])), 'ni nombra superadmins')
+ok(/tu propio rol/.test(await rechazaComo(ADMIN, guardar, [id(ADMIN), 'Jorge Pech', 'admin', [], true])), 'ni se quita sus propios permisos')
+await como(ADMIN, async () => {
+  const { permisos } = await one('select permisos from usuarios where id = $1', [id(ADMIN)])
+  await q(guardar, [id(ADMIN), 'Jorge Pech Canché', 'admin', permisos, true])
+  ok((await one('select nombre from usuarios where id = $1', [id(ADMIN)])).nombre === 'Jorge Pech Canché', 'pero sí cambia su nombre')
+})
+
+// Un admin al que le quitaron todo salvo "usuarios", frente a Mariana (finanzas y orion) y Lupita (nada)
+const conAdminLimitado = (fn) => como(SUPER, async () => {
+  await q(guardar, [id(ADMIN), 'Jorge Pech', 'admin', ['usuarios'], true])
+  await q(guardar, [id('u5'), 'Mariana Poot', 'operador', ['finanzas', 'orion'], true])
+  await q("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: id(ADMIN), role: 'authenticated' })])
+  return fn()
+})
+const msg = (e) => e?.message ?? 'la base lo aceptó'
+ok(/que tú no tienes/.test(msg(await conAdminLimitado(() => intenta(() => q(guardar, [id(OPERADOR), 'Lupita May', 'operador', ['finanzas'], true]))))), 'nadie otorga permisos que no tiene')
+ok(/que tú no tienes/.test(msg(await conAdminLimitado(() => intenta(() => q("select validar_usuario(null, 'admin', '{finanzas}')"))))), 'tampoco al crear una cuenta')
+await conAdminLimitado(async () => {
+  await q(guardar, [id('u5'), 'Mariana Poot', 'operador', ['finanzas'], true])
+  ok((await one('select permisos from usuarios where id = $1', [id('u5')])).permisos.join() === 'finanzas', 'pero sí conserva o quita los que el otro ya tenía')
 })
 
 console.log('\nPermisos · usuario nuevo')

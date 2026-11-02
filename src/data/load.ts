@@ -13,10 +13,15 @@ const DOC_TYPES: DocType[] = ['ine', 'licencia', 'no_penales', 'domicilio', 'ref
 
 type FotoRow = { id: string; etiqueta: string; con_danio: boolean; orden: number; archivos: { clave: string } | null }
 
+type UsuarioRow = { id: string; nombre: string; correo: string; rol: string; permisos: string[]; activo: boolean }
+const toUser = (u: UsuarioRow): User => ({
+  id: u.id, name: u.nombre, email: u.correo, role: u.rol as User['role'], permissions: u.permisos as User['permissions'], active: u.activo,
+})
+
 export async function loadProfile(userId: string): Promise<User | null> {
-  const { data: row, error } = await supabase.from('usuarios').select('id, nombre, correo, rol, activo').eq('id', userId).maybeSingle()
+  const { data: row, error } = await supabase.from('usuarios').select('id, nombre, correo, rol, permisos, activo').eq('id', userId).maybeSingle()
   if (error) throw new Error(friendly(error))
-  return row && { id: row.id, name: row.nombre, email: row.correo, role: row.rol as User['role'], active: row.activo }
+  return row && toUser(row)
 }
 
 export async function loadData(): Promise<Data> {
@@ -25,7 +30,7 @@ export async function loadData(): Promise<Data> {
     usuarios, vehiculos, llantas, conductores, rentas, cargos, pagos, km, servicios,
     incidentes, inspecciones, gastos, auditoria, orion, tipos,
   ] = await Promise.all([
-    all((a, b) => supabase.from('usuarios').select('id, nombre, correo, rol, activo').order('nombre').range(a, b)),
+    all((a, b) => supabase.from('usuarios').select('id, nombre, correo, rol, permisos, activo').order('nombre').range(a, b)),
     all((a, b) => supabase.from('vehiculos').select('*').order('placas').range(a, b)),
     all((a, b) => supabase.from('v_llantas_vigentes').select('*').range(a, b)),
     all((a, b) => supabase.from('conductores')
@@ -66,7 +71,7 @@ export async function loadData(): Promise<Data> {
   })
 
   return {
-    users: usuarios.map((u) => ({ id: u.id, name: u.nombre, email: u.correo, role: u.rol as User['role'], active: u.activo })),
+    users: usuarios.map(toUser),
     vehicles: vehiculos.map((v) => ({
       id: v.id, unit: v.unidad ?? undefined, brand: v.marca, model: v.modelo, year: v.anio, plates: v.placas, color: v.color, vin: v.vin ?? '',
       currentKm: v.km_actual, status: v.estado as Data['vehicles'][number]['status'], notes: v.notas,

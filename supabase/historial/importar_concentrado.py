@@ -412,7 +412,7 @@ w('-- Requiere un admin activo (los pagos quedan registrados a su nombre) y una 
 w('-- Todo va en un solo bloque: el SQL Editor de Supabase no respeta begin/commit y guardaría la carga a medias.')
 w('do $$ begin')
 w("perform set_config('app.accion', 'Importó historial del concentrado', true);")
-w("""if not exists (select 1 from public.usuarios where rol = 'admin' and activo) then
+w("""if not exists (select 1 from public.usuarios where rol in ('superadmin', 'admin') and activo) then
   raise exception 'Primero da de alta y activa un admin (ver supabase/README.md)';
 end if;""")
 w('')
@@ -453,7 +453,7 @@ w(',\n'.join(cargos_sql) + ';')
 w('')
 w('insert into public.pagos (renta_id, fecha, monto, metodo, notas, registrado_por)')
 w("select p.renta_id::uuid, p.fecha::date, p.monto, 'efectivo', p.notas,")
-w("       (select id from public.usuarios where rol = 'admin' and activo order by creado_en limit 1) from (values")
+w("       (select id from public.usuarios where rol in ('superadmin', 'admin') and activo order by creado_en limit 1) from (values")
 pagos_sql = []
 for r in rentas:
     for c in r['cargos']:

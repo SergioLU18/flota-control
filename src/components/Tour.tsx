@@ -2,7 +2,7 @@
 // Se lanza desde el botón "Tour guiado" de la barra superior, en cualquier momento.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { MODULES } from '../data/modules'
+import { modulesFor } from '../data/modules'
 import { useStore } from '../data/store'
 
 interface Step {
@@ -34,7 +34,7 @@ export function Tour({ onClose }: { onClose: () => void }) {
   const { pathname } = useLocation()
 
   const steps = useMemo<Step[]>(() => {
-    const mods = MODULES.filter((m) => user && m.roles.includes(user.role))
+    const mods = modulesFor(user)
     return [
       {
         targets: ['.sidebar nav', '.tabbar'],

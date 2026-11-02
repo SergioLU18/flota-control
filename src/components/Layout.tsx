@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { MODULES } from '../data/modules'
+import { MODULES, modulesFor } from '../data/modules'
 import { useStore } from '../data/store'
 import { Icon } from './Icon'
 import { Brand } from './Logo'
@@ -35,7 +35,7 @@ export default function Layout() {
     return () => window.removeEventListener(START_TOUR, start)
   }, [])
 
-  const items = MODULES.filter((m) => user && m.roles.includes(user.role))
+  const items = modulesFor(user)
   const current = moduleOf(loc.pathname)
   const tabs = TABS.map(([key, label]) => ({ m: MODULES.find((m) => m.key === key)!, label })).filter(({ m }) => items.includes(m))
   const inTabs = tabs.some(({ m }) => m === current)

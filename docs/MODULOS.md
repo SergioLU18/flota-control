@@ -22,22 +22,37 @@ Este documento explica qué hace cada módulo, qué reglas sigue y qué datos gu
 
 **Qué hace**
 - Inicio de sesión con correo y contraseña. **Fase 1**
-- Dos roles: **admin** y **operador**. **Fase 1**
+- Tres roles: **superadmin**, **admin** y **operador**, más **permisos por persona**: el rol propone los permisos y cada uno se prende o apaga. **Fase 1**
+- Alta de usuarios desde la app (nombre, correo, contraseña inicial, rol y permisos), cambio de contraseña y activar o desactivar cuentas. **Fase 1**
 - Bitácora de auditoría: cada alta, edición, pago o cambio de estado guarda quién lo hizo, cuándo y qué cambió. **Notas** ("Logs/auditorías de cada cambio, quién lo hizo")
 
-**Permisos por rol**
+**Roles**
 
-| Acción | Admin | Operador |
-|---|---|---|
-| Consultar flota, conductores, rentas y cobranza | ✔ | ✔ |
-| Registrar pagos, km, servicios, incidentes e inspecciones | ✔ | ✔ |
-| Iniciar y finalizar rentas | ✔ | ✔ |
-| Editar tarifas y depósitos ya registrados | ✔ | — |
-| Cancelar pagos (con motivo) | ✔ | — |
-| Finanzas: estado de resultados, rentabilidad y gastos | ✔ | — |
-| Usuarios, auditoría y configuración de Orión | ✔ | — |
+| Rol | Permisos |
+|---|---|
+| Superadmin | Todos, siempre. Solo otro superadmin lo nombra o lo modifica. |
+| Admin | Empieza con todos; se le pueden quitar. |
+| Operador | Empieza sin ninguno: solo la operación diaria. Se le pueden sumar permisos sueltos. |
 
-**Datos:** `Usuario` (nombre, correo, rol, activo) y `Auditoría` (fecha y hora, usuario, acción, entidad, detalle).
+La **operación diaria** es de todo el personal activo: consultar flota, conductores, rentas y cobranza; registrar pagos, km, servicios, incidentes e inspecciones; iniciar y finalizar rentas.
+
+**Permisos**
+
+| Permiso | Qué abre |
+|---|---|
+| Finanzas | Estado de resultados, rentabilidad por coche, gastos y precio de compra |
+| Editar rentas | Cambiar tarifa semanal y depósito de una renta activa |
+| Cancelar pagos | Cancelar un pago registrado, con motivo |
+| Bajas de coches | Dar de baja un coche o reactivarlo |
+| Corregir registros | Borrar lecturas de km erróneas y corregir cargos |
+| Catálogos | Tipos de servicio de mantenimiento |
+| Orión GPS | Configuración y sincronizaciones del odómetro |
+| Bitácora | Ver quién hizo cada cambio y cuándo |
+| Usuarios | Dar de alta usuarios y cambiar sus permisos y contraseñas |
+
+Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permisos ni se desactiva, y solo un superadmin toca a otro superadmin. Las aplica la base de datos, no solo la pantalla.
+
+**Datos:** `Usuario` (nombre, correo, rol, permisos, activo) y `Auditoría` (fecha y hora, usuario, acción, entidad, detalle).
 
 **En la demo:** en la pantalla de entrada se elige un usuario sin contraseña. Con un operador desaparecen Orión, Usuarios y la pestaña financiera del coche. En *Usuarios y auditoría → Bitácora de cambios* aparecen las acciones que vayas haciendo.
 

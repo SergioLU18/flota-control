@@ -15,6 +15,10 @@ supabase/
     20261014000200_catalogos.sql            tipos de servicio
     20261014000300_permisos.sql             alta de usuarios, RLS, RPC y privilegios
     20261014000400_storage_y_cron.sql       bucket "archivos" y tarea nocturna de cargos
+    …                                       ajustes posteriores (unidad, bajas)
+    20261102000300_superadmin_y_permisos.sql superadmin, permisos por usuario y RPC guardar_usuario
+  functions/
+    usuarios/index.ts                       Edge Function: crear cuentas y cambiar contraseñas (usa la service role)
   pruebas.mjs                               carga la demo y prueba reglas y permisos
 ```
 
@@ -36,6 +40,12 @@ npx supabase db push
 npx supabase gen types typescript --linked --schema public > src/lib/database.types.ts
 ```
 
+La Edge Function `usuarios` se sube aparte (y otra vez cada que cambie). Las llaves `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY` ya las tiene el entorno de funciones:
+
+```bash
+npx supabase functions deploy usuarios
+```
+
 ### Desde cero (otro entorno)
 
 1. En [supabase.com](https://supabase.com) crea el proyecto. Región sugerida: `us-east-1`, la más cercana a Mérida entre las disponibles.
@@ -44,11 +54,13 @@ npx supabase gen types typescript --linked --schema public > src/lib/database.ty
    - **Authentication → Sign In / Providers:** desactiva *Allow new users to sign up*. Así solo entra quien des de alta. Aunque alguien lograra registrarse, su perfil nace inactivo y no ve nada.
    - **Authentication → URL Configuration:** pon la URL de Netlify como *Site URL*.
    - **Integrations → Cron:** confirma que existe el job `generar-cargos`. Si `pg_cron` no estaba habilitado al hacer el push, habilítalo ahí y vuelve a correr el bloque de cron de la migración 0400 en el SQL Editor.
-4. Crea al personal en **Authentication → Users → Add user**, con correo y contraseña. En *User metadata* puedes poner `{"nombre": "Ana Canul"}`. Cada cuenta crea su perfil en `usuarios` como **operador inactivo**.
-5. Activa al primer admin desde el SQL Editor. A partir de ahí, los demás se activan desde la pantalla de Usuarios de la app.
+4. Sube la Edge Function (`npx supabase functions deploy usuarios`).
+5. Crea **solo la primera cuenta** en **Authentication → Users → Add user**, con correo y contraseña. En *User metadata* puedes poner `{"nombre": "Ana Canul"}`. Nace como **operador inactivo**; hazla superadmin desde el SQL Editor:
    ```sql
-   update usuarios set rol = 'admin', activo = true where correo = 'ana@empresa.mx';
+   update usuarios set rol = 'superadmin', permisos = '{}', activo = true where correo = 'ana@empresa.mx';
    ```
+   A partir de ahí, al resto del personal se le da de alta desde **Usuarios y auditoría → Nuevo usuario**, ya activo y con sus permisos.
+   Si alguien se crea desde el panel de Supabase, aparece en la app como *Por activar*.
 
 La app solo necesita la URL del proyecto y la **publishable/anon key** (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`). La service role key **nunca** va en el frontend. Solo la usa la futura tarea de Orión.
 

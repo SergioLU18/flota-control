@@ -1,12 +1,18 @@
 // Modelo de datos de la app. src/data/load.ts lo arma a partir de las tablas de Supabase.
 
-export type Role = 'admin' | 'operador'
+export type Role = 'superadmin' | 'admin' | 'operador'
+
+/** Ver src/data/permissions.ts. Un superadmin los tiene todos sin necesidad de lista. */
+export type Permission =
+  | 'finanzas' | 'orion' | 'auditoria' | 'editar_rentas' | 'cancelar_pagos'
+  | 'bajas' | 'corregir_registros' | 'catalogos' | 'usuarios'
 
 export interface User {
   id: string
   name: string
   email: string
   role: Role
+  permissions: Permission[]
   active: boolean
 }
 

@@ -84,7 +84,7 @@ export function VehicleForm({ vehicle, onDone }: { vehicle?: Vehicle; onDone: ()
   )
 }
 
-/** Confirmación para sacar un coche de la flota. La base solo lo permite a un admin y sin renta activa. */
+/** Confirmación para sacar un coche de la flota. La base solo lo permite con el permiso "bajas" y sin renta activa. */
 export function RetireVehicleForm({ vehicle, onDone }: { vehicle: Vehicle; onDone: () => void }) {
   const { setVehicleStatus } = useStore()
   return (
@@ -411,7 +411,7 @@ export function IncidentForm({ vehicleId, onDone }: { vehicleId?: string; onDone
   )
 }
 
-// ---------- Editar renta (solo admin) ----------
+// ---------- Editar renta (permiso "editar_rentas") ----------
 export function EditRentalForm({ rental, onDone }: { rental: Rental; onDone: () => void }) {
   const { updateRental } = useStore()
   const [f, setF] = useState({ weeklyRate: rental.weeklyRate, deposit: rental.deposit })

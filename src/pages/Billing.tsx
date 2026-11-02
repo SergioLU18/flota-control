@@ -9,6 +9,7 @@ import { CURRENT_MONDAY, TODAY, addDays, fecha, fechaCorta, mes, mxn } from '../
 import type { PaymentMethod } from '../data/types'
 import { downloadCsv } from '../lib/files'
 import type { Payment } from '../data/types'
+import { can } from '../data/permissions'
 
 type Tab = 'conductores' | 'coches' | 'pagos' | 'cargos'
 
@@ -24,7 +25,7 @@ export default function Billing() {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const isAdmin = user?.role === 'admin'
+  const canVoid = can(user, 'cancelar_pagos')
   const g = globalBalance(data)
 
   const byDriver = data.drivers.map((d) => ({ d, ...driverBalance(data, d.id) })).filter((x) => x.charged > 0).sort((a, b) => b.balance - a.balance)
@@ -87,7 +88,7 @@ export default function Billing() {
       {tab === 'pagos' && (
         <Card title="Últimos pagos" actions={<button className="btn btn-sm" onClick={exportAll}><Icon name="download" />Histórico a Excel (CSV)</button>}>
           <div className="table-wrap"><table className="table compact">
-            <thead><tr><th>Fecha</th><th>Conductor</th><th>Coche</th><th>Método</th><th className="num">Monto</th><th>Registró</th>{isAdmin && <th></th>}</tr></thead>
+            <thead><tr><th>Fecha</th><th>Conductor</th><th>Coche</th><th>Método</th><th className="num">Monto</th><th>Registró</th>{canVoid && <th></th>}</tr></thead>
             <tbody>{payments.map((p) => {
               const r = L.rental(p.rentalId)
               return (
@@ -99,7 +100,7 @@ export default function Billing() {
                   <td><Badge tone={p.method === 'efectivo' ? 'green' : p.method === 'deposito' ? 'amber' : 'blue'}>{METHOD[p.method]}</Badge></td>
                   <td className="num amount">{mxn(p.amount)}</td>
                   <td className="muted small">{L.user(p.userId)?.name}</td>
-                  {isAdmin && <td className="row-actions">{!p.voided && <button className="btn btn-sm btn-ghost" onClick={() => { setReason(''); setVoiding(p) }}>Cancelar</button>}</td>}
+                  {canVoid && <td className="row-actions">{!p.voided && <button className="btn btn-sm btn-ghost" onClick={() => { setReason(''); setVoiding(p) }}>Cancelar</button>}</td>}
                 </tr>
               )
             })}</tbody>

@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HashRouter, Route, Routes } from 'react-router-dom'
 import { StoreProvider, useStore } from './data/store'
+import { can } from './data/permissions'
 import Layout from './components/Layout'
 import { PageSkeleton } from './components/ui'
 import Login, { Pending, Splash } from './pages/Login'
@@ -39,7 +40,6 @@ function App() {
       </Routes>
     )
   }
-  const admin = user.role === 'admin'
   return (
     <Routes>
       <Route element={<Layout />}>
@@ -54,9 +54,9 @@ function App() {
         <Route path="incidentes" element={<Incidents />} />
         <Route path="inspecciones" element={<Inspections />} />
         <Route path="inspecciones/nueva" element={<NewInspection />} />
-        {admin && <Route path="finanzas" element={<Finance />} />}
-        {admin && <Route path="orion" element={<Orion />} />}
-        {admin && <Route path="usuarios" element={<Users />} />}
+        {can(user, 'finanzas') && <Route path="finanzas" element={<Finance />} />}
+        {can(user, 'orion') && <Route path="orion" element={<Orion />} />}
+        {(can(user, 'usuarios') || can(user, 'auditoria')) && <Route path="usuarios" element={<Users />} />}
         <Route path="documentacion" element={<Docs />} />
         <Route path="ajustes" element={<Settings />} />
         <Route path="*" element={<Dashboard />} />

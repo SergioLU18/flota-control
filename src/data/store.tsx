@@ -31,6 +31,15 @@ async function uploadFile(blob: Blob, mime: string, path: (id: string) => string
   return id
 }
 
+/** Llama a la Edge Function `usuarios` (crear cuentas y cambiar contraseñas necesitan la service role). */
+async function usersFunction(body: Record<string, unknown>) {
+  const { data, error } = await supabase.functions.invoke('usuarios', { body })
+  if (!error) return data
+  const res = (error as { context?: unknown }).context
+  const msg = res instanceof Response ? await res.json().then((b) => b?.error as string | undefined).catch(() => undefined) : undefined
+  throw new Error(msg ?? 'No se pudo contactar la función de usuarios. Revisa tu conexión o que esté desplegada (supabase/README.md).')
+}
+
 async function insertPhotos(photos: PhotoRef[], owner: { inspeccion_id: string } | { incidente_id: string }) {
   for (const [i, p] of photos.entries()) {
     if (!p.url) continue
@@ -158,12 +167,12 @@ function useStoreValue() {
       must(await supabase.from('pagos').insert({ renta_id: p.rentalId, fecha: p.date, monto: p.amount, metodo: p.method, notas: p.notes ?? '' }))
     }),
 
-    /** Solo admin. No borra el pago: lo marca como cancelado con su motivo. */
+    /** Permiso "cancelar_pagos". No borra el pago: lo marca como cancelado con su motivo. */
     voidPayment: (id: string, reason: string) => write(async () => {
       must(await supabase.rpc('cancelar_pago', { p_pago_id: id, p_motivo: reason }))
     }),
 
-    /** Solo admin. La nueva tarifa aplica a los cargos que se generen después; los ya generados no cambian. */
+    /** Permiso "editar_rentas". La nueva tarifa aplica a los cargos que se generen después; los ya generados no cambian. */
     updateRental: (id: string, weeklyRate: number, deposit: number) => write(async () => {
       must(await supabase.rpc('editar_renta', { p_renta_id: id, p_tarifa_semanal: weeklyRate, p_deposito: deposit }))
     }),
@@ -209,10 +218,17 @@ function useStoreValue() {
       await insertPhotos(ins.photos, { inspeccion_id: id })
     }),
 
-    /** Solo admin: rol, nombre y si la cuenta está activa. */
+    /** Nombre, rol, permisos y si la cuenta está activa. La base decide quién puede cambiar qué (guardar_usuario). */
     saveUser: (u: User) => write(async () => {
-      must(await supabase.from('usuarios').update({ nombre: u.name.trim(), rol: u.role, activo: u.active }).eq('id', u.id))
+      must(await supabase.rpc('guardar_usuario', { p_id: u.id, p_nombre: u.name.trim(), p_rol: u.role, p_permisos: u.permissions, p_activo: u.active }))
     }),
+
+    /** Crea la cuenta ya activa, con su rol y permisos, y la contraseña con la que entrará. */
+    createUser: (u: Omit<User, 'id' | 'active'>, password: string) => write(async () => {
+      await usersFunction({ accion: 'crear', correo: u.email.trim().toLowerCase(), nombre: u.name.trim(), contrasena: password, rol: u.role, permisos: u.permissions })
+    }),
+
+    setUserPassword: async (id: string, password: string) => { await usersFunction({ accion: 'contrasena', id, contrasena: password }) },
   }
 
   // undefined mientras se lee la sesión guardada (un instante); con sesión, la app ya muestra el layout mientras carga.
