@@ -6,7 +6,7 @@ import { useStore } from '../data/store'
 import { COLOR_HEX, SHOPS } from '../data/catalogs'
 import type { Driver, ExpenseCategory, Incident, PaymentMethod, PhotoRef, Rental, Vehicle } from '../data/types'
 import { EXPENSE_LABEL } from '../lib/finance'
-import { activeRentalOf, activeRentalOfDriver, rentalBalance, vehicleLabel } from '../lib/calc'
+import { activeRentalOf, activeRentalOfDriver, inFleet, rentalBalance, vehicleLabel } from '../lib/calc'
 import { TODAY, mxn } from '../lib/format'
 import { Field, Photo } from './ui'
 import { compressImage } from '../lib/files'
@@ -70,15 +70,29 @@ export function VehicleForm({ vehicle, onDone }: { vehicle?: Vehicle; onDone: ()
       <Field label="VIN / número de serie"><input value={v.vin} onChange={(e) => set('vin', e.target.value)} maxLength={17} /></Field>
       <Field label="Kilometraje actual" hint={vehicle ? 'Si lo subes, se guarda como lectura manual de hoy' : undefined}><input inputMode="numeric" value={v.currentKm || ''} onChange={(e) => set('currentKm', num(e.target.value))} /></Field>
       <Field label="Estado">
-        <select value={v.status} onChange={(e) => set('status', e.target.value as Vehicle['status'])} disabled={v.status === 'rentado'}>
+        <select value={v.status} onChange={(e) => set('status', e.target.value as Vehicle['status'])} disabled={v.status === 'rentado' || v.status === 'baja'}>
           <option value="disponible">Disponible</option><option value="taller">En taller / mantenimiento</option>
           {v.status === 'rentado' && <option value="rentado">Rentado</option>}
+          {v.status === 'baja' && <option value="baja">Dado de baja</option>}
         </select>
       </Field>
       <Field label="Precio de compra" hint="Para el cálculo inversión vs. generado"><input inputMode="numeric" value={v.purchasePrice || ''} onChange={(e) => set('purchasePrice', num(e.target.value))} /></Field>
       <Field label="Fecha de compra"><input type="date" value={v.purchaseDate} onChange={(e) => set('purchaseDate', e.target.value)} /></Field>
       <Field label="ID de equipo Orión" hint="Opcional"><input value={v.orionDeviceId ?? ''} onChange={(e) => set('orionDeviceId', e.target.value || undefined)} /></Field>
       <Field label="Notas" full><textarea rows={2} value={v.notes} onChange={(e) => set('notes', e.target.value)} /></Field>
+    </FormShell>
+  )
+}
+
+/** Confirmación para sacar un coche de la flota. La base solo lo permite a un admin y sin renta activa. */
+export function RetireVehicleForm({ vehicle, onDone }: { vehicle: Vehicle; onDone: () => void }) {
+  const { setVehicleStatus } = useStore()
+  return (
+    <FormShell submit="Dar de baja" onSubmit={async () => { await setVehicleStatus(vehicle.id, 'baja'); onDone() }}>
+      <p className="field-full">
+        <b>{vehicleLabel(vehicle)}</b> saldrá de la flota: ya no aparecerá en la lista, los conteos, el mantenimiento ni los selectores, y no se podrá rentar.
+        Su historial (rentas, pagos, servicios) se conserva y sigue contando en finanzas. Puedes reactivarlo después.
+      </p>
     </FormShell>
   )
 }
@@ -236,7 +250,7 @@ export function PaymentForm({ rentalId, onDone }: { rentalId?: string; onDone: (
 // ---------- Kilometraje y servicios ----------
 export function MileageForm({ vehicleId, onDone }: { vehicleId?: string; onDone: () => void }) {
   const { data, addMileage } = useStore()
-  const [f, setF] = useState({ vehicleId: vehicleId ?? data.vehicles[0]?.id ?? '', km: 0, date: TODAY })
+  const [f, setF] = useState({ vehicleId: vehicleId ?? data.vehicles.find(inFleet)?.id ?? '', km: 0, date: TODAY })
   const v = data.vehicles.find((x) => x.id === f.vehicleId)
   const [error, setError] = useState('')
   if (!v) return <NoVehicles />
@@ -248,7 +262,7 @@ export function MileageForm({ vehicleId, onDone }: { vehicleId?: string; onDone:
     }}>
       <Field label="Coche" full>
         <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })} disabled={!!vehicleId}>
-          {data.vehicles.map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
+          {data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId).map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
         </select>
       </Field>
       <Field label="Fecha"><input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
@@ -259,7 +273,7 @@ export function MileageForm({ vehicleId, onDone }: { vehicleId?: string; onDone:
 
 export function ServiceForm({ vehicleId, onDone }: { vehicleId?: string; onDone: () => void }) {
   const { data, addService } = useStore()
-  const [f, setF] = useState({ vehicleId: vehicleId ?? data.vehicles[0]?.id ?? '', date: TODAY, km: 0, typeId: data.serviceTypes[0]?.id ?? '', cost: 0, shop: SHOPS[0], notes: '' })
+  const [f, setF] = useState({ vehicleId: vehicleId ?? data.vehicles.find(inFleet)?.id ?? '', date: TODAY, km: 0, typeId: data.serviceTypes[0]?.id ?? '', cost: 0, shop: SHOPS[0], notes: '' })
   const v = data.vehicles.find((x) => x.id === f.vehicleId)
   const t = data.serviceTypes.find((x) => x.id === f.typeId)
   if (!v) return <NoVehicles />
@@ -270,7 +284,7 @@ export function ServiceForm({ vehicleId, onDone }: { vehicleId?: string; onDone:
     }}>
       <Field label="Coche" full>
         <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })} disabled={!!vehicleId}>
-          {data.vehicles.map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
+          {data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId).map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
         </select>
       </Field>
       <Field label="Tipo (catálogo)" hint={t.resetsCounter ? 'Reinicia el contador de 10,000 km' : t.hint}>
@@ -336,7 +350,7 @@ export function PhotoInput({ photos, onChange, labels }: { photos: PhotoRef[]; o
 export function IncidentForm({ vehicleId, onDone }: { vehicleId?: string; onDone: () => void }) {
   const { data, addIncident } = useStore()
   const [f, setF] = useState<Omit<Incident, 'id'>>({
-    vehicleId: vehicleId ?? data.vehicles[0]?.id ?? '', date: TODAY, type: 'Choque', description: '', cost: 0, responsible: 'conductor', photos: [], status: 'abierto',
+    vehicleId: vehicleId ?? data.vehicles.find(inFleet)?.id ?? '', date: TODAY, type: 'Choque', description: '', cost: 0, responsible: 'conductor', photos: [], status: 'abierto',
   })
   const active = activeRentalOf(data, f.vehicleId)
   if (!f.vehicleId) return <NoVehicles />
@@ -344,7 +358,7 @@ export function IncidentForm({ vehicleId, onDone }: { vehicleId?: string; onDone
     <FormShell submit="Guardar incidente" onSubmit={async () => { await addIncident({ ...f, driverId: f.driverId ?? active?.driverId }); onDone() }}>
       <Field label="Coche" full>
         <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })} disabled={!!vehicleId}>
-          {data.vehicles.map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
+          {data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId).map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
         </select>
       </Field>
       <Field label="Conductor" hint={active ? 'Se sugiere el conductor con renta activa' : undefined}>
@@ -409,7 +423,7 @@ export function ExpenseForm({ onDone }: { onDone: () => void }) {
       <Field label="Coche" hint="Déjalo vacío si es un gasto general del negocio">
         <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })}>
           <option value="">— General (sin coche) —</option>
-          {data.vehicles.map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
+          {data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId).map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
         </select>
       </Field>
       <Field label="Fecha"><input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>

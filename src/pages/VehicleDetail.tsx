@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { BackLink, Badge, Card, Empty, Lightbox, Modal, PageHeader, Photo, Progress, Stat, StatusBadge, Tabs } from '../components/ui'
-import { EndRentalForm, IncidentForm, MileageForm, ServiceForm, StartRentalForm, VehicleForm } from '../components/forms'
+import { EndRentalForm, IncidentForm, MileageForm, RetireVehicleForm, ServiceForm, StartRentalForm, VehicleForm } from '../components/forms'
 import { activeRentalOf, maintenanceStatus, rentalBalance, vehicleBalance, MAINTENANCE_INTERVAL } from '../lib/calc'
 import { vehicleRecovery } from '../lib/finance'
 import { fecha, fuelLabel, km, mxn } from '../lib/format'
@@ -11,7 +11,7 @@ import { InspectionCompare } from './Inspections'
 import { Icon, type IconName } from '../components/Icon'
 
 type Tab = 'resumen' | 'historial' | 'km' | 'mantenimiento' | 'incidentes' | 'inspecciones' | 'finanzas'
-type ModalKind = 'edit' | 'rent' | 'end' | 'km' | 'service' | 'incident' | null
+type ModalKind = 'edit' | 'baja' | 'rent' | 'end' | 'km' | 'service' | 'incident' | null
 
 export default function VehicleDetail() {
   const { id } = useParams()
@@ -64,13 +64,19 @@ export default function VehicleDetail() {
         subtitle={<><span className="plate">{v.plates}</span> · {v.color}{v.vin && <> · VIN {v.vin}</>} · <StatusBadge value={v.status} /></>}
         actions={<>
           <button className="btn" onClick={() => setModal('edit')}>Editar</button>
-          {r ? <button className="btn" onClick={() => setModal('end')}>Finalizar renta</button>
-            : v.status === 'disponible' ? <button className="btn btn-primary" onClick={() => setModal('rent')}>Rentar</button> : null}
-          {!r && (v.status === 'taller'
-            ? <button className="btn" onClick={() => setVehicleStatus(v.id, 'disponible').catch((e: Error) => setError(e.message))}>Marcar disponible</button>
-            : <button className="btn" onClick={() => setVehicleStatus(v.id, 'taller').catch((e: Error) => setError(e.message))}>Enviar a taller</button>)}
+          {v.status === 'baja' ? (
+            isAdmin && <button className="btn" onClick={() => setVehicleStatus(v.id, 'disponible').catch((e: Error) => setError(e.message))}>Reactivar</button>
+          ) : <>
+            {r ? <button className="btn" onClick={() => setModal('end')}>Finalizar renta</button>
+              : v.status === 'disponible' ? <button className="btn btn-primary" onClick={() => setModal('rent')}>Rentar</button> : null}
+            {!r && (v.status === 'taller'
+              ? <button className="btn" onClick={() => setVehicleStatus(v.id, 'disponible').catch((e: Error) => setError(e.message))}>Marcar disponible</button>
+              : <button className="btn" onClick={() => setVehicleStatus(v.id, 'taller').catch((e: Error) => setError(e.message))}>Enviar a taller</button>)}
+            {!r && isAdmin && <button className="btn btn-danger" onClick={() => setModal('baja')}>Dar de baja</button>}
+          </>}
         </>}
       />
+      {v.status === 'baja' && <div className="banner banner-amber">Este coche está dado de baja: no aparece en la flota ni se puede rentar. Su historial se conserva.</div>}
       {error && <div className="banner banner-red" onClick={() => setError('')}>{error}</div>}
       <Tabs value={tab} onChange={setTab} tabs={tabs} />
 
@@ -201,6 +207,7 @@ export default function VehicleDetail() {
       })()}
 
       <Modal open={modal === 'edit'} title="Editar coche" onClose={() => setModal(null)} wide><VehicleForm vehicle={v} onDone={() => setModal(null)} /></Modal>
+      <Modal open={modal === 'baja'} title="Dar de baja" onClose={() => setModal(null)}><RetireVehicleForm vehicle={v} onDone={() => setModal(null)} /></Modal>
       <Modal open={modal === 'rent'} title="Nueva renta" onClose={() => setModal(null)}><StartRentalForm vehicleId={v.id} onDone={() => setModal(null)} /></Modal>
       <Modal open={modal === 'end' && !!r} title="Finalizar renta" onClose={() => setModal(null)}>{r && <EndRentalForm rental={r} onDone={() => setModal(null)} />}</Modal>
       <Modal open={modal === 'km'} title="Registrar kilometraje" onClose={() => setModal(null)}><MileageForm vehicleId={v.id} onDone={() => setModal(null)} /></Modal>

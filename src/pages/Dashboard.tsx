@@ -2,13 +2,14 @@ import { Link } from 'react-router-dom'
 import { useStore } from '../data/store'
 import { Badge, Card, PageHeader, Progress, Stat, StatusBadge } from '../components/ui'
 import { Icon } from '../components/Icon'
-import { carName, activeRentalOfDriver, alerts, driverBalance, globalBalance, maintenanceStatus, monthIncome, weekIncome, MAINTENANCE_INTERVAL } from '../lib/calc'
+import { carName, inFleet, activeRentalOfDriver, alerts, driverBalance, globalBalance, maintenanceStatus, monthIncome, weekIncome, MAINTENANCE_INTERVAL } from '../lib/calc'
 import { CURRENT_MONDAY, TODAY, addDays, km, mes, mxn, rangoFechas } from '../lib/format'
 
 export default function Dashboard() {
   const { data, user } = useStore()
-  const count = (s: string) => data.vehicles.filter((v) => v.status === s).length
-  const total = data.vehicles.length
+  const fleet = data.vehicles.filter(inFleet)
+  const count = (s: string) => fleet.filter((v) => v.status === s).length
+  const total = fleet.length
   const avisos = alerts(data)
 
   const debtors = data.drivers
@@ -16,7 +17,7 @@ export default function Dashboard() {
     .filter((x) => x.balance > 0)
     .sort((a, b) => b.balance - a.balance)
 
-  const upcoming = data.vehicles
+  const upcoming = fleet
     .map((v) => ({ v, m: maintenanceStatus(v, data.services) }))
     .sort((a, b) => a.m.remaining - b.m.remaining)
     .slice(0, 6)

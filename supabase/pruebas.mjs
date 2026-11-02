@@ -233,6 +233,12 @@ await rechaza('un coche rentado no se manda a taller sin finalizar la renta', ()
 await rechaza('no se da de alta un coche como rentado', () =>
   insert('vehiculos', { marca: 'Kia', modelo: 'Rio', anio: 2024, placas: 'ZZZ-999-A', estado: 'rentado' }), /rentado/)
 await rechaza('placas duplicadas', () => insert('vehiculos', { marca: 'Kia', modelo: 'Rio', anio: 2024, placas: seed.vehicles[0].plates }), /placas/)
+await rechaza('un coche rentado no se da de baja', () => db.query("update vehiculos set estado = 'baja' where id = $1", [id('v01')]), /Finaliza la renta/)
+await enTransaccion(async () => {
+  await db.query("update vehiculos set estado = 'baja' where id = $1", [id('v23')])
+  const e = await insert('rentas', { vehiculo_id: id('v23'), conductor_id: id('d24'), fecha_inicio: '2026-10-14', tarifa_semanal: 3000, km_entrega: 0 }).then(() => null, (err) => err)
+  ok(/no está disponible/.test(e?.message), 'un coche dado de baja no se renta', e?.message ?? 'la base lo aceptó')
+})
 
 console.log('\nKilometraje')
 {
@@ -333,6 +339,7 @@ ok(/row-level security/.test((await como(OPERADOR, () => intenta(() => insert('p
 ok(/row-level security/.test((await como(OPERADOR, () => intenta(() => insert('cargos', { renta_id: id('r01'), tipo: 'renta', fecha: '2026-11-30', periodo_inicio: '2026-11-30', periodo_fin: '2026-12-06', monto: 1, concepto: 'x' }))))?.message), 'no crea semanas de renta a mano')
 ok(/Sin permiso/.test((await como(OPERADOR, () => intenta(() => q('select cancelar_pago($1, $2)', [id(seed.payments[0].id), 'x']))))?.message), 'no cancela pagos')
 ok(/Sin permiso/.test((await como(OPERADOR, () => intenta(() => q('select editar_renta($1, 1, 1)', [id('r01')]))))?.message), 'no edita tarifas')
+ok(/Solo un admin/.test((await como(OPERADOR, () => intenta(() => q("update vehiculos set estado = 'baja' where id = $1", [id('v23')]))))?.message), 'no da de baja coches')
 await como(OPERADOR, async () => {
   const r = await db.query('update rentas set tarifa_semanal = 1 where id = $1', [id('r01')])
   const u = await db.query("update usuarios set rol = 'admin' where id = $1", [id(OPERADOR)])
@@ -364,6 +371,11 @@ await como(OPERADOR, async () => {
 })
 
 console.log('\nPermisos · admin')
+await como(ADMIN, async () => {
+  await q("update vehiculos set estado = 'baja' where id = $1", [id('v23')])
+  await q("update vehiculos set estado = 'disponible' where id = $1", [id('v23')])
+  ok((await one('select estado from vehiculos where id = $1', [id('v23')])).estado === 'disponible', 'da de baja y reactiva un coche')
+})
 await como(ADMIN, async () => {
   ok((await cuenta('gastos')) === seed.expenses.length && (await cuenta('auditoria')) > 0, 've gastos y auditoría')
   const pago = seed.payments[0]

@@ -4,7 +4,7 @@ import { useLookup, useStore } from '../data/store'
 import { BackLink, Card, Empty, Field, Lightbox, PageHeader, Photo, StatusBadge } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { PhotoInput } from '../components/forms'
-import { activeRentalOf, vehicleLabel } from '../lib/calc'
+import { activeRentalOf, inFleet, vehicleLabel } from '../lib/calc'
 import { TODAY, fecha, fuelLabel, km } from '../lib/format'
 import type { Inspection, PhotoRef } from '../data/types'
 
@@ -89,7 +89,7 @@ export function NewInspection() {
   const [params] = useSearchParams()
   const nav = useNavigate()
   const [f, setF] = useState({
-    vehicleId: params.get('vehiculo') ?? data.vehicles[0]?.id ?? '',
+    vehicleId: params.get('vehiculo') ?? data.vehicles.find(inFleet)?.id ?? '',
     kind: (params.get('tipo') as Inspection['kind']) ?? 'entrega',
     date: TODAY, km: 0, fuel: 8, notes: '',
   })
@@ -121,7 +121,7 @@ export function NewInspection() {
       }}>
         <div className="form-grid">
           <Field label="Coche" full>
-            <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })}>{data.vehicles.map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}</select>
+            <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })}>{data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId).map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}</select>
           </Field>
           <Field label="Tipo">
             <div className="segmented">

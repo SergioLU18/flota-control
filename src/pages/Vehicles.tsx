@@ -5,10 +5,10 @@ import { COLOR_HEX } from '../data/catalogs'
 import { Modal, PageHeader, StatusBadge, Tabs } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { VehicleForm } from '../components/forms'
-import { activeRentalOf, maintenanceStatus, vehicleBalance, type MaintLevel } from '../lib/calc'
+import { activeRentalOf, inFleet, maintenanceStatus, vehicleBalance, type MaintLevel } from '../lib/calc'
 import { km, mxn } from '../lib/format'
 
-type Filter = 'todos' | 'disponible' | 'rentado' | 'taller'
+type Filter = 'todos' | 'disponible' | 'rentado' | 'taller' | 'baja'
 type View = 'tabla' | 'grid'
 type SortKey = 'coche' | 'modelo' | 'km' | 'servicio' | 'renta' | 'saldo'
 
@@ -43,7 +43,8 @@ export default function Vehicles() {
   }
 
   const rows = data.vehicles
-    .filter((v) => filter === 'todos' || v.status === filter)
+    // "Todos" es la flota actual; los dados de baja solo salen en su pestaña.
+    .filter((v) => (filter === 'todos' ? inFleet(v) : v.status === filter))
     .filter((v) => `${v.unit ?? ''} ${v.brand} ${v.model} ${v.plates} ${v.vin}`.toLowerCase().includes(q.toLowerCase()))
     .map((v) => {
       const r = activeRentalOf(data, v.id)
@@ -87,14 +88,15 @@ export default function Vehicles() {
     </th>
   )
 
-  const count = (s: Filter) => (s === 'todos' ? data.vehicles.length : data.vehicles.filter((v) => v.status === s).length)
+  const count = (s: Filter) => data.vehicles.filter((v) => (s === 'todos' ? inFleet(v) : v.status === s)).length
   const hasFilters = !!(servicio || adeudo || q)
 
   return (
     <>
-      <PageHeader module="flota" title="Flota" subtitle={`${data.vehicles.length} coches`} actions={<button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="plus" />Nuevo coche</button>} />
+      <PageHeader module="flota" title="Flota" subtitle={`${count('todos')} coches`} actions={<button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="plus" />Nuevo coche</button>} />
       <Tabs<Filter> value={filter} onChange={(f) => setParam('estado', f === 'todos' ? '' : f)}
-        tabs={[['todos', `Todos (${count('todos')})`], ['rentado', `Rentados (${count('rentado')})`], ['disponible', `Disponibles (${count('disponible')})`], ['taller', `En taller (${count('taller')})`]]} />
+        tabs={[['todos', `Todos (${count('todos')})`], ['rentado', `Rentados (${count('rentado')})`], ['disponible', `Disponibles (${count('disponible')})`], ['taller', `En taller (${count('taller')})`],
+          ...(count('baja') || filter === 'baja' ? [['baja', `Dados de baja (${count('baja')})`] as [Filter, string]] : [])]} />
       <div className="toolbar toolbar-row">
         <input className="search" placeholder="Buscar por unidad, marca, modelo, placas o VIN…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="filter-select" aria-label="Servicio" value={servicio} onChange={(e) => setParam('servicio', e.target.value)}>

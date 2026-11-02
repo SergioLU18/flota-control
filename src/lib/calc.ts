@@ -50,10 +50,13 @@ export function licenseStatus(dr: Driver): LicenseLevel {
   return days < 0 ? 'vencida' : days <= 30 ? 'por_vencer' : 'ok'
 }
 
+/** Coches que siguen en la flota (los dados de baja solo cuentan para historial y finanzas). */
+export const inFleet = (v: Vehicle) => v.status !== 'baja'
+
 /** Avisos internos que se muestran en el dashboard. */
 export function alerts(d: Data) {
   const out: { level: 'alta' | 'media'; text: string; to: string }[] = []
-  d.vehicles.forEach((v) => {
+  d.vehicles.filter(inFleet).forEach((v) => {
     const m = maintenanceStatus(v, d.services)
     if (m.level === 'vencido') out.push({ level: 'alta', text: `${carName(v)} ${v.plates}: servicio vencido (${m.since.toLocaleString('es-MX')} km desde el último)`, to: `/flota/${v.id}` })
     else if (m.level === 'proximo') out.push({ level: 'media', text: `${carName(v)} ${v.plates}: servicio en ${m.remaining.toLocaleString('es-MX')} km`, to: `/flota/${v.id}` })

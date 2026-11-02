@@ -10,7 +10,8 @@ export interface User {
   active: boolean
 }
 
-export type VehicleStatus = 'disponible' | 'rentado' | 'taller'
+/** 'baja': salió de la flota; se conserva por su historial. */
+export type VehicleStatus = 'disponible' | 'rentado' | 'taller' | 'baja'
 
 export interface Tire {
   position: 'DI' | 'DD' | 'TI' | 'TD' // delantera/trasera izquierda/derecha

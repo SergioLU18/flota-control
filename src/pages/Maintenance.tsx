@@ -4,7 +4,7 @@ import { useLookup, useStore } from '../data/store'
 import { Badge, Card, Modal, PageHeader, Progress, StatusBadge, Tabs } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { MileageForm, ServiceForm } from '../components/forms'
-import { carName, maintenanceStatus, MAINTENANCE_INTERVAL } from '../lib/calc'
+import { carName, inFleet, maintenanceStatus, MAINTENANCE_INTERVAL } from '../lib/calc'
 import { fecha, km, mxn } from '../lib/format'
 
 type Tab = 'alertas' | 'servicios' | 'km' | 'catalogo'
@@ -15,7 +15,7 @@ export default function Maintenance() {
   const [tab, setTab] = useState<Tab>('alertas')
   const [modal, setModal] = useState<'km' | 'service' | null>(null)
 
-  const status = data.vehicles.map((v) => ({ v, m: maintenanceStatus(v, data.services) })).sort((a, b) => a.m.remaining - b.m.remaining)
+  const status = data.vehicles.filter(inFleet).map((v) => ({ v, m: maintenanceStatus(v, data.services) })).sort((a, b) => a.m.remaining - b.m.remaining)
   const services = [...data.services].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 50)
   const mileage = [...data.mileage].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 50)
   const due = status.filter((s) => s.m.level !== 'ok').length

@@ -42,6 +42,10 @@ ORIGEN = 'Importado del concentrado de rentas.'
 # Mismo conductor escrito de dos formas (C-18, semanas seguidas).
 ALIAS = {'JOSE AREVAR': 'JOSE RENE ARENAL AYVAR'}
 NO_ES_CONDUCTOR = {'PENDIENTE DE ENTREGA', 'BLANCO'}
+# Coches que cubrieron una unidad de forma temporal: no se quedan con ella (la C-25 es del Kia YWX 006 J).
+UNIDAD_TEMPORAL = {'ZBE 026 G': 'Cubrió la unidad C-25 unas semanas.'}
+# Coches que ya salieron de la flota: se cargan dados de baja.
+BAJA = {'ZBE 026 G'}
 
 # Notas de mantenimiento → tipo de servicio del catálogo (migración 0200).
 SERVICIOS = [
@@ -199,6 +203,10 @@ for placas, semanas in por_placas.items():
 # Una unidad repetida no se le asigna a ninguno de sus coches: queda en las notas para resolverla a mano.
 por_unidad = defaultdict(list)
 for v in vehiculos.values():
+    if v['placas'] in UNIDAD_TEMPORAL:
+        v['unidad_bd'] = None
+        v['notas'] = f"{UNIDAD_TEMPORAL[v['placas']]} {v['notas']}".strip()
+        continue
     por_unidad[v['unidad']].append(v)
 for u, vs in por_unidad.items():
     for v in vs:
@@ -408,8 +416,8 @@ w("""if not exists (select 1 from public.usuarios where rol = 'admin' and activo
   raise exception 'Primero da de alta y activa un admin (ver supabase/README.md)';
 end if;""")
 w('')
-w('insert into public.vehiculos (id, unidad, marca, modelo, anio, placas, color, vin, notas) values')
-w(',\n'.join(f"  ({sql(v['id'])}, {sql(v['unidad_bd'])}, {sql(v['marca'])}, {sql(v['modelo'])}, {v['anio']}, {sql(v['placas'])}, {sql(v['color'])}, {sql(v['vin'])}, {sql(v['notas'])})"
+w('insert into public.vehiculos (id, unidad, marca, modelo, anio, placas, color, vin, notas, estado) values')
+w(',\n'.join(f"  ({sql(v['id'])}, {sql(v['unidad_bd'])}, {sql(v['marca'])}, {sql(v['modelo'])}, {v['anio']}, {sql(v['placas'])}, {sql(v['color'])}, {sql(v['vin'])}, {sql(v['notas'])}, {sql('baja' if v['placas'] in BAJA else 'disponible')})"
              for v in sorted(vehiculos.values(), key=lambda v: int(v['unidad'][2:]))) + ';')
 w('')
 w('insert into public.conductores (id, nombre, notas) values')

@@ -11,7 +11,7 @@ export function Badge({ tone = 'gray', children }: { tone?: Tone; children: Reac
 }
 
 const STATUS: Record<string, [Tone, string]> = {
-  disponible: ['green', 'Disponible'], rentado: ['blue', 'Rentado'], taller: ['amber', 'En taller'],
+  disponible: ['green', 'Disponible'], rentado: ['blue', 'Rentado'], taller: ['amber', 'En taller'], baja: ['gray', 'Dado de baja'],
   activa: ['blue', 'Activa'], finalizada: ['gray', 'Finalizada'],
   ok: ['green', 'Al día'], proximo: ['amber', 'Próximo'], vencido: ['red', 'Vencido'],
   abierto: ['amber', 'Abierto'], cerrado: ['gray', 'Cerrado'],
