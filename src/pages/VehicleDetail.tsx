@@ -189,10 +189,10 @@ export default function VehicleDetail() {
         return (
           <>
             <div className="stats">
-              <Stat label="Ingresos cobrados" value={mxn(f.income)} hint={`desde la compra (${fecha(v.purchaseDate)})`} />
-              <Stat label="Costos" value={mxn(f.costs)} hint={`Mantenimiento ${mxn(f.maintenance)} · incidentes ${mxn(f.incidents)} · seguro, refrendo y GPS ${mxn(f.other)}`} />
-              <Stat label="Utilidad acumulada" value={mxn(f.profit)} tone={f.profit >= 0 ? 'green' : 'red'} hint={`${mxn(f.profitPerMonth)} al mes · ocupación ${Math.round(f.occupancy * 100)}%`} />
-              <Stat label="Recuperado del costo" value={v.purchasePrice ? `${Math.round(f.recovered * 100)}%` : '—'}
+              <Stat label="Ingresos cobrados" value={mxn(f.income)} hint={`desde la compra (${fecha(v.purchaseDate)})`} icon="trend" />
+              <Stat label="Costos" value={mxn(f.costs)} hint={`Mantenimiento ${mxn(f.maintenance)} · incidentes ${mxn(f.incidents)} · seguro, refrendo y GPS ${mxn(f.other)}`} icon="wrench" />
+              <Stat label="Utilidad acumulada" value={mxn(f.profit)} tone={f.profit >= 0 ? 'green' : 'red'} hint={`${mxn(f.profitPerMonth)} al mes · ocupación ${Math.round(f.occupancy * 100)}%`} icon="chart" />
+              <Stat label="Recuperado del costo" value={v.purchasePrice ? `${Math.round(f.recovered * 100)}%` : '—'} icon="clock"
                 hint={!v.purchasePrice ? 'Captura el precio de compra para calcularlo' : <><Progress value={f.recovered} tone="green" />{f.monthsToRecover === 0 ? 'Ya recuperó su precio de compra' : f.monthsToRecover === Infinity ? 'Sin utilidad suficiente para estimar' : `Precio ${mxn(v.purchasePrice)} · faltan ${mxn(f.remaining)} (~${Math.ceil(f.monthsToRecover)} meses)`}</>} />
             </div>
             <p className="muted small">Adeudo pendiente del coche: <b className={bal.balance > 0 ? 'neg' : ''}>{mxn(bal.balance)}</b> (no cuenta como ingreso hasta que se cobra). <Link to="/finanzas">Comparar con el resto de la flota →</Link></p>

@@ -57,10 +57,10 @@ export default function Billing() {
       {error && <div className="banner banner-red" onClick={() => setError('')}>{error}</div>}
 
       <div className="stats">
-        <Stat label="Cobrado esta semana" value={mxn(weekIncome(data))} />
-        <Stat label={`Cobrado en ${mes(TODAY.slice(0, 7))}`} value={mxn(monthIncome(data))} />
-        <Stat label="Adeudo total" value={mxn(g.balance)} tone="red" />
-        <Stat label="Histórico cobrado" value={mxn(g.paid)} hint={`de ${mxn(g.charged)} cargado`} />
+        <Stat label="Cobrado esta semana" value={mxn(weekIncome(data))} icon="trend" tone="green" />
+        <Stat label={`Cobrado en ${mes(TODAY.slice(0, 7))}`} value={mxn(monthIncome(data))} icon="calendar" />
+        <Stat label="Adeudo total" value={mxn(g.balance)} tone="red" icon="wallet" />
+        <Stat label="Histórico cobrado" value={mxn(g.paid)} hint={`de ${mxn(g.charged)} cargado`} icon="cash" />
       </div>
 
       <Tabs value={tab} onChange={setTab} tabs={[['conductores', 'Saldo por conductor'], ['coches', 'Saldo por coche'], ['pagos', 'Pagos'], ['cargos', 'Cargos recientes']]} />
@@ -85,7 +85,7 @@ export default function Billing() {
       )}
 
       {tab === 'pagos' && (
-        <Card title="Últimos pagos" actions={<button className="btn btn-sm" onClick={exportAll}>⬇ Histórico a Excel (CSV)</button>}>
+        <Card title="Últimos pagos" actions={<button className="btn btn-sm" onClick={exportAll}><Icon name="download" />Histórico a Excel (CSV)</button>}>
           <div className="table-wrap"><table className="table compact">
             <thead><tr><th>Fecha</th><th>Conductor</th><th>Coche</th><th>Método</th><th className="num">Monto</th><th>Registró</th>{isAdmin && <th></th>}</tr></thead>
             <tbody>{payments.map((p) => {

@@ -1,17 +1,11 @@
-/** Marca de Flota Control: odómetro sobre un squircle cobalto. Es el mismo dibujo que public/favicon.svg. */
+/** Marca de Flota Control: odómetro plano sobre un cuadrado azul. Es el mismo dibujo que public/favicon.svg. */
 export function Logo({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 64 64" role="img" aria-label="Flota Control">
-      <defs>
-        <linearGradient id="fc-bg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#4C7DFF" />
-          <stop offset="1" stopColor="#1D46D8" />
-        </linearGradient>
-      </defs>
-      <rect width="64" height="64" rx="15" fill="url(#fc-bg)" />
+      <rect width="64" height="64" rx="14" fill="#2563EB" />
       <path d="M14.5 42.5 A19 19 0 1 1 49.5 42.5" fill="none" stroke="#fff" strokeOpacity=".35" strokeWidth="5.5" strokeLinecap="round" />
       <path d="M14.5 42.5 A19 19 0 0 1 41.5 18.65" fill="none" stroke="#fff" strokeWidth="5.5" strokeLinecap="round" />
-      <path d="M32 35 L39 23.4" stroke="#FFB23F" strokeWidth="5" strokeLinecap="round" />
+      <path d="M32 35 L39 23.4" stroke="#fff" strokeWidth="5" strokeLinecap="round" />
       <circle cx="32" cy="35" r="5" fill="#fff" />
     </svg>
   )

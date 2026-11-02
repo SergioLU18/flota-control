@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useStore } from '../data/store'
 import { COLOR_HEX } from '../data/catalogs'
@@ -152,7 +152,7 @@ export default function Vehicles() {
           {list.map(({ v, rental, driver, m, balance }) => (
             <Link key={v.id} to={`/flota/${v.id}`} className="vehicle-card">
               <div className="vc-top">
-                <span className="swatch" style={{ background: COLOR_HEX[v.color] }} title={v.color} />
+                <span className="vc-swatch" style={{ '--c': COLOR_HEX[v.color] } as CSSProperties} title={v.color}><Icon name="car" /></span>
                 <div className="vc-title"><strong>{v.unit && <span className="unit">{v.unit}</span>}{v.brand} {v.model} {v.year}</strong><span className="plate">{v.plates}</span></div>
                 <StatusBadge value={v.status} />
               </div>

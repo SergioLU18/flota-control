@@ -3,6 +3,9 @@ import { useLookup, useStore } from '../data/store'
 import { Badge, Card, PageHeader, StatusBadge, Tabs } from '../components/ui'
 import type { User } from '../data/types'
 import { fechaHora } from '../lib/format'
+import { Icon } from '../components/Icon'
+
+const Yes = () => <span className="doc-ok" aria-label="Sí"><Icon name="check" /></span>
 
 const PERMS: [string, boolean, boolean][] = [
   ['Ver dashboard, flota, conductores y rentas', true, true],
@@ -42,7 +45,7 @@ export default function Users() {
                       <option value="operador">Operador</option><option value="admin">Admin</option>
                     </select>
                   )}</td>
-                  <td>{u.id === me?.id ? '✓' : <input type="checkbox" checked={u.active} onChange={(e) => save({ ...u, active: e.target.checked })} aria-label={`Activo: ${u.name}`} />}</td>
+                  <td>{u.id === me?.id ? <Yes /> : <input type="checkbox" checked={u.active} onChange={(e) => save({ ...u, active: e.target.checked })} aria-label={`Activo: ${u.name}`} />}</td>
                 </tr>
               ))}</tbody>
             </table>
@@ -53,7 +56,7 @@ export default function Users() {
           </Card>
           <Card title="Permisos por rol">
             <table className="table compact"><thead><tr><th>Acción</th><th>Admin</th><th>Operador</th></tr></thead>
-              <tbody>{PERMS.map(([p, a, o]) => <tr key={p}><td>{p}</td><td>{a ? '✓' : '—'}</td><td>{o ? '✓' : '—'}</td></tr>)}</tbody>
+              <tbody>{PERMS.map(([p, a, o]) => <tr key={p}><td>{p}</td><td>{a ? <Yes /> : <span className="muted">—</span>}</td><td>{o ? <Yes /> : <span className="muted">—</span>}</td></tr>)}</tbody>
             </table>
           </Card>
         </div>

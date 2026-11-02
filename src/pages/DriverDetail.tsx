@@ -7,6 +7,7 @@ import { carName, activeRentalOfDriver, driverBalance, licenseStatus, rentalBala
 import { TODAY, fecha, mes, mxn } from '../lib/format'
 import { downloadCsv } from '../lib/files'
 import type { DocType, DriverDocument } from '../data/types'
+import { Icon } from '../components/Icon'
 
 const DOC_LABEL: Record<DocType, string> = {
   ine: 'INE', licencia: 'Licencia de conducir', no_penales: 'Carta de no antecedentes penales', domicilio: 'Comprobante de domicilio', referencias: '2 referencias familiares',
@@ -70,10 +71,10 @@ export default function DriverDetail() {
         </>} />
 
       <div className="stats">
-        <Stat label="Saldo / adeudo" value={mxn(bal.balance)} tone={bal.balance > 0 ? 'red' : 'green'} />
-        <Stat label="Total pagado" value={mxn(bal.paid)} />
-        <Stat label="Coche actual" value={active ? L.vehicle(active.vehicleId).plates : '—'} hint={active && <Link to={`/flota/${active.vehicleId}`}>{L.vehicle(active.vehicleId).brand} {L.vehicle(active.vehicleId).model}</Link>} />
-        <Stat label="Licencia" value={fecha(d.licenseExpires)} tone={lic === 'vencida' ? 'red' : lic === 'por_vencer' ? 'amber' : undefined} hint={lic === 'vencida' ? 'Vencida' : lic === 'por_vencer' ? 'Vence en menos de 30 días' : 'Vigente'} />
+        <Stat label="Saldo / adeudo" value={mxn(bal.balance)} tone={bal.balance > 0 ? 'red' : 'green'} icon="wallet" />
+        <Stat label="Total pagado" value={mxn(bal.paid)} icon="cash" />
+        <Stat label="Coche actual" value={active ? L.vehicle(active.vehicleId).plates : '—'} hint={active && <Link to={`/flota/${active.vehicleId}`}>{L.vehicle(active.vehicleId).brand} {L.vehicle(active.vehicleId).model}</Link>} icon="car" />
+        <Stat label="Licencia" value={fecha(d.licenseExpires)} tone={lic === 'vencida' ? 'red' : lic === 'por_vencer' ? 'amber' : undefined} hint={lic === 'vencida' ? 'Vencida' : lic === 'por_vencer' ? 'Vence en menos de 30 días' : 'Vigente'} icon="id" />
       </div>
 
       <Tabs value={tab} onChange={setTab} tabs={[['expediente', 'Expediente'], ['rentas', `Coches rentados (${rentals.length})`], ['cuenta', 'Movimientos'], ['estado', 'Estado de cuenta mensual']]} />
@@ -95,7 +96,7 @@ export default function DriverDetail() {
             <ul className="doc-list">
               {d.documents.map((doc) => (
                 <li key={doc.type}>
-                  <span>{doc.uploaded ? <span className="doc-ok">✓</span> : <span className="doc-missing">○</span>} {DOC_LABEL[doc.type]}</span>
+                  <span>{doc.uploaded ? <span className="doc-ok" aria-label="Subido"><Icon name="check" /></span> : <span className="doc-missing" aria-label="Pendiente" />}{DOC_LABEL[doc.type]}</span>
                   <span className="muted small">{doc.expires && `vence ${fecha(doc.expires)}`}</span>
                   <span className="row-actions">
                     {doc.uploaded && <button className="btn btn-sm btn-ghost" onClick={() => open(doc)}>Ver</button>}
@@ -141,7 +142,7 @@ export default function DriverDetail() {
       )}
 
       {tab === 'cuenta' && (
-        <Card title="Cargos y pagos" actions={<button className="btn btn-sm" onClick={exportCsv}>⬇ Exportar a Excel (CSV)</button>}>
+        <Card title="Cargos y pagos" actions={<button className="btn btn-sm" onClick={exportCsv}><Icon name="download" />Exportar a Excel (CSV)</button>}>
           <div className="table-wrap"><table className="table compact">
             <thead><tr><th>Fecha</th><th>Concepto</th><th className="num">Cargo</th><th className="num">Pago</th><th className="num">Saldo</th></tr></thead>
             <tbody>{[...ledger].reverse().map((m, i) => (

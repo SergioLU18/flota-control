@@ -21,6 +21,13 @@ const PATHS = {
   more: <><circle cx="5.5" cy="12" r="1.3" fill="currentColor" /><circle cx="12" cy="12" r="1.3" fill="currentColor" /><circle cx="18.5" cy="12" r="1.3" fill="currentColor" /></>,
   logout: <><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" /><path d="M10 16.5 5.5 12 10 7.5M5.5 12H15" /></>,
   compass: <><circle cx="12" cy="12" r="9" /><path d="m15.5 8.5-2 5-5 2 2-5z" /></>,
+  calendar: <><rect x="3.5" y="5" width="17" height="15.5" rx="2.5" /><path d="M3.5 10h17M8 3v4M16 3v4" /></>,
+  download: <><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5" /><path d="M4.5 17.5v1a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-1" /></>,
+  trend: <><path d="M3.5 17 9.5 11l4 4L20.5 8" /><path d="M15.5 8h5v5" /></>,
+  inbox: <><path d="M4 13.5 6.2 6.2A2 2 0 0 1 8.1 5h7.8a2 2 0 0 1 1.9 1.2L20 13.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" /><path d="M4 13.5h4.5l1.5 2.5h4l1.5-2.5H20" /></>,
+  wallet: <><path d="M3.5 8.5V7.5A2.5 2.5 0 0 1 6 5h12a2 2 0 0 1 2 2v1.5" /><rect x="3.5" y="8.5" width="17" height="11" rx="2" /><circle cx="16" cy="14" r="1.3" fill="currentColor" /></>,
+  clock: <><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></>,
+  id: <><rect x="2.5" y="5" width="19" height="14" rx="2.5" /><circle cx="8.5" cy="11" r="2.2" /><path d="M5.5 16c.5-1.6 1.6-2.4 3-2.4s2.5.8 3 2.4M14 9.5h4.5M14 13h4.5" /></>,
 }
 
 export type IconName = keyof typeof PATHS

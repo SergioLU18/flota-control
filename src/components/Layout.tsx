@@ -49,7 +49,7 @@ export default function Layout() {
           {user
             ? items.map((m) => (
               <NavLink key={m.key} to={m.path} end={m.path === '/'}>
-                <Icon name={m.icon} className="nav-icon" />{m.label}
+                <span className="nav-icon"><Icon name={m.icon} /></span>{m.label}
               </NavLink>
             ))
             // Aún no se conoce el rol (y con él, qué módulos ve): marcadores del tamaño de cada opción.
@@ -73,7 +73,7 @@ export default function Layout() {
       <div className="main">
         <div className={`topbar ${scrolled ? 'scrolled' : ''}`}>
           <span className="topbar-title" aria-hidden>{inSettings ? 'Ajustes' : current?.label}</span>
-          <span className="demo-pill">{fecha(TODAY)}</span>
+          <span className="demo-pill"><Icon name="calendar" />{fecha(TODAY)}</span>
           {user && (
             <button className="btn btn-sm btn-tinted tour-btn" data-tour="start" onClick={() => setTouring(true)}>
               <Icon name="compass" /><span className="tour-label">Tour guiado</span>

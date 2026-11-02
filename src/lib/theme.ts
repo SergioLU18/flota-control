@@ -18,7 +18,7 @@ export function readTheme(): ThemePref {
 function apply(pref: ThemePref) {
   const dark = pref === 'dark' || (pref === 'auto' && media.matches)
   document.documentElement.dataset.theme = dark ? 'dark' : 'light'
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#000000' : '#F2F2F7')
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0B0F17' : '#FFFFFF')
 }
 
 // En automático, seguir los cambios del sistema mientras la app está abierta.

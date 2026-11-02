@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useStore } from '../data/store'
 import { Brand as BrandMark } from '../components/Logo'
+import { Icon } from '../components/Icon'
 
 export default function Login() {
   const { login } = useStore()
@@ -10,26 +11,43 @@ export default function Login() {
   const [busy, setBusy] = useState(false)
 
   return (
-    <div className="login">
-      <form className="login-card" onSubmit={async (e) => {
-        e.preventDefault()
-        setBusy(true); setError('')
-        try {
-          await login(email, password)
-        } catch (err) {
-          setError((err as Error).message)
-        } finally {
-          setBusy(false)
-        }
-      }}>
-        <Brand />
-        <div className="login-intro"><h1>Inicia sesión</h1><p className="muted">Entra con tu correo y contraseña.</p></div>
-        <label className="field"><span>Correo</span><input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus /></label>
-        <label className="field"><span>Contraseña</span><input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
-        {error && <p className="form-error">{error}</p>}
-        <button className="btn btn-primary btn-block" type="submit" disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</button>
-        <p className="muted small">Las cuentas las da de alta un administrador. Si olvidaste tu contraseña, pídele que la restablezca.</p>
-      </form>
+    <div className="login login-split">
+      {/* Panel de marca: solo en pantallas anchas; en el teléfono queda la tarjeta sola. */}
+      <aside className="login-hero">
+        <BrandMark large />
+        <div className="hero-copy">
+          <h1>Tu flota, bajo control.</h1>
+          <p>Coches, conductores, rentas, cobranza y mantenimiento en un solo lugar. Desde la oficina, el iPad o el teléfono.</p>
+          <ul className="hero-points">
+            <li><Icon name="car" />Expediente e historial de cada coche</li>
+            <li><Icon name="cash" />Cargos semanales, pagos y saldos al día</li>
+            <li><Icon name="wrench" />Alerta de servicio cada 10,000 km</li>
+            <li><Icon name="camera" />Inspecciones con fotos al entregar y recibir</li>
+          </ul>
+        </div>
+        <div className="hero-foot">Flota Control · Gestión de flota y rentas</div>
+      </aside>
+      <div className="login-side">
+        <form className="login-card" onSubmit={async (e) => {
+          e.preventDefault()
+          setBusy(true); setError('')
+          try {
+            await login(email, password)
+          } catch (err) {
+            setError((err as Error).message)
+          } finally {
+            setBusy(false)
+          }
+        }}>
+          <Brand />
+          <div className="login-intro"><h1>Inicia sesión</h1><p className="muted">Entra con tu correo y contraseña.</p></div>
+          <label className="field"><span>Correo</span><input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus /></label>
+          <label className="field"><span>Contraseña</span><input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
+          {error && <p className="form-error">{error}</p>}
+          <button className="btn btn-primary btn-block" type="submit" disabled={busy}>{busy ? 'Entrando…' : 'Entrar'}</button>
+          <p className="muted small">Las cuentas las da de alta un administrador. Si olvidaste tu contraseña, pídele que la restablezca.</p>
+        </form>
+      </div>
     </div>
   )
 }

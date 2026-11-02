@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { MODULES } from '../data/modules'
 import type { PhotoRef } from '../data/types'
-import { Icon } from './Icon'
+import { Icon, type IconName } from './Icon'
 
 export type Tone = 'green' | 'blue' | 'amber' | 'red' | 'gray' | 'violet'
 
@@ -64,10 +64,13 @@ export function PageSkeleton() {
   )
 }
 
-export function Stat({ label, value, hint, tone }: { label: string; value: ReactNode; hint?: ReactNode; tone?: Tone }) {
+export function Stat({ label, value, hint, tone, icon }: { label: string; value: ReactNode; hint?: ReactNode; tone?: Tone; icon?: IconName }) {
   return (
     <div className={`stat ${tone ? `stat-${tone}` : ''}`}>
-      <div className="stat-label">{label}</div>
+      <div className="stat-head">
+        <div className="stat-label">{label}</div>
+        {icon && <span className="stat-icon" aria-hidden><Icon name={icon} /></span>}
+      </div>
       <div className="stat-value">{value}</div>
       {hint && <div className="stat-hint">{hint}</div>}
     </div>
@@ -136,7 +139,7 @@ export function Field({ label, children, hint, full }: { label: string; children
 }
 
 export function Empty({ children }: { children: ReactNode }) {
-  return <p className="empty">{children}</p>
+  return <p className="empty"><span className="empty-icon" aria-hidden><Icon name="inbox" /></span><span>{children}</span></p>
 }
 
 export function Progress({ value, tone }: { value: number; tone: Tone }) {

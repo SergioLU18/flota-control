@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useStore } from '../data/store'
 import { Badge, Card, PageHeader, Progress, Stat, StatusBadge } from '../components/ui'
+import { Icon } from '../components/Icon'
 import { carName, activeRentalOfDriver, alerts, driverBalance, globalBalance, maintenanceStatus, monthIncome, weekIncome, MAINTENANCE_INTERVAL } from '../lib/calc'
 import { CURRENT_MONDAY, TODAY, addDays, km, mes, mxn, rangoFechas } from '../lib/format'
 
@@ -29,12 +30,15 @@ export default function Dashboard() {
       <PageHeader module="dashboard" title={`Hola, ${user?.name.split(' ')[0]}`} subtitle={`Semana del ${rangoFechas(CURRENT_MONDAY, addDays(CURRENT_MONDAY, 6))}`} />
 
       <div className="stats">
-        <Stat label="Ingresos de la semana" value={mxn(weekIncome(data))} hint={`${weekPending} rentas sin pago esta semana`} />
-        <Stat label={`Ingresos de ${mes(TODAY.slice(0, 7))}`} value={mxn(monthIncome(data))} />
-        <Stat label="Adeudo total" value={mxn(globalBalance(data).balance)} hint={`${debtors.length} conductores con saldo`} tone="red" />
-        <Stat label="Avisos" value={avisos.length} hint={`${avisos.filter((a) => a.level === 'alta').length} urgentes`} tone="amber" />
-        <div className="stat stat-wide">
-          <div className="stat-label">Coches por estado</div>
+        <Stat label="Ingresos de la semana" value={mxn(weekIncome(data))} hint={`${weekPending} rentas sin pago esta semana`} icon="trend" tone="green" />
+        <Stat label={`Ingresos de ${mes(TODAY.slice(0, 7))}`} value={mxn(monthIncome(data))} icon="calendar" />
+        <Stat label="Adeudo total" value={mxn(globalBalance(data).balance)} hint={`${debtors.length} conductores con saldo`} tone="red" icon="wallet" />
+        <Stat label="Avisos" value={avisos.length} hint={`${avisos.filter((a) => a.level === 'alta').length} urgentes`} tone="amber" icon="alert" />
+        <div className="stat stat-wide stat-blue">
+          <div className="stat-head">
+            <div className="stat-label">Coches por estado</div>
+            <span className="stat-icon" aria-hidden><Icon name="car" /></span>
+          </div>
           <div className="stat-value">{count('rentado')} / {total} <span className="small muted">rentados · {total ? Math.round((count('rentado') / total) * 100) : 0}% de ocupación</span></div>
           <div className="fleet-bar" aria-label="Distribución de la flota">
             {(['rentado', 'disponible', 'taller'] as const).map((s) => (
@@ -58,7 +62,7 @@ export default function Dashboard() {
           </ul>
         </Card>
 
-        <Card title="Adeudos por conductor" actions={<Link to="/cobranza" className="link">Ver cobranza →</Link>}>
+        <Card title="Adeudos por conductor" actions={<Link to="/cobranza" className="link">Ver cobranza<Icon name="forward" /></Link>}>
           <table className="table compact">
             <thead><tr><th>Conductor</th><th>Coche</th><th className="num">Adeudo</th></tr></thead>
             <tbody>
@@ -77,7 +81,7 @@ export default function Dashboard() {
           </table>
         </Card>
 
-        <Card title="Próximos mantenimientos" actions={<Link to="/mantenimiento" className="link">Ver todos →</Link>}>
+        <Card title="Próximos mantenimientos" actions={<Link to="/mantenimiento" className="link">Ver todos<Icon name="forward" /></Link>}>
           <table className="table compact">
             <thead><tr><th>Coche</th><th>Desde último servicio</th><th></th></tr></thead>
             <tbody>

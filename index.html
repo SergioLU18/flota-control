@@ -7,14 +7,14 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
-    <meta name="theme-color" content="#F2F2F7" />
+    <meta name="theme-color" content="#FFFFFF" />
     <!-- Tema antes del primer pintado (la lógica completa está en src/lib/theme.ts). -->
     <script>
       try {
         var t = localStorage.getItem("ajustes.tema");
         var dark = t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
         document.documentElement.dataset.theme = dark ? "dark" : "light";
-        if (dark) document.querySelector("meta[name=theme-color]").setAttribute("content", "#000000");
+        if (dark) document.querySelector("meta[name=theme-color]").setAttribute("content", "#0B0F17");
       } catch (e) {}
     </script>
     <meta name="color-scheme" content="light dark" />
