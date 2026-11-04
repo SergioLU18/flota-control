@@ -260,19 +260,52 @@ rentals.forEach((r, k) => {
   }
 })
 
-const audit: AuditEntry[] = [
-  { id: 'a1', at: '2026-10-08T09:12:00-06:00', userId: 'u3', action: 'Registró pago', entity: 'Pago', detail: 'Ricardo Uc Tun · $3,300 efectivo' },
-  { id: 'a2', at: '2026-10-07T17:40:00-06:00', userId: 'u4', action: 'Registró kilometraje', entity: 'Vehículo YGH-152-A', detail: 'Manual' },
-  { id: 'a3', at: '2026-10-07T11:05:00-06:00', userId: 'u1', action: 'Editó tarifa', entity: 'Renta r10', detail: 'Tarifa semanal $3,000 → $2,900' },
-  { id: 'a4', at: '2026-10-05T08:00:00-06:00', userId: 'u1', action: 'Generó cargos semanales', entity: 'Cobranza', detail: '22 cargos · semana del 05 oct' },
-  { id: 'a5', at: '2026-10-03T13:22:00-06:00', userId: 'u5', action: 'Registró incidente', entity: 'Incidente i6', detail: 'Rayón en puerta' },
-  { id: 'a6', at: '2026-10-02T10:10:00-06:00', userId: 'u2', action: 'Envió a taller', entity: 'Vehículo YBH-118-A', detail: 'Carrocería' },
-  { id: 'a7', at: '2026-09-28T16:45:00-06:00', userId: 'u3', action: 'Finalizó renta', entity: 'Renta r23', detail: 'Recepción con daños' },
-  { id: 'a8', at: '2026-09-28T16:50:00-06:00', userId: 'u3', action: 'Registró inspección', entity: 'Inspección recepción', detail: '6 fotos' },
-]
+// Bitácora ficticia con la forma de la tabla auditoria (columnas de la base), armada a partir de los datos de arriba.
+const at = (date: string, minutes: number) => new Date(`${date}T08:00:00-06:00`).getTime() + minutes * 60000
+const auditRaw: (Omit<AuditEntry, 'id' | 'at'> & { t: number })[] = []
+const log = (t: number, userId: string, table: string, module: string, recordId: string, op: AuditEntry['op'],
+  before: Record<string, unknown>, after: Record<string, unknown>, action?: string) =>
+  auditRaw.push({ t, userId, table, module, recordId, op, before, after, action })
+
+rentals.forEach((r, k) => {
+  const u = users[2 + (k % 3)].id
+  log(at(r.startDate, 60 + k), u, 'rentas', 'rentas', r.id, 'alta', {}, {
+    vehiculo_id: r.vehicleId, conductor_id: r.driverId, fecha_inicio: r.startDate, tarifa_semanal: r.weeklyRate, deposito: r.deposit,
+    deposito_estado: 'retenido', km_entrega: r.startKm, estado: 'activa', creada_por: u,
+  }, 'Inició renta')
+  if (r.status === 'finalizada') log(at(r.endDate!, 120 + k), u, 'rentas', 'rentas', r.id, 'cambio',
+    { estado: 'activa', fecha_fin: null, km_devolucion: null, deposito_estado: 'retenido' },
+    { estado: 'finalizada', fecha_fin: r.endDate, km_devolucion: r.endKm, deposito_estado: r.depositStatus }, 'Finalizó renta')
+})
+payments.forEach((p, k) => log(at(p.date, 90 + (k % 300)), p.userId, 'pagos', 'cobranza', p.id, 'alta', {},
+  { renta_id: p.rentalId, fecha: p.date, monto: p.amount, metodo: p.method, notas: p.notes ?? '', registrado_por: p.userId }))
+services.forEach((s, k) => log(at(s.date, 200 + k), users[1 + (k % 2)].id, 'servicios', 'mantenimiento', s.id, 'alta', {},
+  { vehiculo_id: s.vehicleId, fecha: s.date, km: s.km, costo: s.cost, taller: s.shop, notas: s.notes ?? '' }))
+incidents.forEach((i, k) => {
+  log(at(i.date, 300 + k), users[2 + (k % 3)].id, 'incidentes', 'incidentes', i.id, 'alta', {},
+    { vehiculo_id: i.vehicleId, conductor_id: i.driverId ?? null, fecha: i.date, tipo: i.type, descripcion: i.description, costo: i.cost, responsable: i.responsible, estado: 'abierto' })
+  if (i.status === 'cerrado') log(at(addDays(i.date, 3), 30), 'u2', 'incidentes', 'incidentes', i.id, 'cambio',
+    { estado: 'abierto', cerrado_en: null, cerrado_por: null }, { estado: 'cerrado', cerrado_en: `${addDays(i.date, 3)}T08:30:00-06:00`, cerrado_por: 'u2' })
+})
+expenses.filter((e) => e.date >= '2026-08-01').forEach((e, k) => log(at(e.date, 400 + k), e.userId, 'gastos', 'finanzas', e.id, 'alta', {},
+  { fecha: e.date, categoria: e.category, vehiculo_id: e.vehicleId ?? null, monto: e.amount, concepto: e.concept }))
+mileage.filter((m) => m.source === 'orion').slice(0, 40).forEach((m) => log(at(m.date, 5), '', 'registros_km', 'orion', m.id, 'alta', {},
+  { vehiculo_id: m.vehicleId, fecha: m.date, km: m.km, origen: 'orion' }))
+log(at('2026-10-07', 185), 'u1', 'rentas', 'rentas', 'r10', 'cambio', { tarifa_semanal: 3000 }, { tarifa_semanal: 2900 }, 'Editó renta')
+log(at('2026-10-02', 130), 'u2', 'vehiculos', 'flota', 'v28', 'cambio', { estado: 'disponible' }, { estado: 'taller' })
+log(at('2026-10-06', 75), 'u1', 'usuarios', 'usuarios', 'u5', 'cambio', { permisos: [] }, { permisos: ['finanzas'] }, 'Editó usuario')
+log(at('2026-10-06', 76), 'u1', 'vehiculos', 'flota', 'v12', 'cambio', { notas: '', color: 'Blanco' }, { notas: 'Rayón leve en defensa trasera', color: 'Gris' })
+log(at('2026-10-04', 610), 'u3', 'pagos', 'cobranza', payments[3].id, 'cambio',
+  { cancelado_en: null, cancelado_por: null, motivo_cancelacion: null },
+  { cancelado_en: '2026-10-04T18:10:00-06:00', cancelado_por: 'u3', motivo_cancelacion: 'Se capturó dos veces' }, 'Canceló pago')
+
+export const audit: AuditEntry[] = auditRaw
+  .filter((a) => a.t <= at(TODAY, 600))
+  .sort((a, b) => b.t - a.t)
+  .map(({ t, ...a }, i, all) => ({ ...a, id: String(all.length - i), at: new Date(t).toISOString() }))
 
 export const seed: Data = {
-  users, vehicles, drivers, rentals, charges, payments, mileage, services, incidents, inspections, expenses, audit,
+  users, vehicles, drivers, rentals, charges, payments, mileage, services, incidents, inspections, expenses,
   orion: { status: 'pendiente', syncs: [] },
   serviceTypes: SERVICE_TYPES.map((t, i) => ({ id: `t${i + 1}`, name: t.type, resetsCounter: t.resetsCounter, hint: t.hint })),
 }

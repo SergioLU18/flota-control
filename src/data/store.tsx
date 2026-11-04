@@ -4,7 +4,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { BUCKET, must, supabase } from '../lib/supabase'
-import { EMPTY, loadData, loadProfile } from './load'
+import { EMPTY, loadAudit, loadAuditAll, loadData, loadProfile } from './load'
 import type { Data, DocType, Driver, Expense, Incident, Inspection, Payment, PhotoRef, Rental, Service, User, Vehicle } from './types'
 import { TODAY, nowIso } from '../lib/format'
 
@@ -100,6 +100,10 @@ function useStoreValue() {
     },
     logout: () => supabase.auth.signOut(),
     reload,
+
+    /** Bitácora: una página con filtros, o todo lo filtrado para exportar. Solo lee; no recarga los datos. */
+    loadAudit,
+    loadAuditAll,
 
     /** Alta o edición. El km no se guarda en el coche: se registra como lectura manual si subió. */
     saveVehicle: (v: Vehicle) => write(async () => {

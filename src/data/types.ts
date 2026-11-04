@@ -186,13 +186,32 @@ export interface Expense {
   userId: string
 }
 
+export type AuditOp = 'alta' | 'cambio' | 'baja'
+
+/** Un movimiento de la bitácora tal como lo guarda la base (columnas con nombre de la tabla). */
 export interface AuditEntry {
   id: string
   at: string // fecha-hora ISO
-  userId: string
-  action: string
-  entity: string
-  detail: string
+  userId: string // vacío = sistema (tareas programadas)
+  action?: string // texto que fijan las RPC: "Inició renta"
+  table: string
+  recordId: string
+  op: AuditOp
+  module: string // clave de src/data/modules.ts
+  before: Record<string, unknown> // en un cambio, solo los campos que cambiaron
+  after: Record<string, unknown>
+}
+
+/** Filtros de la bitácora. Fechas 'YYYY-MM-DD' (día en Mérida), ambas incluidas. */
+export interface AuditFilter {
+  userId?: string // 'sistema' = sin usuario
+  module?: string
+  op?: AuditOp
+  from?: string
+  to?: string
+  /** Texto libre; `ids` agrega registros relacionados (coches, conductores y sus rentas) que se buscan por id. */
+  q?: string
+  ids?: string[]
 }
 
 export interface OrionState {
@@ -220,7 +239,6 @@ export interface Data {
   incidents: Incident[]
   inspections: Inspection[]
   expenses: Expense[]
-  audit: AuditEntry[]
   orion: OrionState
   serviceTypes: ServiceType[]
 }

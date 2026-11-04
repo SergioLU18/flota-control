@@ -1,10 +1,10 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { useLookup, useStore } from '../data/store'
-import { Badge, Card, Field, Modal, PageHeader, StatusBadge, Tabs } from '../components/ui'
+import { useStore } from '../data/store'
+import { Badge, Field, Modal, PageHeader, StatusBadge, Tabs } from '../components/ui'
 import type { Permission, Role, User } from '../data/types'
 import { ALL_PERMISSIONS, PERMISSIONS, ROLES, ROLE_PRESET, can, canGrant, canManage } from '../data/permissions'
-import { fechaHora } from '../lib/format'
 import { Icon } from '../components/Icon'
+import { AuditLog } from '../components/AuditLog'
 
 const ROLE_ORDER: Record<Role, number> = { superadmin: 0, admin: 1, operador: 2 }
 
@@ -142,7 +142,6 @@ function UserForm({ target, onDone }: { target?: User; onDone: () => void }) {
 
 export default function Users() {
   const { data, user: me } = useStore()
-  const L = useLookup()
   const manage = can(me, 'usuarios')
   const audit = can(me, 'auditoria')
   const [tab, setTab] = useState<'usuarios' | 'auditoria'>(manage ? 'usuarios' : 'auditoria')
@@ -153,7 +152,7 @@ export default function Users() {
   type Tab = 'usuarios' | 'auditoria'
   const tabs: [Tab, string][] = []
   if (manage) tabs.push(['usuarios', `Usuarios (${users.length})`])
-  if (audit) tabs.push(['auditoria', `Bitácora de cambios (${data.audit.length})`])
+  if (audit) tabs.push(['auditoria', 'Bitácora de cambios'])
 
   return (
     <>
@@ -193,15 +192,7 @@ export default function Users() {
         </>
       )}
 
-      {tab === 'auditoria' && audit && (
-        <Card title="Quién hizo qué y cuándo">
-          <p className="muted small">La base registra cada alta, cambio o baja con quién la hizo. Se muestran los {data.audit.length} movimientos más recientes.</p>
-          <div className="table-wrap"><table className="table compact">
-            <thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Sobre</th><th>Detalle</th></tr></thead>
-            <tbody>{data.audit.map((a) => <tr key={a.id}><td className="small">{fechaHora(a.at)}</td><td>{L.user(a.userId)?.name ?? <span className="muted">Sistema</span>}</td><td>{a.action}</td><td>{a.entity}</td><td className="muted small">{a.detail}</td></tr>)}</tbody>
-          </table></div>
-        </Card>
-      )}
+      {tab === 'auditoria' && audit && <AuditLog />}
 
       <Modal open={!!editing} wide title={editing === 'nuevo' ? 'Nuevo usuario' : `Editar · ${editing?.name ?? ''}`} onClose={() => setEditing(null)}>
         {editing && <UserForm key={editing === 'nuevo' ? 'nuevo' : editing.id} target={editing === 'nuevo' ? undefined : editing} onDone={() => setEditing(null)} />}

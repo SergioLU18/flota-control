@@ -17,6 +17,7 @@ supabase/
     20261014000400_storage_y_cron.sql       bucket "archivos" y tarea nocturna de cargos
     …                                       ajustes posteriores (unidad, bajas)
     20261102000300_superadmin_y_permisos.sql superadmin, permisos por usuario y RPC guardar_usuario
+    20261104000100_auditoria_consulta.sql   columnas modulo y texto para filtrar y buscar en la bitácora
   functions/
     usuarios/index.ts                       Edge Function: crear cuentas y cambiar contraseñas (usa la service role)
   pruebas.mjs                               carga la demo y prueba reglas y permisos
@@ -129,7 +130,7 @@ Aunque la app tenga un error, la base no deja guardar datos que rompan estas reg
 - **Pagos:** no se editan ni se borran. Solo se cancelan, una vez y con motivo. El saldo siempre se calcula (cargos − pagos vigentes).
 - **Cargos idempotentes:** `generar_cargos` crea las semanas que falten. Correrla dos veces no duplica nada y, si la tarea no corrió unos días, se pone al día.
 - **Inspecciones e incidentes ligados a una renta deben ser del mismo coche** que esa renta. Una entrega y una recepción por renta.
-- **Auditoría automática:** cada alta, cambio o baja queda en `auditoria` con el usuario (del JWT), la acción (la fijan las RPC) y, en los cambios, solo los campos que cambiaron. No se edita ni se borra.
+- **Auditoría automática:** cada alta, cambio o baja queda en `auditoria` con el usuario (del JWT), la acción (la fijan las RPC) y, en los cambios, solo los campos que cambiaron. No se edita ni se borra. Dos columnas generadas facilitan la consulta: `modulo` (el módulo de la app, para filtrar) y `texto` (el movimiento como texto, para la búsqueda libre).
 
 ## Decisiones que conviene revisar
 

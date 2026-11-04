@@ -428,6 +428,53 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 .row-actions .btn + .btn { margin-left: 4px; }
 .table td a { color: var(--text); font-weight: 500; }
 .table td a:hover { color: var(--accent); }
+
+/* Bitácora (components/AuditLog.tsx) */
+.filter-date { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; color: var(--muted); flex: none; }
+.filter-date input { width: auto; }
+.audit-toolbar .audit-export { margin-left: auto; }
+.table-wrap.is-loading { opacity: .6; transition: opacity .15s; }
+.audit-table td { vertical-align: baseline; }
+.audit-table td.nowrap { white-space: nowrap; }
+.audit-summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.audit-summary span { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.audit-summary .icon { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; transition: transform .15s; }
+.audit-row.open td { background: var(--surface-2); border-bottom-color: transparent; }
+.audit-row.open .audit-summary .icon { transform: rotate(90deg); }
+.audit-detail td { background: var(--surface-2); padding-top: 0; }
+.audit-fields { border-collapse: collapse; font-size: .83rem; min-width: min(560px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.audit-fields th { text-align: left; font-weight: 600; color: var(--muted); font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; padding: 7px 12px; border-bottom: 1px solid var(--line); }
+.audit-fields td { padding: 6px 12px; border-bottom: 1px solid var(--line); background: none; vertical-align: top; }
+.audit-fields tr:last-child td { border-bottom: 0; }
+.audit-fields td.was { color: var(--muted); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent); }
+.audit-meta { margin: 8px 0 2px; word-break: break-all; }
+.pager { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.pager > span { margin-right: auto; }
+@media (max-width: 760px) {
+  .audit-toolbar .audit-export { margin-left: 0; }
+  .filter-date { flex: 1 1 140px; }
+  .filter-date input { flex: 1; min-width: 0; }
+  /* En el celular cada movimiento es una tarjeta: acción y fecha, registro, quién y módulo, cambios. */
+  .audit-table colgroup, .audit-table thead { display: none; }
+  .audit-table, .audit-table tbody { display: block; }
+  .audit-table tr.audit-row {
+    display: grid; grid-template-columns: auto auto 1fr; gap: 2px 8px; padding: 12px 16px; border-bottom: 1px solid var(--line);
+    grid-template-areas: "accion accion fecha" "sobre sobre sobre" "usuario modulo modulo" "cambios cambios cambios";
+  }
+  .table-wrap.card .audit-table tr.audit-row td { padding: 0; border: 0; background: none; }
+  .audit-table tr.audit-row.open { background: var(--surface-2); }
+  .audit-table .c-accion { grid-area: accion; font-weight: 600; }
+  .audit-table .c-fecha { grid-area: fecha; justify-self: end; color: var(--muted); }
+  .audit-table .c-sobre { grid-area: sobre; }
+  .audit-table .c-usuario { grid-area: usuario; font-size: .8rem; color: var(--muted); }
+  .audit-table .c-modulo { grid-area: modulo; font-size: .8rem; }
+  .audit-table .c-modulo::before { content: '· '; }
+  .audit-table .c-cambios { grid-area: cambios; padding-top: 2px !important; }
+  .audit-table tr.audit-detail, .audit-table tr.audit-detail td { display: block; }
+  .table-wrap.card .audit-table tr.audit-detail td { padding: 0 16px 12px; }
+  .audit-fields { min-width: 0; width: 100%; }
+  .audit-table tbody tr:last-child { border-bottom: 0; }
+}
 .empty { color: var(--muted); padding: 22px 12px; margin: 0; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: .875rem; }
 .empty-icon { width: 34px; height: 34px; border-radius: 8px; background: var(--fill); color: var(--tertiary); display: grid; place-items: center; }
 .empty-icon .icon { width: 18px; height: 18px; stroke-width: 1.9; }

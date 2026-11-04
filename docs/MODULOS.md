@@ -52,7 +52,9 @@ La **operación diaria** es de todo el personal activo: consultar flota, conduct
 
 Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permisos ni se desactiva, y solo un superadmin toca a otro superadmin. Las aplica la base de datos, no solo la pantalla.
 
-**Datos:** `Usuario` (nombre, correo, rol, permisos, activo) y `Auditoría` (fecha y hora, usuario, acción, entidad, detalle).
+**Datos:** `Usuario` (nombre, correo, rol, permisos, activo) y `Auditoría` (fecha y hora, usuario, módulo, acción, registro y los campos antes y después).
+
+**Bitácora de cambios:** se filtra por usuario (o "Sistema" para lo automático), módulo, tipo de movimiento (alta, cambio o eliminación) y rango de fechas, y se busca por texto libre. Buscar unas placas, una unidad o un conductor trae también sus rentas, pagos, km y servicios. Cada movimiento se abre para ver los campos con su valor anterior y el nuevo, con nombres en lugar de ids. Se pagina desde la base de 50 en 50 y lo filtrado se exporta a Excel (CSV, hasta 10,000 movimientos).
 
 **En la demo:** en la pantalla de entrada se elige un usuario sin contraseña. Con un operador desaparecen Orión, Usuarios y la pestaña financiera del coche. En *Usuarios y auditoría → Bitácora de cambios* aparecen las acciones que vayas haciendo.
 

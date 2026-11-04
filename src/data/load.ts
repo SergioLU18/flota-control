@@ -2,11 +2,11 @@
 // Lo que el RLS no deja ver (gastos, auditoría y Orión para un operador) llega vacío.
 import { all, BUCKET, friendly, must, supabase } from '../lib/supabase'
 import type { Json } from '../lib/database.types'
-import type { AuditEntry, Data, DocType, Driver, PhotoRef, Tire, User } from './types'
+import type { AuditEntry, AuditFilter, AuditOp, Data, DocType, Driver, PhotoRef, Tire, User } from './types'
 
 export const EMPTY: Data = {
   users: [], vehicles: [], drivers: [], rentals: [], charges: [], payments: [], mileage: [], services: [],
-  incidents: [], inspections: [], expenses: [], audit: [], orion: { status: 'pendiente', syncs: [] }, serviceTypes: [],
+  incidents: [], inspections: [], expenses: [], orion: { status: 'pendiente', syncs: [] }, serviceTypes: [],
 }
 
 const DOC_TYPES: DocType[] = ['ine', 'licencia', 'no_penales', 'domicilio', 'referencias']
@@ -28,7 +28,7 @@ export async function loadData(): Promise<Data> {
   const fotos = 'fotos(id, etiqueta, con_danio, orden, archivos(clave))'
   const [
     usuarios, vehiculos, llantas, conductores, rentas, cargos, pagos, km, servicios,
-    incidentes, inspecciones, gastos, auditoria, orion, tipos,
+    incidentes, inspecciones, gastos, orion, tipos,
   ] = await Promise.all([
     all((a, b) => supabase.from('usuarios').select('id, nombre, correo, rol, permisos, activo').order('nombre').range(a, b)),
     all((a, b) => supabase.from('vehiculos').select('*').order('placas').range(a, b)),
@@ -44,8 +44,6 @@ export async function loadData(): Promise<Data> {
     all((a, b) => supabase.from('incidentes').select(`*, ${fotos}`).order('id').range(a, b)),
     all((a, b) => supabase.from('inspecciones').select(`*, ${fotos}`).order('id').range(a, b)),
     all((a, b) => supabase.from('gastos').select('*').order('id').range(a, b)),
-    // La bitácora crece sin límite: la pantalla muestra solo lo más reciente.
-    supabase.from('auditoria').select('*').order('en', { ascending: false }).limit(500).then(must),
     supabase.from('orion_sincronizaciones').select('*').order('iniciada_en', { ascending: false }).limit(50).then(must),
     supabase.from('tipos_servicio').select('*').eq('activo', true).order('orden').then(must),
   ])
@@ -119,7 +117,6 @@ export async function loadData(): Promise<Data> {
       id: e.id, date: e.fecha, category: e.categoria as Data['expenses'][number]['category'], vehicleId: e.vehiculo_id ?? undefined,
       amount: e.monto, concept: e.concepto, userId: e.registrado_por ?? '',
     })),
-    audit: auditoria.map(auditEntry),
     orion: {
       status: orion.length === 0 ? 'pendiente' : orion[0].estado === 'error' ? 'error' : 'conectado',
       lastSync: orion[0]?.terminada_en ?? undefined,
@@ -130,30 +127,55 @@ export async function loadData(): Promise<Data> {
 }
 
 // ---------- Bitácora ----------
+// Crece sin límite, así que no viaja con loadData: la pantalla pide una página a la vez con sus filtros.
 
-const TABLE_LABEL: Record<string, string> = {
-  usuarios: 'usuario', vehiculos: 'vehículo', llantas: 'llanta', conductores: 'conductor', referencias_conductor: 'referencia',
-  documentos_conductor: 'documento', rentas: 'renta', cargos: 'cargo', pagos: 'pago', registros_km: 'kilometraje',
-  tipos_servicio: 'tipo de servicio', servicios: 'servicio', incidentes: 'incidente', inspecciones: 'inspección', fotos: 'foto', gastos: 'gasto',
-}
-const OP_LABEL: Record<string, string> = { alta: 'Alta de', cambio: 'Cambio en', baja: 'Baja de' }
-// Campos que identifican el registro en una alta o baja, en orden de preferencia.
-const SUMMARY = ['placas', 'unidad','nombre', 'concepto', 'tipo', 'monto', 'km', 'fecha']
+const AUDIT_COLS = 'id, en, usuario_id, accion, tabla, registro_id, operacion, modulo, antes, despues'
 
-const show = (v: Json | undefined) => (v === null || v === undefined || v === '' ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v))
 const obj = (j: Json | null) => (j && typeof j === 'object' && !Array.isArray(j) ? j : {})
 
-function auditEntry(a: { id: number; en: string; usuario_id: string | null; accion: string | null; tabla: string; registro_id: string; operacion: string; antes: Json | null; despues: Json | null }): AuditEntry {
-  const antes = obj(a.antes), despues = obj(a.despues)
-  const detail = a.operacion === 'cambio'
-    ? Object.keys(despues).map((k) => `${k}: ${show(antes[k])} → ${show(despues[k])}`).join(' · ')
-    : SUMMARY.filter((k) => k in (a.operacion === 'alta' ? despues : antes)).slice(0, 2)
-      .map((k) => `${k}: ${show((a.operacion === 'alta' ? despues : antes)[k])}`).join(' · ')
-  const table = TABLE_LABEL[a.tabla] ?? a.tabla
-  return {
-    id: String(a.id), at: a.en, userId: a.usuario_id ?? '',
-    action: a.accion ?? `${OP_LABEL[a.operacion] ?? a.operacion} ${table}`,
-    entity: table.charAt(0).toUpperCase() + table.slice(1),
-    detail: detail.length > 160 ? detail.slice(0, 157) + '…' : detail,
+// Mérida está en UTC-6 todo el año.
+const startOfDay = (iso: string) => `${iso}T00:00:00-06:00`
+const nextDay = (iso: string) => {
+  const d = new Date(iso + 'T12:00:00Z')
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+// En los filtros `or` de PostgREST, un valor entre comillas puede llevar comas, puntos y paréntesis.
+const quoted = (v: string) => `"${v.replace(/[\\"]/g, '\$&')}"`
+
+function auditQuery(f: AuditFilter, count?: 'exact') {
+  let q = supabase.from('auditoria').select(AUDIT_COLS, count && { count })
+  if (f.userId === 'sistema') q = q.is('usuario_id', null)
+  else if (f.userId) q = q.eq('usuario_id', f.userId)
+  if (f.module) q = q.eq('modulo', f.module)
+  if (f.op) q = q.eq('operacion', f.op)
+  if (f.from) q = q.gte('en', startOfDay(f.from))
+  if (f.to) q = q.lt('en', startOfDay(nextDay(f.to)))
+  const terms = [f.q?.trim(), ...(f.ids ?? [])].filter((t): t is string => !!t)
+  if (terms.length) q = q.or(terms.map((t) => `texto.ilike.${quoted(`*${t}*`)}`).join(','))
+  return q.order('en', { ascending: false }).order('id', { ascending: false })
+}
+
+type AuditRow = { id: number; en: string; usuario_id: string | null; accion: string | null; tabla: string; registro_id: string; operacion: string; modulo: string; antes: Json | null; despues: Json | null }
+const auditEntry = (a: AuditRow): AuditEntry => ({
+  id: String(a.id), at: a.en, userId: a.usuario_id ?? '', action: a.accion ?? undefined, table: a.tabla, recordId: a.registro_id,
+  op: a.operacion as AuditOp, module: a.modulo, before: obj(a.antes), after: obj(a.despues),
+})
+
+/** Movimientos `from`…`to` (incluidos, del más reciente al más viejo) y cuántos hay en total con esos filtros. */
+export async function loadAudit(f: AuditFilter, from: number, to: number): Promise<{ rows: AuditEntry[]; total: number }> {
+  const { data, error, count } = await auditQuery(f, 'exact').range(from, to)
+  if (error) throw new Error(friendly(error))
+  return { rows: data.map(auditEntry), total: count ?? data.length }
+}
+
+/** Para exportar: todos los movimientos con esos filtros, hasta `max`. */
+export async function loadAuditAll(f: AuditFilter, max = 10000): Promise<AuditEntry[]> {
+  const out: AuditEntry[] = []
+  for (let from = 0; from < max; from += 1000) {
+    const rows = must(await auditQuery(f).range(from, Math.min(from + 999, max - 1)))
+    out.push(...rows.map(auditEntry))
+    if (rows.length < 1000) break
   }
+  return out
 }

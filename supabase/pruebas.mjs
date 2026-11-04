@@ -289,6 +289,9 @@ await enTransaccion(async () => {
   await insert('pagos', { id: id('p-audit'), renta_id: id('r01'), fecha: '2026-10-14', monto: 500, metodo: 'efectivo', registrado_por: id('u3') })
   const a = await one("select * from auditoria where tabla = 'pagos' and registro_id = $1", [id('p-audit')])
   ok(a?.usuario_id === id('u3') && a.accion === 'Registró pago' && a.operacion === 'alta' && num(a.despues.monto) === 500, 'registra quién, qué acción y el registro completo')
+  ok(a.modulo === 'cobranza' && a.texto.includes(id('r01')) && a.texto.includes('Registró pago'), 'calcula el módulo y el texto para buscar', `${a.modulo} · ${a.texto}`)
+  const sinModulo = await one("select count(*) n from auditoria where modulo = 'otro'")
+  ok(Number(sinModulo.n) === 0, 'todos los movimientos de la demo caen en un módulo')
 
   await db.query("select set_config('app.accion', 'Editó renta', true)")
   await db.query('update rentas set tarifa_semanal = 2750 where id = $1', [id('r10')])
