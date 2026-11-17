@@ -10,7 +10,7 @@ export const PERMISSIONS: { key: Permission; label: string; hint: string }[] = [
   { key: 'bajas', label: 'Bajas de coches', hint: 'Dar de baja un coche de la flota o reactivarlo' },
   { key: 'corregir_registros', label: 'Corregir registros', hint: 'Borrar lecturas de km erróneas y corregir cargos' },
   { key: 'catalogos', label: 'Catálogos', hint: 'Tipos de servicio de mantenimiento' },
-  { key: 'orion', label: 'Orión GPS', hint: 'Configuración y sincronizaciones del odómetro' },
+  { key: 'orion', label: 'Orión GPS', hint: 'Mapa de la flota, estado de cada equipo y km del GPS' },
   { key: 'auditoria', label: 'Bitácora', hint: 'Ver quién hizo cada cambio y cuándo' },
   { key: 'usuarios', label: 'Usuarios', hint: 'Dar de alta usuarios, cambiar sus permisos y contraseñas' },
 ]

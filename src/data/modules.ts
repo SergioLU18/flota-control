@@ -35,11 +35,11 @@ export const MODULES: ModuleInfo[] = [
   { key: 'finanzas', path: '/finanzas', label: 'Finanzas', icon: 'chart', anchor: '11-finanzas', perms: ['finanzas'],
     summary: 'Estado de resultados del negocio (ingresos cobrados contra gastos) y rentabilidad de cada coche: utilidad, ocupación y cuánto de su costo ya se recuperó.' },
   { key: 'orion', path: '/orion', label: 'Orión GPS', icon: 'signal', anchor: '9-integración-con-orión-gps', perms: ['orion'],
-    summary: 'Lectura automática del odómetro desde Orión. Es un módulo aislado: el sistema funciona completo aunque esta integración se retrase.' },
+    summary: 'Mapa de la flota con la ubicación y el estado de cada coche, actualizado cada minuto desde Orión, y el km del GPS junto al que capturamos nosotros.' },
   { key: 'usuarios', path: '/usuarios', label: 'Usuarios y auditoría', icon: 'shield', anchor: '1-usuarios-y-acceso', perms: ['usuarios', 'auditoria'],
     summary: 'Alta de usuarios internos con su rol y permisos, más la bitácora que registra quién hizo cada cambio y cuándo.' },
   { key: 'docs', path: '/documentacion', label: 'Documentación', icon: 'book', anchor: '',
-    summary: 'Qué hace cada módulo, sus reglas y qué queda para fases futuras.' },
+    summary: 'Qué hace cada módulo y qué reglas sigue.' },
 ]
 
 /** Módulos que ve ese usuario. */
