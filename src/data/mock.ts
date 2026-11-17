@@ -4,7 +4,7 @@ import { DEMO_TODAY as TODAY, addDays, mondayOf } from '../lib/format'
 import { COLOR_HEX, SHOPS } from './catalogs'
 import { ALL_PERMISSIONS } from './permissions'
 import type {
-  AuditEntry, Charge, Data, Driver, Expense, Incident, Inspection, MileageRecord, Payment, PhotoRef, Rental, Service, Tire, User, Vehicle,
+  AuditEntry, Charge, Data, Driver, Expense, GpsPosition, Incident, Inspection, MileageRecord, Payment, PhotoRef, Rental, Service, Tire, User, Vehicle,
 } from './types'
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -306,6 +306,19 @@ export const audit: AuditEntry[] = auditRaw
 
 export const seed: Data = {
   users, vehicles, drivers, rentals, charges, payments, mileage, services, incidents, inspections, expenses,
-  orion: { status: 'pendiente', syncs: [] },
+  orion: { status: 'conectado', lastSync: `${TODAY}T11:56:00-06:00`, syncs: [] },
+  // Posiciones de ejemplo: el odómetro de Orión va adelante del km capturado (o atrás, en los que se instaló tarde).
+  gps: [
+    ...vehicles.filter((v) => v.orionDeviceId).map((v, i): GpsPosition => ({
+      deviceId: v.orionDeviceId!, vehicleId: v.id, name: `${v.unit} ${v.plates}`, plates: v.plates,
+      status: (['movimiento', 'detenido', 'detenido', 'encendido', 'detenido', 'sin_senal'] as const)[i % 6],
+      lat: 20.97 + ((i * 37) % 100) / 1000, lng: -89.62 + ((i * 53) % 100) / 1000, speed: i % 6 === 0 ? 30 + (i % 5) * 9 : 0,
+      reportedAt: `${TODAY}T${i % 6 === 5 ? '08:12' : `11:${pad(30 + (i % 27))}`}:00-06:00`,
+      odometer: v.currentKm + (i % 9 === 4 ? -12000 : 600 + ((i * 1777) % 9000)) + 0.4,
+      ignition: i % 6 === 0 || i % 6 === 3, battery: `${(12.5 + (i % 5) / 10).toFixed(1)} V`, engineBlocked: false,
+    })),
+    { deviceId: '9101', name: 'C-31 YWX-046-J', plates: 'YWX-046-J', status: 'detenido', lat: 21.01, lng: -89.59, speed: 0,
+      reportedAt: `${TODAY}T11:56:48-06:00`, odometer: 935.6, ignition: false, battery: '12.6 V' },
+  ],
   serviceTypes: SERVICE_TYPES.map((t, i) => ({ id: `t${i + 1}`, name: t.type, resetsCounter: t.resetsCounter, hint: t.hint, active: true, order: i + 1 })),
 }

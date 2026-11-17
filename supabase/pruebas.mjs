@@ -569,6 +569,64 @@ await como(OPERADOR, async () => {
   ok(num(r.f) === 1 && num(r.k) === 1, 'registrar_inspeccion guarda fotos y la lectura de km')
 })
 
+console.log('\nOrión GPS')
+{
+  // Dos coches sin equipo ligado (que no estén de baja): uno se reconoce por placas, otro por número de unidad.
+  const [a, b] = await q("select id, placas, unidad, km_actual from vehiculos where estado <> 'baja' and orion_equipo_id is null and unidad is not null and id <> all($1) order by placas limit 2", [[id('v01'), id('v23')]])
+  const placasConGuiones = a.placas.toLowerCase().replace(/^(...)(.*)$/, '$1-$2')
+  const equipos = (kmA, kmB, vel = 40) => JSON.stringify([
+    { id: '9001', nombre: 'Equipo A', placas: placasConGuiones, estado: 'online', lat: 20.97, lng: -89.62, velocidad: vel, odometro: kmA, datos: { x: 1 } },
+    { id: '9002', nombre: b.unidad.replace('-', ' '), placas: null, estado: 'offline', lat: 21, lng: -89.6, odometro: kmB },
+    { id: '9003', nombre: 'Sin coche', placas: 'ZZZ999' },
+  ])
+  // Las sincronizaciones de la demo se mandan al pasado para que no cuenten como "la de esta hora".
+  await q("update orion_sincronizaciones set iniciada_en = iniciada_en - interval '1 day'")
+  const n0 = num((await one('select count(*) n from orion_sincronizaciones')).n)
+  const r1 = await one('select orion_guardar($1::jsonb, true) r', [equipos(a.km_actual + 120, b.km_actual - 10)])
+  const pos = Object.fromEntries((await q('select orion_equipo_id, vehiculo_id from gps_posiciones')).map((p) => [p.orion_equipo_id, p.vehiculo_id]))
+  ok(pos['9001'] === a.id && pos['9002'] === b.id && pos['9003'] === null, 'liga equipos por placas (sin guiones/minúsculas) o por unidad', JSON.stringify(pos))
+  const sync = await one("select estado, vehiculos_actualizados n, lecturas_descartadas d from orion_sincronizaciones order by iniciada_en desc limit 1")
+  const kmA = await one('select km_actual from vehiculos where id = $1', [a.id])
+  ok(kmA.km_actual === a.km_actual + 120 && sync.estado === 'ok' && sync.n === 1 && sync.d.length === 1 && /menor/.test(sync.d[0].motivo),
+    'registra el km de Orión y descarta lecturas menores al actual', JSON.stringify({ r1: r1.r, sync, kmA }))
+
+  await q('select orion_guardar($1::jsonb, true)', [equipos(a.km_actual + 200, null, 80)])
+  const tras = await one("select (select km_actual from vehiculos where id = $1) km, (select velocidad from gps_posiciones where orion_equipo_id = '9001') vel, (select count(*) from orion_sincronizaciones) - $2 s", [a.id, n0])
+  ok(tras.km === a.km_actual + 120 && num(tras.vel) === 80 && num(tras.s) === 1, 'cada minuto actualiza posiciones, pero el km solo una vez por hora', JSON.stringify(tras))
+
+  await q("update orion_sincronizaciones set iniciada_en = iniciada_en - interval '2 hours'")
+  await q('select orion_guardar($1::jsonb, true)', [equipos(a.km_actual + 200, null)])
+  const hoy = await q("select km from registros_km where vehiculo_id = $1 and origen = 'orion'", [a.id])
+  ok(hoy.length === 1 && hoy[0].km === a.km_actual + 200, 'un solo registro de Orión por coche y día, que se va subiendo', JSON.stringify(hoy))
+
+  await q("update orion_sincronizaciones set iniciada_en = iniciada_en - interval '2 hours'")
+  await q('select orion_guardar($1::jsonb, true)', [JSON.stringify([{ id: '9001', placas: a.placas, odometro: a.km_actual + 99999 }])])
+  const salto = await one("select lecturas_descartadas d from orion_sincronizaciones order by iniciada_en desc limit 1")
+  ok(salto.d.some((x) => /salto/.test(x.motivo)), 'descarta saltos absurdos de kilometraje', JSON.stringify(salto.d))
+
+  await q('select orion_guardar($1::jsonb, false)', [equipos(null, null)])
+  ok(num((await one("select count(*) n from orion_sincronizaciones")).n) === n0 + 3, 'sin ORION_REGISTRAR_KM solo guarda posiciones')
+
+  await q("select orion_error('Orión respondió 500')"); await q("select orion_error('Orión respondió 500')")
+  ok(num((await one("select count(*) n from orion_sincronizaciones where estado = 'error'")).n) === 1, 'los errores se anotan una vez por hora')
+
+  // Nombres como vienen de Orión: "C-10 YNN-954-H", placas vacías o equivocadas.
+  await q('update vehiculos set orion_equipo_id = null')
+  const [c, e] = await q("select id, placas, unidad from vehiculos where orion_equipo_id is null and unidad ~ '^C-\\d+$' and id <> all($1) order by placas limit 2", [[a.id, b.id]])
+  const liga = (nombre, placas) => one('select orion_vehiculo($1, $2, $3) v', ['8000', nombre, placas]).then((r) => r.v)
+  const sinUnidad = await one("select id, placas from vehiculos where orion_equipo_id is null and id <> all($1) order by placas limit 1", [[a.id, b.id, c.id, e.id]])
+  ok(await liga(`${c.unidad} ${c.placas}`, null) === c.id
+     && await liga(`${e.unidad}  KIA K3 2025`, 'UVA-605-M') === e.id
+     && await liga(`MG BCO ${sinUnidad.placas}`, null) === sinUnidad.id
+     && await liga(`${c.unidad}9 XXX-000-X`, null) !== c.id
+     && await liga('LAMBO URUS', null) === null,
+     'reconoce unidad o placas dentro del nombre del equipo (C-1 no es C-19)')
+
+  ok(await como(OPERADOR, async () => num((await one('select count(*) n from gps_posiciones')).n)) === 3, 'el personal ve las posiciones')
+  ok(/denied|permiso/.test(await rechazaComo(OPERADOR, "select orion_guardar('[]'::jsonb, true)")), 'el personal no puede llamar orion_guardar')
+  ok(/denied|policy|permiso/.test(await rechazaComo(OPERADOR, "update gps_posiciones set lat = 0")), 'ni escribir posiciones directo')
+}
+
 await db.close()
 console.log(fallas ? `\n${fallas} verificaciones fallaron` : '\nTodo en orden')
 process.exit(fallas ? 1 : 0)

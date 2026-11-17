@@ -4,7 +4,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { BUCKET, must, supabase } from '../lib/supabase'
-import { EMPTY, loadAudit, loadAuditAll, loadData, loadProfile } from './load'
+import { EMPTY, loadAudit, loadAuditAll, loadData, loadGps, loadProfile } from './load'
 import type { Charge, Data, DocType, Driver, Expense, Incident, Inspection, Payment, PhotoRef, Rental, Service, ServiceType, Tire, User, Vehicle } from './types'
 import { TODAY, nowIso, todayInMerida } from '../lib/format'
 import type { Json } from '../lib/database.types'
@@ -105,7 +105,12 @@ function useStoreValue() {
     const check = () => {
       if (document.visibilityState !== 'visible') return
       if (todayInMerida() !== TODAY) return window.location.reload()
-      if (Date.now() - loadedAt > 50 * 60_000) reload().catch(() => { /* se reintenta en la siguiente revisión */ })
+      if (Date.now() - loadedAt > 50 * 60_000) return reload().catch(() => { /* se reintenta en la siguiente revisión */ })
+      // Orión: la tarea programada guarda posiciones cada minuto; aquí se traen sin recargar todo lo demás.
+      loadGps().then((gps) => setData((d) => ({
+        ...d, gps,
+        orion: { ...d.orion, lastSync: gps.map((g) => g.reportedAt ?? '').sort().pop() || d.orion.lastSync },
+      }))).catch(() => { /* se reintenta en el siguiente minuto */ })
     }
     const timer = window.setInterval(check, 60_000)
     document.addEventListener('visibilitychange', check)

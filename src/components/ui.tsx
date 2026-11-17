@@ -18,6 +18,7 @@ const STATUS: Record<string, [Tone, string]> = {
   entrega: ['blue', 'Entrega'], recepcion: ['violet', 'Recepción'],
   manual: ['gray', 'Manual'], orion: ['violet', 'Orión'],
   retenido: ['blue', 'Retenido'], devuelto: ['green', 'Devuelto'], aplicado: ['amber', 'Aplicado a adeudo'],
+  movimiento: ['green', 'En movimiento'], encendido: ['blue', 'Motor encendido'], detenido: ['gray', 'Detenido'], sin_senal: ['red', 'Sin señal'],
   superadmin: ['blue', 'Superadmin'], admin: ['violet', 'Admin'], operador: ['gray', 'Operador'],
 }
 export function StatusBadge({ value }: { value: string }) {

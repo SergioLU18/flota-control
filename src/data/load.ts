@@ -2,11 +2,11 @@
 // Lo que el RLS no deja ver (gastos, auditoría y Orión para un operador) llega vacío.
 import { all, BUCKET, friendly, must, supabase } from '../lib/supabase'
 import type { Json } from '../lib/database.types'
-import type { AuditEntry, AuditFilter, AuditOp, Data, DocType, Driver, PhotoRef, Tire, User } from './types'
+import type { AuditEntry, AuditFilter, AuditOp, Data, DocType, Driver, GpsPosition, GpsStatus, PhotoRef, Tire, User } from './types'
 
 export const EMPTY: Data = {
   users: [], vehicles: [], drivers: [], rentals: [], charges: [], payments: [], mileage: [], services: [],
-  incidents: [], inspections: [], expenses: [], orion: { status: 'pendiente', syncs: [] }, serviceTypes: [],
+  incidents: [], inspections: [], expenses: [], orion: { status: 'pendiente', syncs: [] }, gps: [], serviceTypes: [],
 }
 
 const DOC_TYPES: DocType[] = ['ine', 'licencia', 'no_penales', 'domicilio', 'referencias']
@@ -24,13 +24,44 @@ export async function loadProfile(userId: string): Promise<User | null> {
   return row && toUser(row)
 }
 
+// ---------- Orión GPS ----------
+// gps_posiciones la llena la tarea programada cada minuto; la app la vuelve a pedir cada minuto (ver store).
+
+const GPS_STATUS: Record<string, GpsStatus> = { online: 'movimiento', engine: 'encendido', ack: 'detenido', offline: 'sin_senal' }
+type Sensor = { type?: string; name?: string; value?: string }
+
+/** Orión da la hora como "17-11-2026 11:56:48" (hora de Mérida, UTC−6 todo el año). */
+export const gpsTime = (s: string | null) => {
+  const m = s?.match(/^(\d{2})-(\d{2})-(\d{4}) (\d{2}:\d{2}:\d{2})$/)
+  return m ? `${m[3]}-${m[2]}-${m[1]}T${m[4]}-06:00` : undefined
+}
+
+export async function loadGps(): Promise<GpsPosition[]> {
+  const rows = must(await supabase.from('gps_posiciones')
+    .select('orion_equipo_id, vehiculo_id, nombre, placas, estado, lat, lng, velocidad, reportado_en, odometro, sensores:datos->sensors'))
+  return rows.map((g) => {
+    const sensors = (Array.isArray(g.sensores) ? g.sensores : []) as Sensor[]
+    // Sensores de Orión: Ignición (acc), Batería Unidad ("12.7 V"), Bloqueo de motor (engine): "Encendido"/"Apagado".
+    const value = (type: string, test: (v: string) => boolean = () => true) =>
+      sensors.find((s) => s.type === type && s.value != null && test(s.value))?.value
+    const on = (v?: string) => (v == null ? undefined : /^(encendido|on|true|1|s[ií])$/i.test(v.trim()))
+    return {
+      deviceId: g.orion_equipo_id, vehicleId: g.vehiculo_id ?? undefined, name: g.nombre.replace(/\s+/g, ' ').trim(),
+      plates: g.placas ?? undefined, status: GPS_STATUS[g.estado ?? ''] ?? 'sin_senal',
+      lat: g.lat ?? undefined, lng: g.lng ?? undefined, speed: g.velocidad ?? undefined, reportedAt: gpsTime(g.reportado_en),
+      odometer: g.odometro ?? undefined, ignition: on(value('acc')), battery: value('battery', (v) => /\d\s*V$/i.test(v)),
+      engineBlocked: on(value('engine')),
+    }
+  })
+}
+
 const VEHICULO_COLS = 'id, unidad, marca, modelo, anio, placas, color, vin, km_actual, estado, notas, fecha_compra, orion_equipo_id, creado_en'
 
 export async function loadData(): Promise<Data> {
   const fotos = 'fotos(id, etiqueta, con_danio, orden, archivos(clave))'
   const [
     usuarios, vehiculos, llantas, conductores, rentas, cargos, pagos, km, servicios,
-    incidentes, inspecciones, gastos, orion, tipos, precios,
+    incidentes, inspecciones, gastos, orion, tipos, precios, gps,
   ] = await Promise.all([
     all((a, b) => supabase.from('usuarios').select('id, nombre, correo, rol, permisos, activo').order('nombre').range(a, b)),
     // Sin precio_compra: solo lo lee quien tiene el permiso de finanzas, con precios_compra().
@@ -50,6 +81,7 @@ export async function loadData(): Promise<Data> {
     supabase.from('orion_sincronizaciones').select('*').order('iniciada_en', { ascending: false }).limit(50).then(must),
     supabase.from('tipos_servicio').select('*').order('orden').then(must),
     supabase.rpc('precios_compra').then(must),
+    loadGps(),
   ])
   const precio = new Map(precios.map((p) => [p.vehiculo_id, p.precio_compra ?? 0]))
 
@@ -125,11 +157,8 @@ export async function loadData(): Promise<Data> {
       id: e.id, date: e.fecha, category: e.categoria as Data['expenses'][number]['category'], vehicleId: e.vehiculo_id ?? undefined,
       amount: e.monto, concept: e.concepto, userId: e.registrado_por ?? '',
     })),
-    orion: {
-      status: orion.length === 0 ? 'pendiente' : orion[0].estado === 'error' ? 'error' : 'conectado',
-      lastSync: orion[0]?.terminada_en ?? undefined,
-      syncs: orion.map((s) => ({ at: s.iniciada_en, updated: s.vehiculos_actualizados, note: s.nota })),
-    },
+    orion: orionState(orion, gps),
+    gps,
     serviceTypes: tipos.map((t) => ({ id: t.id, name: t.nombre, resetsCounter: t.reinicia_contador, hint: t.descripcion, active: t.activo, order: t.orden })),
   }
 }
@@ -186,4 +215,18 @@ export async function loadAuditAll(f: AuditFilter, max = 10000): Promise<AuditEn
     if (rows.length < 1000) break
   }
   return out
+}
+
+type SyncRow = { iniciada_en: string; terminada_en: string | null; estado: string; vehiculos_actualizados: number; nota: string }
+
+/** Conectado si llegaron posiciones; error si el último aviso de error es más nuevo que la última posición. */
+function orionState(syncs: SyncRow[], gps: GpsPosition[]): Data['orion'] {
+  const lastGps = gps.map((g) => g.reportedAt ?? '').sort().pop()
+  const lastError = syncs.find((s) => s.estado === 'error')
+  const failing = !!lastError && (!lastGps || Date.parse(lastError.iniciada_en) > Date.parse(lastGps))
+  return {
+    status: failing ? 'error' : gps.length || syncs.length ? 'conectado' : 'pendiente',
+    lastSync: lastGps || syncs[0]?.terminada_en || undefined,
+    syncs: syncs.map((s) => ({ at: s.iniciada_en, updated: s.vehiculos_actualizados, note: s.nota, failed: s.estado === 'error' })),
+  }
 }

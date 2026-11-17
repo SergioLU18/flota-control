@@ -408,6 +408,72 @@ export type Database = {
           },
         ]
       }
+      gps_posiciones: {
+        Row: {
+          actualizado_en: string
+          datos: Json
+          estado: string | null
+          imei: string | null
+          lat: number | null
+          lng: number | null
+          nombre: string
+          odometro: number | null
+          orion_equipo_id: string
+          placas: string | null
+          reportado_en: string | null
+          rumbo: number | null
+          vehiculo_id: string | null
+          velocidad: number | null
+        }
+        Insert: {
+          actualizado_en?: string
+          datos?: Json
+          estado?: string | null
+          imei?: string | null
+          lat?: number | null
+          lng?: number | null
+          nombre?: string
+          odometro?: number | null
+          orion_equipo_id: string
+          placas?: string | null
+          reportado_en?: string | null
+          rumbo?: number | null
+          vehiculo_id?: string | null
+          velocidad?: number | null
+        }
+        Update: {
+          actualizado_en?: string
+          datos?: Json
+          estado?: string | null
+          imei?: string | null
+          lat?: number | null
+          lng?: number | null
+          nombre?: string
+          odometro?: number | null
+          orion_equipo_id?: string
+          placas?: string | null
+          reportado_en?: string | null
+          rumbo?: number | null
+          vehiculo_id?: string | null
+          velocidad?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gps_posiciones_vehiculo_id_fkey"
+            columns: ["vehiculo_id"]
+            isOneToOne: false
+            referencedRelation: "v_mantenimiento"
+            referencedColumns: ["vehiculo_id"]
+          },
+          {
+            foreignKeyName: "gps_posiciones_vehiculo_id_fkey"
+            columns: ["vehiculo_id"]
+            isOneToOne: false
+            referencedRelation: "vehiculos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incidentes: {
         Row: {
           actualizado_en: string

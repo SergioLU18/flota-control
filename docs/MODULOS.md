@@ -214,11 +214,11 @@ Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permi
 
 **Para qué sirve:** que el kilometraje se actualice solo, sin capturarlo a mano.
 
-**Estado:** **pendiente de confirmar** que Orión tenga una API o una exportación de datos. Las notas dicen "creo que sí tienen API".
+**Estado:** Orión sí tiene API (plataforma GPSWox, `https://plataforma.gpsorion.mx/api`, con el hash de la cuenta de Carlos Jasso). La sincronización automática está construida: cada minuto se guarda la última posición de cada equipo. La app muestra lado a lado el **km capturado** (el nuestro) y el **km Orión**, sin que uno sobrescriba al otro: en algunos coches el GPS se instaló con kilometraje y no coincide con el tablero. El registro automático de km queda apagado (`ORION_REGISTRAR_KM`).
 
 **Diseño (aislado a propósito)**
 1. Cada coche tiene un campo opcional *ID de equipo Orión*.
-2. Una tarea programada (por ejemplo, cada noche) consulta el odómetro y crea registros de km con origen **Orión**.
+2. Una tarea programada consulta Orión cada minuto, sin que nadie tenga que entrar a la app. Guarda la ubicación de cada coche y, una vez por hora, un registro de km con origen **Orión** (uno por coche y día, que se va subiendo). Si el coche no tiene capturado el ID de equipo, se reconoce por placas o por número de unidad.
 3. Nunca sobrescribe los registros manuales. Descarta lecturas menores que la anterior o con saltos absurdos, y genera un aviso.
 4. Si Orión solo exporta archivos, se importa un CSV o Excel con la misma lógica.
 5. **Si la integración se retrasa o no existe, nada más se rompe:** el km se sigue capturando a mano y en entregas y recepciones.

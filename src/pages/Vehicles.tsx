@@ -23,6 +23,7 @@ const readView = (): View => {
 
 export default function Vehicles() {
   const { data } = useStore()
+  const gpsOf = new Map(data.gps.filter((g) => g.vehicleId).map((g) => [g.vehicleId!, g]))
   const nav = useNavigate()
   const [params, setParams] = useSearchParams()
   const filter = (params.get('estado') as Filter) ?? 'todos'
@@ -122,7 +123,7 @@ export default function Vehicles() {
         <div className="table-wrap card">
           <table className="table fleet-table">
             {/* Anchos fijos para que las columnas no brinquen al filtrar; el espacio sobrante se reparte en proporción entre todas. */}
-            <colgroup><col style={{ width: 112 }} /><col style={{ width: 190 }} /><col style={{ width: 110 }} /><col style={{ width: 120 }} /><col style={{ width: 110 }} /><col style={{ width: 130 }} /><col style={{ width: 140 }} /><col style={{ width: 120 }} /><col style={{ width: 260 }} /></colgroup>
+            <colgroup><col style={{ width: 112 }} /><col style={{ width: 190 }} /><col style={{ width: 110 }} /><col style={{ width: 120 }} /><col style={{ width: 136 }} /><col style={{ width: 130 }} /><col style={{ width: 140 }} /><col style={{ width: 120 }} /><col style={{ width: 260 }} /></colgroup>
             <thead><tr>
               <Th k="coche">Unidad</Th><Th k="modelo">Modelo</Th><th>Placas</th><th>Estado</th><Th k="km" num>Km</Th><Th k="servicio">Servicio</Th>
               <Th k="renta" num>Renta semanal</Th><Th k="saldo" num>Saldo</Th><th className="col-gap">Conductor</th>
@@ -139,7 +140,7 @@ export default function Vehicles() {
                   <td>{v.brand} {v.model} {v.year}</td>
                   <td><span className="plate">{v.plates}</span></td>
                   <td><StatusBadge value={v.status} /></td>
-                  <td className="num">{km(v.currentKm)}</td>
+                  <td className="num">{km(v.currentKm)}{gpsOf.get(v.id)?.odometer != null && <div className="small muted" title="Lo que marca Orión GPS">Orión {km(gpsOf.get(v.id)!.odometer!)}</div>}</td>
                   <td>{m.level === 'ok' ? <span className="small">en {km(m.remaining)}</span> : <StatusBadge value={m.level} />}</td>
                   <td className="num">{rental ? mxn(rental.weeklyRate) : <span className="muted">—</span>}</td>
                   <td className="num">{balance > 0 ? <span className="neg">{mxn(balance)}</span> : <span className="muted">—</span>}</td>
@@ -160,6 +161,7 @@ export default function Vehicles() {
               </div>
               <dl className="vc-meta">
                 <div><dt>Km</dt><dd>{km(v.currentKm)}</dd></div>
+                {gpsOf.get(v.id)?.odometer != null && <div><dt>Km Orión</dt><dd>{km(gpsOf.get(v.id)!.odometer!)}</dd></div>}
                 <div><dt>Servicio</dt><dd>{m.level === 'ok' ? `en ${km(m.remaining)}` : <StatusBadge value={m.level} />}</dd></div>
                 <div><dt>Renta semanal</dt><dd>{rental ? mxn(rental.weeklyRate) : <span className="muted">—</span>}</dd></div>
                 <div><dt>Saldo</dt><dd>{balance > 0 ? <span className="neg">{mxn(balance)}</span> : <span className="muted">—</span>}</dd></div>

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { BackLink, Badge, Card, Empty, Lightbox, Modal, PageHeader, Photo, Progress, Stat, StatusBadge, Tabs } from '../components/ui'
@@ -11,6 +11,9 @@ import type { PhotoRef } from '../data/types'
 import { can } from '../data/permissions'
 import { InspectionCompare } from './Inspections'
 import { Icon, type IconName } from '../components/Icon'
+import { CapturedKm, OrionKm, hace, lastReading } from '../components/gps'
+
+const GpsMap = lazy(() => import('../components/GpsMap'))
 
 type Tab = 'resumen' | 'historial' | 'km' | 'mantenimiento' | 'incidentes' | 'inspecciones' | 'finanzas'
 type ModalKind = 'edit' | 'baja' | 'rent' | 'end' | 'km' | 'service' | 'incident' | null
@@ -29,6 +32,7 @@ export default function VehicleDetail() {
   const r = activeRentalOf(data, v.id)
   const driver = r && L.driver(r.driverId)
   const m = maintenanceStatus(v, data.services)
+  const gps = data.gps.find((g) => g.vehicleId === v.id)
   const rentals = data.rentals.filter((x) => x.vehicleId === v.id).sort((a, b) => (a.startDate < b.startDate ? 1 : -1))
   const services = data.services.filter((s) => s.vehicleId === v.id).sort((a, b) => b.km - a.km)
   const mileage = data.mileage.filter((x) => x.vehicleId === v.id).sort((a, b) => (a.date < b.date ? 1 : -1))
@@ -100,12 +104,20 @@ export default function VehicleDetail() {
           <Card title="Mantenimiento">
             <Progress value={m.since / MAINTENANCE_INTERVAL} tone={m.level === 'vencido' ? 'red' : m.level === 'proximo' ? 'amber' : 'green'} />
             <dl className="dl">
-              <dt>Km actual</dt><dd>{km(v.currentKm)}</dd>
+              <dt>Km capturado</dt><dd><CapturedKm currentKm={v.currentKm} date={lastReading(data.mileage, v.id)} inline /></dd>
+              <dt>Km Orión</dt><dd>{gps ? <OrionKm g={gps} currentKm={v.currentKm} inline /> : <span className="muted">Sin equipo GPS</span>}</dd>
+              {gps && <><dt>GPS</dt><dd><StatusBadge value={gps.status} /> <span className="small muted">{hace(gps.reportedAt)}</span></dd></>}
               <dt>Último servicio</dt><dd>{m.last ? `${fecha(m.last.date)} · ${km(m.last.km)}` : '—'}</dd>
               <dt>Próximo servicio</dt><dd>{km(m.nextKm)} <StatusBadge value={m.level} /></dd>
-              <dt>Orión</dt><dd>{v.orionDeviceId ?? <span className="muted">Sin equipo</span>}</dd>
             </dl>
           </Card>
+          {gps?.lat != null && (
+            <Card title="Ubicación (Orión GPS)">
+              <Suspense fallback={<div className="gps-map" style={{ height: 260 }} />}>
+                <GpsMap height={260} labels={false} points={[{ g: gps, label: v.unit ?? v.plates, detail: `${v.brand} ${v.model} · ${v.plates}` }]} />
+              </Suspense>
+            </Card>
+          )}
           <Card title="Datos del coche">
             <dl className="dl">
               <dt>Unidad</dt><dd>{v.unit ?? <span className="muted">Sin unidad</span>}</dd>

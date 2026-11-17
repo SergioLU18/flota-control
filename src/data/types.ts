@@ -224,10 +224,33 @@ export interface AuditFilter {
   ids?: string[]
 }
 
+/** online = en movimiento; engine = motor encendido sin moverse; ack = detenido; offline = sin señal (GPSWox). */
+export type GpsStatus = 'movimiento' | 'encendido' | 'detenido' | 'sin_senal'
+
+/** Última posición de un equipo de Orión (gps_posiciones). Se refresca cada minuto. */
+export interface GpsPosition {
+  deviceId: string
+  /** Coche ligado (por ID de equipo, unidad o placas). Vacío si el equipo no está en la flota. */
+  vehicleId?: string
+  name: string
+  plates?: string
+  status: GpsStatus
+  lat?: number
+  lng?: number
+  speed?: number
+  /** Hora del último reporte del equipo (ISO). */
+  reportedAt?: string
+  /** Distancia que lleva medida Orión. No es el km capturado: se muestran lado a lado. */
+  odometer?: number
+  ignition?: boolean
+  battery?: string
+  engineBlocked?: boolean
+}
+
 export interface OrionState {
   status: 'pendiente' | 'conectado' | 'error'
   lastSync?: string
-  syncs: { at: string; updated: number; note: string }[]
+  syncs: { at: string; updated: number; note: string; failed?: boolean }[]
 }
 
 export interface ServiceType {
@@ -253,5 +276,6 @@ export interface Data {
   inspections: Inspection[]
   expenses: Expense[]
   orion: OrionState
+  gps: GpsPosition[]
   serviceTypes: ServiceType[]
 }
