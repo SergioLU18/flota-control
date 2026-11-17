@@ -30,12 +30,12 @@ export default function Maintenance() {
   return (
     <>
       <PageHeader module="mantenimiento" title="Kilometraje y mantenimiento" subtitle={`${due} coches requieren servicio pronto`}
-        actions={<><button className="btn" onClick={() => setModal('km')}><Icon name="plus" />Registrar km</button><button className="btn btn-primary" onClick={() => setModal('service')}><Icon name="plus" />Registrar servicio</button></>} />
+        actions={<><button className="btn" data-tour="btn-registrar-km" onClick={() => setModal('km')}><Icon name="plus" />Registrar km</button><button className="btn btn-primary" data-tour="btn-registrar-servicio" onClick={() => setModal('service')}><Icon name="plus" />Registrar servicio</button></>} />
       {error && <div className="banner banner-red" onClick={() => setError('')}>{error}</div>}
       <Tabs value={tab} onChange={setTab} tabs={[['alertas', 'Alertas de 10,000 km'], ['servicios', 'Servicios'], ['km', 'Registros de km'], ['catalogo', 'Catálogo']]} />
 
       {tab === 'alertas' && (
-        <Card>
+        <Card tour="alertas-km">
           <p className="muted small">La alerta cuenta los km desde el último servicio que reinicia el contador. Pasa a <Badge tone="amber">Próximo</Badge> a los 9,000 km y a <Badge tone="red">Vencido</Badge> a los 10,000 km.</p>
           <div className="table-wrap"><table className="table">
             <thead><tr><th>Coche</th><th>Último servicio</th><th style={{ minWidth: 160 }}>Km desde servicio</th><th className="num">Próximo a los</th><th>Estado</th></tr></thead>

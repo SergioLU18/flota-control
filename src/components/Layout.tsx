@@ -45,10 +45,10 @@ export default function Layout() {
     <div className="shell">
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
         <Brand sub="Flota y rentas" />
-        <nav aria-busy={!user}>
+        <nav aria-busy={!user} data-tour="menu">
           {user
             ? items.map((m) => (
-              <NavLink key={m.key} to={m.path} end={m.path === '/'}>
+              <NavLink key={m.key} to={m.path} end={m.path === '/'} data-tour={`nav-${m.key}`}>
                 <span className="nav-icon"><Icon name={m.icon} /></span>{m.label}
               </NavLink>
             ))
@@ -59,7 +59,7 @@ export default function Layout() {
         </nav>
         <div className="sidebar-foot">
           {/* Como el perfil en Ajustes de iOS: tocar tu nombre abre Ajustes (apariencia, preferencias, cerrar sesión). */}
-          <NavLink to="/ajustes" className="who" aria-label="Ajustes">
+          <NavLink to="/ajustes" className="who" aria-label="Ajustes" data-tour="perfil">
             <span className="avatar" aria-hidden>{user?.name.charAt(0) ?? ''}</span>
             {user
               ? <span className="who-text"><strong>{user.name}</strong><span className="small muted">Ajustes</span></span>
@@ -86,7 +86,7 @@ export default function Layout() {
       </div>
 
       {user && (
-        <nav className="tabbar" aria-label="Accesos rápidos">
+        <nav className="tabbar" aria-label="Accesos rápidos" data-tour="menu-movil">
           {tabs.map(({ m, label }) => (
             <NavLink key={m.key} to={m.path} end={m.path === '/'}>
               <Icon name={m.icon} className="tab-icon" /><span>{label}</span>

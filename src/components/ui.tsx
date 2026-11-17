@@ -27,7 +27,7 @@ export function StatusBadge({ value }: { value: string }) {
 }
 
 export function PageHeader({ module, title, subtitle, actions }: { module?: string; title: string; subtitle?: ReactNode; actions?: ReactNode }) {
-  // `data-module` es lo que resalta el tour guiado (components/Tour.tsx) en cada pantalla.
+  // `data-tour` marca lo que resalta el tour guiado (components/Tour.tsx).
   return (
     <header className="page-header" data-module={module}>
       <div className="page-title-row">
@@ -35,7 +35,7 @@ export function PageHeader({ module, title, subtitle, actions }: { module?: stri
           <h1>{title}</h1>
           {subtitle && <p className="muted">{subtitle}</p>}
         </div>
-        {actions && <div className="actions">{actions}</div>}
+        {actions && <div className="actions" data-tour="acciones">{actions}</div>}
       </div>
     </header>
   )
@@ -78,9 +78,9 @@ export function Stat({ label, value, hint, tone, icon }: { label: string; value:
   )
 }
 
-export function Card({ title, actions, children, className = '' }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string }) {
+export function Card({ title, actions, children, className = '', tour }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; tour?: string }) {
   return (
-    <section className={`card ${className}`}>
+    <section className={`card ${className}`} data-tour={tour}>
       {(title || actions) && (
         <div className="card-head">
           {title && <h2>{title}</h2>}
@@ -94,9 +94,9 @@ export function Card({ title, actions, children, className = '' }: { title?: Rea
 
 export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: [T, string][]; value: T; onChange: (v: T) => void }) {
   return (
-    <div className="tabs" role="tablist">
+    <div className="tabs" role="tablist" data-tour="pestanas">
       {tabs.map(([k, label]) => (
-        <button key={k} role="tab" aria-selected={value === k} className={value === k ? 'active' : ''} onClick={() => onChange(k)}>{label}</button>
+        <button key={k} data-tour={`tab-${k}`} role="tab" aria-selected={value === k} className={value === k ? 'active' : ''} onClick={() => onChange(k)}>{label}</button>
       ))}
     </div>
   )

@@ -273,20 +273,68 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 }
 
 /* ---------- Tour guiado ---------- */
-.tour-catcher { position: fixed; inset: 0; z-index: 60; }
-.tour-dim { position: fixed; inset: 0; z-index: 61; background: rgb(15 23 42 / .5); pointer-events: none; }
-.tour-spot {
-  position: fixed; z-index: 61; border-radius: 10px; pointer-events: none;
-  box-shadow: 0 0 0 9999px rgb(15 23 42 / .5), 0 0 0 2px var(--accent); transition: top .3s var(--ease), left .3s var(--ease), width .3s var(--ease), height .3s var(--ease);
+.tour-veil { position: fixed; z-index: 60; background: rgb(15 23 42 / .5); }
+.tour-block { position: fixed; z-index: 60; }
+.tour-ring {
+  position: fixed; z-index: 61; border-radius: 10px; pointer-events: none; box-shadow: 0 0 0 2px var(--accent);
+  transition: top .25s var(--ease), left .25s var(--ease), width .25s var(--ease), height .25s var(--ease);
 }
+.tour-dot { position: absolute; top: -5px; right: -5px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); }
+.tour-dot::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: var(--accent); animation: tour-ping 1.2s cubic-bezier(0, 0, .2, 1) infinite; }
+@keyframes tour-ping { 75%, 100% { transform: scale(2.2); opacity: 0; } }
+
 .tour-pop {
-  position: fixed; z-index: 62; width: min(360px, calc(100vw - 32px)); padding: 16px 18px 14px;
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-lg); outline: none; animation: pop-in .25s var(--ease);
+  position: fixed; z-index: 62; width: min(380px, calc(100vw - 24px)); padding: 14px 16px 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-lg); outline: none;
+  animation: pop-in .2s var(--ease); transition: top .25s var(--ease), left .25s var(--ease);
 }
-.tour-pop h2 { margin: 4px 0 6px; font-size: 1.05rem; }
-.tour-pop p { margin: 0 0 14px; font-size: .9rem; color: var(--secondary); }
-.tour-count { font-size: .7rem; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; }
-.tour-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.tour-pop.full { width: auto; }
+.tour-head { display: flex; align-items: center; gap: 8px; }
+.tour-chapter { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; font-size: .7rem; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; }
+.tour-chapter .icon { width: 14px; height: 14px; }
+.tour-of { margin-left: 2px; color: var(--muted); font-weight: 500; letter-spacing: .02em; }
+.tour-of::before { content: "·"; margin-right: 6px; }
+.tour-skip { font-size: .75rem; }
+.tour-x { display: grid; place-items: center; width: 26px; height: 26px; margin-right: -6px; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; }
+.tour-x:hover { background: var(--surface-2); color: var(--text); }
+.tour-x .icon { width: 16px; height: 16px; }
+.tour-pop h2 { margin: 8px 0 4px; font-size: 1.05rem; }
+.tour-pop p { margin: 0 0 12px; font-size: .9rem; line-height: 1.5; color: var(--secondary); }
+.tour-pop.compact { padding: 10px 12px; }
+.tour-pop.compact p { font-size: .8rem; margin-bottom: 8px; }
+.tour-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tour-actions .actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.tour-progress { display: inline-flex; align-items: center; gap: 8px; font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tour-bar { width: 64px; height: 4px; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
+.tour-bar > span { display: block; height: 100%; background: var(--accent); transition: width .25s var(--ease); }
+.tour-hint { font-size: .75rem; font-weight: 600; color: var(--accent); }
+
+.tour-backdrop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: rgb(15 23 42 / .5); animation: fade-in .2s ease; }
+.tour-panel {
+  width: min(560px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; padding: 24px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-lg); outline: none; animation: pop-in .2s var(--ease);
+}
+.tour-badge { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); }
+.tour-badge .icon { width: 22px; height: 22px; }
+.tour-panel h2 { margin: 14px 0 6px; font-size: 1.3rem; }
+.tour-panel p { margin: 0; color: var(--secondary); line-height: 1.5; }
+.tour-caps { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 16px 0 10px; }
+.tour-caps button {
+  display: grid; grid-template-columns: auto 1fr; align-items: center; column-gap: 8px; padding: 9px 10px; text-align: left;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: inherit; font: inherit; font-size: .85rem; font-weight: 500; cursor: pointer;
+}
+.tour-caps button:hover { border-color: var(--accent); }
+.tour-caps button.here { border-color: var(--accent); background: var(--accent-soft); }
+.tour-caps .icon { grid-row: span 2; width: 18px; height: 18px; color: var(--accent); }
+.tour-caps small { color: var(--muted); font-size: .72rem; font-weight: 400; }
+.tour-note { font-size: .8rem; }
+.tour-panel .tour-note { color: var(--muted); }
+.tour-panel-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+@media (max-width: 600px) {
+  .tour-panel { padding: 18px; }
+  .tour-panel-actions .btn { flex: 1 1 100%; }
+  .tour-panel-actions .btn-ghost { order: 3; }
+}
 @keyframes pop-in { from { opacity: 0; transform: translateY(4px); } }
 
 /* ---------- Buttons ---------- */
@@ -789,7 +837,7 @@ button.settings-row:active, a.settings-row:active { background: var(--surface-3)
 .theme-check .icon { width: 12px; height: 12px; stroke-width: 3; }
 
 /* ---------- Orión GPS: mapa (Leaflet) ---------- */
-.gps-map { position: relative; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-2); margin-bottom: 16px; }
+.gps-map { position: relative; isolation: isolate; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-2); margin-bottom: 16px; }
 .gps-map .leaflet-container { font: inherit; background: var(--surface-2); }
 .gps-dot { stroke: var(--surface); fill-opacity: 1; }
 .gps-dot-movimiento { fill: var(--green); }

@@ -23,8 +23,8 @@ export default function Drivers() {
 
   return (
     <>
-      <PageHeader module="conductores" title="Conductores" subtitle={`${data.drivers.length} registrados`} actions={<button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="plus" />Nuevo conductor</button>} />
-      <div className="toolbar">
+      <PageHeader module="conductores" title="Conductores" subtitle={`${data.drivers.length} registrados`} actions={<button className="btn btn-primary" data-tour="btn-nuevo-conductor" onClick={() => setAdding(true)}><Icon name="plus" />Nuevo conductor</button>} />
+      <div className="toolbar" data-tour="filtros">
         <Tabs<Filter> value={filter} onChange={setFilter} tabs={[['todos', 'Todos'], ['activos', 'Con coche'], ['adeudo', 'Con adeudo']]} />
         <input className="search" placeholder="Buscar por nombre, CURP o teléfono…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
@@ -32,10 +32,10 @@ export default function Drivers() {
         <table className="table">
           <thead><tr><th>Conductor</th><th>Teléfono</th><th>Coche actual</th><th>Licencia</th><th>Documentos</th><th className="num">Saldo</th></tr></thead>
           <tbody>
-            {list.map(({ d, rental, bal, lic, missing }) => {
+            {list.map(({ d, rental, bal, lic, missing }, i) => {
               const v = rental && data.vehicles.find((x) => x.id === rental.vehicleId)
               return (
-                <tr key={d.id} className="clickable" onClick={() => nav(`/conductores/${d.id}`)}>
+                <tr key={d.id} className="clickable" data-tour={i === 0 ? 'fila-0' : undefined} onClick={() => nav(`/conductores/${d.id}`)}>
                   <td><Link to={`/conductores/${d.id}`}>{d.name}</Link><div className="muted small">{d.curp}</div></td>
                   <td>{d.phone}</td>
                   <td>{v ? `${v.model} · ${v.plates}` : <span className="muted">—</span>}</td>

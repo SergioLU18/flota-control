@@ -94,11 +94,11 @@ export default function Vehicles() {
 
   return (
     <>
-      <PageHeader module="flota" title="Flota" subtitle={`${count('todos')} coches`} actions={<button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="plus" />Nuevo coche</button>} />
+      <PageHeader module="flota" title="Flota" subtitle={`${count('todos')} coches`} actions={<button className="btn btn-primary" data-tour="btn-nuevo-coche" onClick={() => setAdding(true)}><Icon name="plus" />Nuevo coche</button>} />
       <Tabs<Filter> value={filter} onChange={(f) => setParam('estado', f === 'todos' ? '' : f)}
         tabs={[['todos', `Todos (${count('todos')})`], ['rentado', `Rentados (${count('rentado')})`], ['disponible', `Disponibles (${count('disponible')})`], ['taller', `En taller (${count('taller')})`],
           ...(count('baja') || filter === 'baja' ? [['baja', `Dados de baja (${count('baja')})`] as [Filter, string]] : [])]} />
-      <div className="toolbar toolbar-row">
+      <div className="toolbar toolbar-row" data-tour="filtros">
         <input className="search" placeholder="Buscar por unidad, marca, modelo, placas o VIN…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="filter-select" aria-label="Servicio" value={servicio} onChange={(e) => setParam('servicio', e.target.value)}>
           <option value="">Servicio: todos</option>
@@ -113,7 +113,7 @@ export default function Vehicles() {
         {hasFilters && (
           <button className="btn btn-sm" onClick={() => { setQ(''); setParams(filter === 'todos' ? {} : { estado: filter }) }}>Limpiar</button>
         )}
-        <div className="segmented" role="group" aria-label="Vista">
+        <div className="segmented" role="group" aria-label="Vista" data-tour="vista">
           <button className={view === 'tabla' ? 'active' : ''} aria-pressed={view === 'tabla'} onClick={() => setView('tabla')}>Tabla</button>
           <button className={view === 'grid' ? 'active' : ''} aria-pressed={view === 'grid'} onClick={() => setView('grid')}>Tarjetas</button>
         </div>
@@ -129,8 +129,8 @@ export default function Vehicles() {
               <Th k="renta" num>Renta semanal</Th><Th k="saldo" num>Saldo</Th><th className="col-gap">Conductor</th>
             </tr></thead>
             <tbody>
-              {list.map(({ v, rental, driver, m, balance }) => (
-                <tr key={v.id} className="clickable" onClick={() => nav(`/flota/${v.id}`)}>
+              {list.map(({ v, rental, driver, m, balance }, i) => (
+                <tr key={v.id} className="clickable" data-tour={i === 0 ? 'fila-0' : undefined} onClick={() => nav(`/flota/${v.id}`)}>
                   <td>
                     <div className="vt-car">
                       <span className="swatch" style={{ background: COLOR_HEX[v.color] }} title={v.color} />
@@ -152,8 +152,8 @@ export default function Vehicles() {
         </div>
       ) : (
         <div className="vehicle-grid">
-          {list.map(({ v, rental, driver, m, balance }) => (
-            <Link key={v.id} to={`/flota/${v.id}`} className="vehicle-card">
+          {list.map(({ v, rental, driver, m, balance }, i) => (
+            <Link key={v.id} to={`/flota/${v.id}`} className="vehicle-card" data-tour={i === 0 ? 'fila-0' : undefined}>
               <div className="vc-top">
                 <span className="vc-swatch" style={{ '--c': COLOR_HEX[v.color] } as CSSProperties} title={v.color}><Icon name="car" /></span>
                 <div className="vc-title"><strong>{v.unit && <span className="unit">{v.unit}</span>}{v.brand} {v.model} {v.year}</strong><span className="plate">{v.plates}</span></div>

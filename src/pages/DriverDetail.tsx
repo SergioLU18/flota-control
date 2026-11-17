@@ -77,7 +77,7 @@ export default function DriverDetail() {
         </>} />
 
       {notice && <div className="banner banner-green" onClick={() => setNotice('')}>{notice}</div>}
-      <div className="stats">
+      <div className="stats" data-tour="indicadores">
         <Stat label="Saldo / adeudo" value={mxn(bal.balance)} tone={bal.balance > 0 ? 'red' : 'green'} icon="wallet" />
         <Stat label="Total pagado" value={mxn(bal.paid)} icon="cash" />
         <Stat label="Coche actual" value={active ? L.vehicle(active.vehicleId).plates : '—'} hint={active && <Link to={`/flota/${active.vehicleId}`}>{L.vehicle(active.vehicleId).brand} {L.vehicle(active.vehicleId).model}</Link>} icon="car" />

@@ -47,19 +47,19 @@ export default function Billing() {
     <>
       <PageHeader module="cobranza" title="Cobranza" subtitle="Solo se registra lo que ya se pagó; no hay cobro en línea."
         actions={<>
-          <button className="btn" disabled={busy} onClick={async () => {
+          <button className="btn" data-tour="btn-generar-cargos" disabled={busy} onClick={async () => {
             setBusy(true); setError('')
             try {
               const n = await generateWeeklyCharges()
               setMsg(n ? `Se generaron ${n} cargos de renta pendientes hasta hoy.` : 'Los cargos ya estaban al día. No se duplicó nada.')
             } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
           }}>Generar cargos de la semana</button>
-          <button className="btn btn-primary" onClick={() => setPaying(true)}><Icon name="plus" />Registrar pago</button>
+          <button className="btn btn-primary" data-tour="btn-registrar-pago" onClick={() => setPaying(true)}><Icon name="plus" />Registrar pago</button>
         </>} />
       {msg && <div className="banner banner-green" onClick={() => setMsg('')}>{msg}</div>}
       {error && <div className="banner banner-red" onClick={() => setError('')}>{error}</div>}
 
-      <div className="stats">
+      <div className="stats" data-tour="indicadores">
         <Stat label="Cobrado esta semana" value={mxn(weekIncome(data))} icon="trend" tone="green" />
         <Stat label={`Cobrado en ${mes(TODAY.slice(0, 7))}`} value={mxn(monthIncome(data))} icon="calendar" />
         <Stat label="Adeudo total" value={mxn(g.balance)} tone="red" icon="wallet" hint={`Depósitos en garantía: ${mxn(depositsHeld(data))}`} />
@@ -88,7 +88,7 @@ export default function Billing() {
       )}
 
       {tab === 'pagos' && (
-        <Card title="Últimos pagos" actions={<button className="btn btn-sm" onClick={exportAll}><Icon name="download" />Histórico a Excel (CSV)</button>}>
+        <Card tour="pagos" title="Últimos pagos" actions={<button className="btn btn-sm" onClick={exportAll}><Icon name="download" />Histórico a Excel (CSV)</button>}>
           <div className="table-wrap"><table className="table compact">
             <thead><tr><th>Fecha</th><th>Conductor</th><th>Coche</th><th>Método</th><th className="num">Monto</th><th>Registró</th>{canVoid && <th></th>}</tr></thead>
             <tbody>{payments.map((p) => {
@@ -111,7 +111,7 @@ export default function Billing() {
       )}
 
       {tab === 'cargos' && (
-        <Card title="Cargos de la semana actual y la anterior">
+        <Card tour="cargos" title="Cargos de la semana actual y la anterior">
           <div className="table-wrap"><table className="table compact">
             <thead><tr><th>Fecha</th><th>Conductor</th><th>Coche</th><th>Concepto</th><th className="num">Monto</th>{canCorrect && <th></th>}</tr></thead>
             <tbody>{charges.map((c) => {

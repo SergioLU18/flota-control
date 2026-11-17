@@ -21,15 +21,15 @@ export default function Incidents() {
 
   return (
     <>
-      <PageHeader module="incidentes" title="Incidentes y accidentes" actions={<button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="plus" />Registrar incidente</button>} />
+      <PageHeader module="incidentes" title="Incidentes y accidentes" actions={<button className="btn btn-primary" data-tour="btn-registrar-incidente" onClick={() => setAdding(true)}><Icon name="plus" />Registrar incidente</button>} />
       <Tabs value={tab} onChange={setTab} tabs={[['abierto', 'Abiertos'], ['cerrado', 'Cerrados'], ['todos', 'Todos']]} />
       {error && <div className="banner banner-red" onClick={() => setError('')}>{error}</div>}
       <div className="stack">
-        {list.map((i) => {
+        {list.map((i, n) => {
           const v = L.vehicle(i.vehicleId)
           const d = L.driver(i.driverId)
           return (
-            <Card key={i.id} title={<>{i.type} <StatusBadge value={i.status} /></>} actions={<>
+            <Card key={i.id} tour={n === 0 ? 'incidente-0' : undefined} title={<>{i.type} <StatusBadge value={i.status} /></>} actions={<>
               {(() => {
                 const charged = data.charges.filter((c) => c.incidentId === i.id && !c.voided).reduce((a, c) => a + c.amount, 0)
                 return charged > 0 ? <span className="muted small">Cargado al conductor: {mxn(charged)}</span>

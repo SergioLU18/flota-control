@@ -45,15 +45,15 @@ export default function Orion() {
 
       {lastError && <div className="banner banner-red"><span>La última consulta a Orión falló ({fechaHora(lastError.at)}): {lastError.note}. Se reintenta cada minuto.</span></div>}
 
-      <div className="stats">
+      <div className="stats" data-tour="indicadores">
         <Stat label="En movimiento" value={count('movimiento')} tone="green" icon="compass" />
         <Stat label="Motor encendido" value={count('encendido')} icon="key" hint="detenidos con el motor prendido" />
         <Stat label="Detenidos" value={count('detenido')} icon="clock" />
         <Stat label="Sin señal" value={count('sin_senal')} tone={count('sin_senal') ? 'red' : undefined} icon="signal" />
       </div>
 
-      <Card title={`Flota con GPS (${linked.length})`}
-        actions={<select className="filter-select" aria-label="Estado GPS" value={estado} onChange={(e) => setEstado(e.target.value as GpsStatus | '')}>
+      <Card tour="mapa" title={`Flota con GPS (${linked.length})`}
+        actions={<select className="filter-select" data-tour="filtro-gps" aria-label="Estado GPS" value={estado} onChange={(e) => setEstado(e.target.value as GpsStatus | '')}>
           <option value="">Todos</option><option value="movimiento">En movimiento</option><option value="encendido">Motor encendido</option>
           <option value="detenido">Detenidos</option><option value="sin_senal">Sin señal</option>
         </select>}>

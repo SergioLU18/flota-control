@@ -15,7 +15,7 @@ export default function Docs() {
   }, [hash])
 
   return (
-    <article className="docs card">
+    <article className="docs card" data-tour="documentacion">
       <Markdown
         remarkPlugins={[remarkGfm]}
         components={{

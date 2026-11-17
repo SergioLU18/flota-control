@@ -25,13 +25,13 @@ export default function Rentals() {
   return (
     <>
       <PageHeader module="rentas" title="Rentas" subtitle={`${active.length} activas · ${mxn(weekly)} por cobrar por semana`}
-        actions={<button className="btn btn-primary" onClick={() => setCreating(true)}><Icon name="plus" />Nueva renta</button>} />
+        actions={<button className="btn btn-primary" data-tour="btn-nueva-renta" onClick={() => setCreating(true)}><Icon name="plus" />Nueva renta</button>} />
       <Tabs value={tab} onChange={setTab} tabs={[['activa', `Activas (${active.length})`], ['finalizada', 'Finalizadas']]} />
       <div className="table-wrap card">
         <table className="table">
           <thead><tr><th>Coche</th><th>Conductor</th><th>Inicio</th>{tab === 'finalizada' && <th>Fin</th>}<th className="num">Tarifa / sem</th><th className="num">Depósito</th><th className="num">Saldo</th><th></th></tr></thead>
           <tbody>
-            {list.map((r) => {
+            {list.map((r, i) => {
               const v = L.vehicle(r.vehicleId)
               const d = L.driver(r.driverId)!
               const bal = rentalBalance(data, r.id).balance
@@ -44,7 +44,7 @@ export default function Rentals() {
                   <td className="num">{mxn(r.weeklyRate)}</td>
                   <td className="num">{mxn(r.deposit)}<div><StatusBadge value={r.depositStatus} /></div></td>
                   <td className={`num ${bal > 0 ? 'neg' : ''}`}>{mxn(bal)}</td>
-                  <td className="row-actions">
+                  <td className="row-actions" data-tour={i === 0 ? 'acciones-fila' : undefined}>
                     {(r.status === 'activa' || bal > 0) && <button className="btn btn-sm" onClick={() => setPaying(r)}>Pago</button>}
                     {r.status === 'activa' && can(user, 'editar_rentas') && <button className="btn btn-sm btn-ghost" onClick={() => setEditing(r)}>Editar</button>}
                     {r.status === 'activa' && <button className="btn btn-sm btn-ghost" onClick={() => setEnding(r)}>Finalizar</button>}

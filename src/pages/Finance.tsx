@@ -52,14 +52,14 @@ export default function Finance() {
     <>
       <PageHeader module="finanzas" title="Finanzas" subtitle="Números operativos para decidir; no sustituyen la contabilidad fiscal."
         actions={<>
-          <select value={pk} onChange={(e) => setPk(e.target.value)} aria-label="Periodo">
+          <select value={pk} onChange={(e) => setPk(e.target.value)} aria-label="Periodo" data-tour="periodo">
             <optgroup label="Rangos">{periods.slice(0, 3).map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</optgroup>
             <optgroup label="Mes">{periods.slice(3).map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</optgroup>
           </select>
-          <button className="btn btn-primary" onClick={() => setAdding(true)}><Icon name="plus" />Registrar gasto</button>
+          <button className="btn btn-primary" data-tour="btn-registrar-gasto" onClick={() => setAdding(true)}><Icon name="plus" />Registrar gasto</button>
         </>} />
 
-      <div className="stats">
+      <div className="stats" data-tour="indicadores">
         <Stat label="Ingresos cobrados" value={mxn(st.income)} hint={`de ${mxn(st.charged)} cargado (${st.charged ? pct(st.income / st.charged) : '—'} cobrado)`} icon="trend" />
         <Stat label="Gastos operativos" value={mxn(st.expenses)} icon="wallet" />
         <Stat label="Utilidad operativa" value={mxn(st.profit)} tone={st.profit >= 0 ? 'green' : 'red'} hint={`Margen ${pct(st.margin)}`} icon="chart" />
@@ -109,7 +109,7 @@ export default function Finance() {
             <Card title="Más rentable por mes"><p><Link to={`/flota/${best.v.id}`}>{best.v.brand} {best.v.model} {best.v.plates}</Link> · {mxn(best.profitPerMonth)} de utilidad al mes · ocupación {pct(best.occupancy)}</p></Card>
             <Card title="Menos rentable por mes"><p><Link to={`/flota/${worst.v.id}`}>{worst.v.brand} {worst.v.model} {worst.v.plates}</Link> · {mxn(worst.profitPerMonth)} al mes · ocupación {pct(worst.occupancy)} <StatusBadge value={worst.v.status} /></p></Card>
           </div>}
-          <Card title={`Rentabilidad por coche · ${period.label}`} actions={<button className="btn btn-sm" onClick={exportCars}><Icon name="download" />Exportar a Excel (CSV)</button>}>
+          <Card tour="rentabilidad" title={`Rentabilidad por coche · ${period.label}`} actions={<button className="btn btn-sm" onClick={exportCars}><Icon name="download" />Exportar a Excel (CSV)</button>}>
             <div className="table-wrap"><table className="table compact">
               <thead><tr>
                 <th>Coche</th><Th k="income">Ingresos</Th><Th k="costs">Costos</Th><Th k="profit">Utilidad</Th><Th k="profitPerMonth">Utilidad / mes</Th><Th k="occupancy">Ocupación</Th>

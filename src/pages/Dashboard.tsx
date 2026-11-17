@@ -30,12 +30,12 @@ export default function Dashboard() {
     <>
       <PageHeader module="dashboard" title={`Hola, ${user?.name.split(' ')[0]}`} subtitle={`Semana del ${rangoFechas(CURRENT_MONDAY, addDays(CURRENT_MONDAY, 6))}`} />
 
-      <div className="stats">
+      <div className="stats" data-tour="indicadores">
         <Stat label="Ingresos de la semana" value={mxn(weekIncome(data))} hint={`${weekPending} rentas sin pago esta semana`} icon="trend" tone="green" />
         <Stat label={`Ingresos de ${mes(TODAY.slice(0, 7))}`} value={mxn(monthIncome(data))} icon="calendar" />
         <Stat label="Adeudo total" value={mxn(globalBalance(data).balance)} hint={`${debtors.length} conductores con saldo`} tone="red" icon="wallet" />
         <Stat label="Avisos" value={avisos.length} hint={`${avisos.filter((a) => a.level === 'alta').length} urgentes`} tone="amber" icon="alert" />
-        <div className="stat stat-wide stat-blue">
+        <div className="stat stat-wide stat-blue" data-tour="dash-flota">
           <div className="stat-head">
             <div className="stat-label">Coches por estado</div>
             <span className="stat-icon" aria-hidden><Icon name="car" /></span>
@@ -55,7 +55,7 @@ export default function Dashboard() {
       </div>
 
       <div className="dash">
-        <Card title="Avisos internos" actions={<Badge tone="amber">{avisos.length}</Badge>}>
+        <Card tour="avisos" title="Avisos internos" actions={<Badge tone="amber">{avisos.length}</Badge>}>
           <ul className="alert-list">
             {avisos.slice(0, 10).map((a, i) => (
               <li key={i} className={`alert-${a.level}`}><Link to={a.to}>{a.text}</Link></li>
@@ -63,7 +63,7 @@ export default function Dashboard() {
           </ul>
         </Card>
 
-        <Card title="Adeudos por conductor" actions={<Link to="/cobranza" className="link">Ver cobranza<Icon name="forward" /></Link>}>
+        <Card tour="adeudos" title="Adeudos por conductor" actions={<Link to="/cobranza" className="link">Ver cobranza<Icon name="forward" /></Link>}>
           <table className="table compact">
             <thead><tr><th>Conductor</th><th>Coche</th><th className="num">Adeudo</th></tr></thead>
             <tbody>
@@ -82,7 +82,7 @@ export default function Dashboard() {
           </table>
         </Card>
 
-        <Card title="Próximos mantenimientos" actions={<Link to="/mantenimiento" className="link">Ver todos<Icon name="forward" /></Link>}>
+        <Card tour="proximos-mant" title="Próximos mantenimientos" actions={<Link to="/mantenimiento" className="link">Ver todos<Icon name="forward" /></Link>}>
           <table className="table compact">
             <thead><tr><th>Coche</th><th>Desde último servicio</th><th></th></tr></thead>
             <tbody>

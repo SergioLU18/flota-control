@@ -19,9 +19,9 @@ export default function Inspections() {
 
   return (
     <>
-      <PageHeader module="inspecciones" title="Inspecciones con fotos" actions={<Link className="btn btn-primary" to="/inspecciones/nueva"><Icon name="plus" />Nueva inspección</Link>} />
+      <PageHeader module="inspecciones" title="Inspecciones con fotos" actions={<Link className="btn btn-primary" data-tour="btn-nueva-inspeccion" to="/inspecciones/nueva"><Icon name="plus" />Nueva inspección</Link>} />
       <div className="grid-2">
-        <Card title="Recientes" className="span-2">
+        <Card tour="recientes" title="Recientes" className="span-2">
           <div className="table-wrap"><table className="table compact">
             <thead><tr><th>Fecha</th><th>Tipo</th><th>Coche</th><th className="num">Km</th><th>Combustible</th><th>Fotos</th><th>Registró</th></tr></thead>
             <tbody>{recent.map((i) => {
@@ -35,7 +35,7 @@ export default function Inspections() {
           </table></div>
         </Card>
       </div>
-      <div className="toolbar">
+      <div className="toolbar" data-tour="galeria">
         <label className="field inline"><span>Galería del coche</span>
           <select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>{data.vehicles.map((v) => <option key={v.id} value={v.id}>{vehicleLabel(v)}</option>)}</select>
         </label>
@@ -108,7 +108,7 @@ export function NewInspection() {
     <>
       <BackLink to="/inspecciones">Inspecciones</BackLink>
       <PageHeader module="inspecciones" title={`Inspección de ${f.kind === 'entrega' ? 'entrega' : 'recepción'}`} subtitle="Pensada para hacerse desde el iPad o el teléfono, junto al coche." />
-      <form className="form card" onSubmit={async (e) => {
+      <form className="form card" data-tour="form-inspeccion" onSubmit={async (e) => {
         e.preventDefault()
         if (busy) return
         setBusy(true); setError('')

@@ -157,12 +157,12 @@ export default function Users() {
   return (
     <>
       <PageHeader module="usuarios" title="Usuarios y auditoría"
-        actions={manage && <button className="btn btn-primary" onClick={() => setEditing('nuevo')}><Icon name="plus" />Nuevo usuario</button>} />
+        actions={manage && <button className="btn btn-primary" data-tour="btn-nuevo-usuario" onClick={() => setEditing('nuevo')}><Icon name="plus" />Nuevo usuario</button>} />
       {tabs.length > 1 && <Tabs value={tab} onChange={setTab} tabs={tabs} />}
 
       {tab === 'usuarios' && manage && (
         <>
-          <div className="table-wrap card">
+          <div className="table-wrap card" data-tour="tabla-usuarios">
             <table className="table">
               <thead><tr><th>Usuario</th><th>Rol</th><th>Permisos</th><th>Estado</th><th></th></tr></thead>
               <tbody>{users.map((u) => {
