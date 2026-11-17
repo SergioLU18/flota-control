@@ -7,7 +7,7 @@ import { ExpenseForm } from '../components/forms'
 import { EXPENSE_LABEL, financePeriods, incomeStatement, lastMonths, vehicleProfit, vehicleRecovery } from '../lib/finance'
 import { fecha, mes, mxn } from '../lib/format'
 import { downloadCsv } from '../lib/files'
-import type { ExpenseCategory } from '../data/types'
+import type { Expense, ExpenseCategory } from '../data/types'
 
 type Tab = 'resultados' | 'coches' | 'gastos'
 type SortKey = 'income' | 'costs' | 'profit' | 'profitPerMonth' | 'occupancy' | 'recovered'
@@ -24,6 +24,7 @@ export default function Finance() {
   const [sort, setSort] = useState<SortKey>('profit')
   const [cat, setCat] = useState<ExpenseCategory | ''>('')
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<Expense | null>(null)
 
   const st = incomeStatement(data, period)
   const monthly = lastMonths().map((ym) => ({ ym, ...incomeStatement(data, periods.find((x) => x.key === ym)!) }))
@@ -145,13 +146,14 @@ export default function Finance() {
           </select>
         }>
           <div className="table-wrap"><table className="table compact">
-            <thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th>Coche</th><th className="num">Monto</th><th>Registró</th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th>Coche</th><th className="num">Monto</th><th>Registró</th><th></th></tr></thead>
             <tbody>{expenses.slice(0, 100).map((e) => {
               const v = e.vehicleId ? L.vehicle(e.vehicleId) : undefined
               return (
                 <tr key={e.id}><td>{fecha(e.date)}</td><td>{e.concept}</td><td className="muted small">{EXPENSE_LABEL[e.category]}</td>
                   <td>{v ? <Link to={`/flota/${v.id}`}>{v.model} {v.plates}</Link> : <span className="muted">General</span>}</td>
-                  <td className="num">{mxn(e.amount)}</td><td className="muted small">{L.user(e.userId)?.name}</td></tr>
+                  <td className="num">{mxn(e.amount)}</td><td className="muted small">{L.user(e.userId)?.name}</td>
+                  <td className="row-actions"><button className="btn btn-sm btn-ghost" onClick={() => setEditing(e)}>Editar</button></td></tr>
               )
             })}</tbody>
           </table></div>
@@ -159,6 +161,7 @@ export default function Finance() {
         </Card>
       )}
 
+      <Modal open={!!editing} title="Editar gasto" onClose={() => setEditing(null)}>{editing && <ExpenseForm expense={editing} onDone={() => setEditing(null)} />}</Modal>
       <Modal open={adding} title="Registrar gasto" onClose={() => setAdding(false)}><ExpenseForm onDone={() => setAdding(false)} /></Modal>
     </>
   )

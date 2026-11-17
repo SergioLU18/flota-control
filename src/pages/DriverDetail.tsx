@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
-import { BackLink, Card, Empty, Modal, PageHeader, Stat, StatusBadge, Tabs } from '../components/ui'
-import { DriverForm, PaymentForm, StartRentalForm } from '../components/forms'
+import { BackLink, Badge, Card, Empty, Modal, PageHeader, Stat, StatusBadge, Tabs } from '../components/ui'
+import { ChargeForm, CorrectChargeForm, DepositForm, DriverForm, PaymentForm, StartRentalForm } from '../components/forms'
 import { carName, activeRentalOfDriver, driverBalance, licenseStatus, rentalBalance } from '../lib/calc'
 import { TODAY, fecha, mes, mxn } from '../lib/format'
 import { downloadCsv } from '../lib/files'
-import type { DocType, DriverDocument } from '../data/types'
+import type { Charge, DocType, DriverDocument, Rental } from '../data/types'
+import { can } from '../data/permissions'
 import { Icon } from '../components/Icon'
 
 const DOC_LABEL: Record<DocType, string> = {
@@ -16,11 +17,15 @@ type Tab = 'expediente' | 'cuenta' | 'estado' | 'rentas'
 
 export default function DriverDetail() {
   const { id } = useParams()
-  const { data, uploadDriverDocument, fileUrl } = useStore()
+  const { data, user, uploadDriverDocument, fileUrl } = useStore()
   const L = useLookup()
   const d = data.drivers.find((x) => x.id === id)
   const [tab, setTab] = useState<Tab>('expediente')
-  const [modal, setModal] = useState<'edit' | 'pay' | 'rent' | null>(null)
+  const [modal, setModal] = useState<'edit' | 'pay' | 'rent' | 'charge' | null>(null)
+  const [deposit, setDeposit] = useState<Rental | null>(null)
+  const [correcting, setCorrecting] = useState<Charge | null>(null)
+  const [notice, setNotice] = useState('')
+  const canCorrect = can(user, 'corregir_registros')
   const [month, setMonth] = useState(TODAY.slice(0, 7))
   const [preview, setPreview] = useState<(DriverDocument & { url?: string }) | null>(null)
   const [docError, setDocError] = useState('')
@@ -47,8 +52,8 @@ export default function DriverDetail() {
 
   // movimientos (cargos y pagos) para estado de cuenta
   const moves = [
-    ...data.charges.filter((c) => rentalIds.has(c.rentalId)).map((c) => ({ date: c.periodStart, concept: `${c.concept} (${L.vehicle(L.rental(c.rentalId).vehicleId).plates})`, charge: c.amount, payment: 0 })),
-    ...data.payments.filter((p) => !p.voided && rentalIds.has(p.rentalId)).map((p) => ({ date: p.date, concept: `Pago ${p.method}${p.notes ? ` · ${p.notes}` : ''}`, charge: 0, payment: p.amount })),
+    ...data.charges.filter((c) => !c.voided && rentalIds.has(c.rentalId)).map((c) => ({ date: c.date, concept: `${c.concept} (${L.vehicle(L.rental(c.rentalId).vehicleId).plates})`, charge: c.amount, payment: 0, source: c })),
+    ...data.payments.filter((p) => !p.voided && rentalIds.has(p.rentalId)).map((p) => ({ date: p.date, concept: p.method === 'deposito' ? `Depósito aplicado${p.notes && p.notes !== 'Depósito aplicado al adeudo' ? ` · ${p.notes}` : ''}` : `Pago ${p.method}${p.notes ? ` · ${p.notes}` : ''}`, charge: 0, payment: p.amount, source: undefined as Charge | undefined })),
   ].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : b.charge - a.charge))
   let run = 0
   const ledger = moves.map((m) => ({ ...m, balance: (run += m.charge - m.payment) }))
@@ -66,10 +71,12 @@ export default function DriverDetail() {
         subtitle={<>{d.phone}{d.curp && <> · CURP {d.curp}</>}</>}
         actions={<>
           <button className="btn" onClick={() => setModal('edit')}>Editar</button>
+          {rentals.length > 0 && <button className="btn" onClick={() => setModal('charge')}>Agregar cargo</button>}
           {active ? <button className="btn btn-primary" onClick={() => setModal('pay')}>Registrar pago</button>
             : <button className="btn btn-primary" onClick={() => setModal('rent')}>Asignar coche</button>}
         </>} />
 
+      {notice && <div className="banner banner-green" onClick={() => setNotice('')}>{notice}</div>}
       <div className="stats">
         <Stat label="Saldo / adeudo" value={mxn(bal.balance)} tone={bal.balance > 0 ? 'red' : 'green'} icon="wallet" />
         <Stat label="Total pagado" value={mxn(bal.paid)} icon="cash" />
@@ -132,7 +139,8 @@ export default function DriverDetail() {
                   <td>{fecha(r.startDate)}</td><td>{r.endDate ? fecha(r.endDate) : <StatusBadge value="activa" />}</td>
                   <td className="num">{mxn(r.weeklyRate)}</td>
                   <td className="num">{((r.endKm ?? v.currentKm) - r.startKm).toLocaleString('es-MX')}</td>
-                  <td><StatusBadge value={r.depositStatus} /></td>
+                  <td><StatusBadge value={r.depositStatus} /> <span className="muted small">{mxn(r.deposit)}</span>
+                    {r.status === 'finalizada' && r.depositStatus === 'retenido' && <button className="btn btn-sm btn-ghost" onClick={() => setDeposit(r)}>Resolver</button>}</td>
                   <td className="num">{mxn(rentalBalance(data, r.id).balance)}</td>
                 </tr>
               )
@@ -144,9 +152,11 @@ export default function DriverDetail() {
       {tab === 'cuenta' && (
         <Card title="Cargos y pagos" actions={<button className="btn btn-sm" onClick={exportCsv}><Icon name="download" />Exportar a Excel (CSV)</button>}>
           <div className="table-wrap"><table className="table compact">
-            <thead><tr><th>Fecha</th><th>Concepto</th><th className="num">Cargo</th><th className="num">Pago</th><th className="num">Saldo</th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Concepto</th><th className="num">Cargo</th><th className="num">Pago</th><th className="num">Saldo</th>{canCorrect && <th></th>}</tr></thead>
             <tbody>{[...ledger].reverse().map((m, i) => (
-              <tr key={i}><td>{fecha(m.date)}</td><td>{m.concept}</td><td className="num">{m.charge ? mxn(m.charge) : ''}</td><td className="num pos">{m.payment ? mxn(m.payment) : ''}</td><td className="num">{mxn(m.balance)}</td></tr>
+              <tr key={i}><td>{fecha(m.date)}</td><td>{m.concept} {m.source && m.source.kind !== 'renta' && <Badge tone="amber">{m.source.kind === 'danio' ? 'daños' : 'extra'}</Badge>}</td>
+                <td className="num">{m.charge ? mxn(m.charge) : ''}</td><td className="num pos">{m.payment ? mxn(m.payment) : ''}</td><td className="num">{mxn(m.balance)}</td>
+                {canCorrect && <td className="row-actions">{m.source && <button className="btn btn-sm btn-ghost" onClick={() => setCorrecting(m.source!)}>Corregir</button>}</td>}</tr>
             ))}</tbody>
           </table></div>
         </Card>
@@ -181,6 +191,11 @@ export default function DriverDetail() {
       </Modal>
       <Modal open={modal === 'edit'} title="Editar conductor" onClose={() => setModal(null)} wide><DriverForm driver={d} onDone={() => setModal(null)} /></Modal>
       <Modal open={modal === 'pay'} title="Registrar pago" onClose={() => setModal(null)}>{active && <PaymentForm rentalId={active.id} onDone={() => setModal(null)} />}</Modal>
+      <Modal open={modal === 'charge'} title="Agregar cargo" onClose={() => setModal(null)}><ChargeForm driverId={d.id} onDone={() => setModal(null)} /></Modal>
+      <Modal open={!!correcting} title="Corregir cargo" onClose={() => setCorrecting(null)}>{correcting && <CorrectChargeForm charge={correcting} onDone={() => setCorrecting(null)} />}</Modal>
+      <Modal open={!!deposit} title="Resolver depósito" onClose={() => setDeposit(null)}>
+        {deposit && <DepositForm rental={deposit} onDone={(applied) => { setDeposit(null); setNotice(applied ? `Se aplicaron ${mxn(applied)} del depósito al adeudo.` : 'Depósito actualizado.') }} />}
+      </Modal>
       <Modal open={modal === 'rent'} title="Asignar coche" onClose={() => setModal(null)}><StartRentalForm onDone={() => setModal(null)} /></Modal>
     </>
   )

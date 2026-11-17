@@ -2,7 +2,8 @@ import { useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { BackLink, Badge, Card, Empty, Lightbox, Modal, PageHeader, Photo, Progress, Stat, StatusBadge, Tabs } from '../components/ui'
-import { EndRentalForm, IncidentForm, MileageForm, RetireVehicleForm, ServiceForm, StartRentalForm, VehicleForm } from '../components/forms'
+import { EndRentalForm, IncidentForm, MileageForm, RetireVehicleForm, ServiceForm, StartRentalForm, TIRE_LABEL, VehicleForm } from '../components/forms'
+import { DeleteKm } from './Maintenance'
 import { activeRentalOf, maintenanceStatus, rentalBalance, vehicleBalance, MAINTENANCE_INTERVAL } from '../lib/calc'
 import { vehicleRecovery } from '../lib/finance'
 import { fecha, fuelLabel, km, mxn } from '../lib/format'
@@ -16,7 +17,7 @@ type ModalKind = 'edit' | 'baja' | 'rent' | 'end' | 'km' | 'service' | 'incident
 
 export default function VehicleDetail() {
   const { id } = useParams()
-  const { data, user, setVehicleStatus } = useStore()
+  const { data, user, setVehicleStatus, deleteMileage } = useStore()
   const L = useLookup()
   const v = data.vehicles.find((x) => x.id === id)
   const [tab, setTab] = useState<Tab>('resumen')
@@ -36,6 +37,7 @@ export default function VehicleDetail() {
   const bal = vehicleBalance(data, v.id)
   const seesFinance = can(user, 'finanzas')
   const canRetire = can(user, 'bajas')
+  const canCorrect = can(user, 'corregir_registros')
 
   // Línea de vida del vehículo: todo lo que le ha pasado, en orden.
   const timeline: { date: string; icon: IconName; text: ReactNode }[] = [
@@ -145,8 +147,9 @@ export default function VehicleDetail() {
       {tab === 'km' && (
         <Card title="Registros de kilometraje" actions={<button className="btn btn-sm" onClick={() => setModal('km')}><Icon name="plus" />Registrar km</button>}>
           <table className="table">
-            <thead><tr><th>Fecha</th><th className="num">Odómetro</th><th>Origen</th></tr></thead>
-            <tbody>{mileage.map((x) => <tr key={x.id}><td>{fecha(x.date)}</td><td className="num">{km(x.km)}</td><td><StatusBadge value={x.source} /></td></tr>)}</tbody>
+            <thead><tr><th>Fecha</th><th className="num">Odómetro</th><th>Origen</th>{canCorrect && <th></th>}</tr></thead>
+            <tbody>{mileage.map((x) => <tr key={x.id}><td>{fecha(x.date)}</td><td className="num">{km(x.km)}</td><td><StatusBadge value={x.source} /></td>
+              {canCorrect && <td className="row-actions"><DeleteKm record={x} onDelete={(r) => deleteMileage(r.id).catch((e: Error) => setError(e.message))} /></td>}</tr>)}</tbody>
           </table>
         </Card>
       )}
@@ -164,11 +167,11 @@ export default function VehicleDetail() {
             </div>
           </Card>
           <Card title="Llantas actuales" className="span-2">
-            {v.tires.length === 0 && <Empty>Sin llantas registradas.</Empty>}
+            {v.tires.length === 0 && <Empty>Sin llantas registradas. Se registran con un servicio de "Cambio de llantas".</Empty>}
             <div className="tires">
               {v.tires.map((t) => (
                 <div key={t.position} className="tire">
-                  <strong>{({ DI: 'Delantera izq.', DD: 'Delantera der.', TI: 'Trasera izq.', TD: 'Trasera der.' })[t.position]}</strong>
+                  <strong>{TIRE_LABEL[t.position]}</strong>
                   <span>{t.brand}</span>
                   <span className="muted small">DOT {t.dotYear} · desde {km(t.installedKm)} ({km(v.currentKm - t.installedKm)} recorridos)</span>
                 </div>

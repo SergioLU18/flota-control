@@ -24,14 +24,17 @@ export async function loadProfile(userId: string): Promise<User | null> {
   return row && toUser(row)
 }
 
+const VEHICULO_COLS = 'id, unidad, marca, modelo, anio, placas, color, vin, km_actual, estado, notas, fecha_compra, orion_equipo_id, creado_en'
+
 export async function loadData(): Promise<Data> {
   const fotos = 'fotos(id, etiqueta, con_danio, orden, archivos(clave))'
   const [
     usuarios, vehiculos, llantas, conductores, rentas, cargos, pagos, km, servicios,
-    incidentes, inspecciones, gastos, orion, tipos,
+    incidentes, inspecciones, gastos, orion, tipos, precios,
   ] = await Promise.all([
     all((a, b) => supabase.from('usuarios').select('id, nombre, correo, rol, permisos, activo').order('nombre').range(a, b)),
-    all((a, b) => supabase.from('vehiculos').select('*').order('placas').range(a, b)),
+    // Sin precio_compra: solo lo lee quien tiene el permiso de finanzas, con precios_compra().
+    all((a, b) => supabase.from('vehiculos').select(VEHICULO_COLS).order('placas').range(a, b)),
     all((a, b) => supabase.from('v_llantas_vigentes').select('*').range(a, b)),
     all((a, b) => supabase.from('conductores')
       .select('*, referencias_conductor(nombre, parentesco, telefono, orden), documentos_conductor(tipo, vence, archivos(clave))')
@@ -45,8 +48,10 @@ export async function loadData(): Promise<Data> {
     all((a, b) => supabase.from('inspecciones').select(`*, ${fotos}`).order('id').range(a, b)),
     all((a, b) => supabase.from('gastos').select('*').order('id').range(a, b)),
     supabase.from('orion_sincronizaciones').select('*').order('iniciada_en', { ascending: false }).limit(50).then(must),
-    supabase.from('tipos_servicio').select('*').eq('activo', true).order('orden').then(must),
+    supabase.from('tipos_servicio').select('*').order('orden').then(must),
+    supabase.rpc('precios_compra').then(must),
   ])
+  const precio = new Map(precios.map((p) => [p.vehiculo_id, p.precio_compra ?? 0]))
 
   // El bucket es privado: las fotos se muestran con URLs firmadas (válidas 1 hora).
   const fotoRows = [...incidentes, ...inspecciones].flatMap((x) => x.fotos as FotoRow[])
@@ -73,7 +78,7 @@ export async function loadData(): Promise<Data> {
     vehicles: vehiculos.map((v) => ({
       id: v.id, unit: v.unidad ?? undefined, brand: v.marca, model: v.modelo, year: v.anio, plates: v.placas, color: v.color, vin: v.vin ?? '',
       currentKm: v.km_actual, status: v.estado as Data['vehicles'][number]['status'], notes: v.notas,
-      purchasePrice: v.precio_compra ?? 0, purchaseDate: v.fecha_compra ?? v.creado_en.slice(0, 10),
+      purchasePrice: precio.get(v.id) ?? 0, purchaseDate: v.fecha_compra ?? v.creado_en.slice(0, 10),
       orionDeviceId: v.orion_equipo_id ?? undefined, tires: tiresByVehicle.get(v.id) ?? [],
     })),
     drivers: conductores.map((c): Driver => ({
@@ -92,7 +97,10 @@ export async function loadData(): Promise<Data> {
       startKm: r.km_entrega, endKm: r.km_devolucion ?? undefined, status: r.estado as 'activa' | 'finalizada', notes: r.notas,
     })),
     charges: cargos.map((c) => ({
-      id: c.id, rentalId: c.renta_id, periodStart: c.periodo_inicio ?? c.fecha, periodEnd: c.periodo_fin ?? c.fecha, amount: c.monto, concept: c.concepto,
+      id: c.id, rentalId: c.renta_id, kind: c.tipo as Data['charges'][number]['kind'], date: c.fecha,
+      periodStart: c.periodo_inicio ?? c.fecha, periodEnd: c.periodo_fin ?? c.fecha, amount: c.monto, concept: c.concepto,
+      incidentId: c.incidente_id ?? undefined,
+      voided: c.cancelado_en ? { reason: c.motivo_cancelacion ?? '', userId: c.cancelado_por ?? '', at: c.cancelado_en } : undefined,
     })),
     payments: pagos.map((p) => ({
       id: p.id, rentalId: p.renta_id, date: p.fecha, amount: p.monto, method: p.metodo as Data['payments'][number]['method'],
@@ -107,7 +115,7 @@ export async function loadData(): Promise<Data> {
     incidents: incidentes.map((i) => ({
       id: i.id, vehicleId: i.vehiculo_id, driverId: i.conductor_id ?? undefined, date: i.fecha, type: i.tipo, description: i.descripcion,
       cost: i.costo, responsible: i.responsable as Data['incidents'][number]['responsible'], status: i.estado as 'abierto' | 'cerrado',
-      photos: photos(i.fotos as FotoRow[]),
+      photos: photos(i.fotos as FotoRow[]), rentalId: i.renta_id ?? undefined,
     })),
     inspections: inspecciones.map((i) => ({
       id: i.id, vehicleId: i.vehiculo_id, rentalId: i.renta_id ?? undefined, kind: i.tipo as 'entrega' | 'recepcion', date: i.fecha,
@@ -122,7 +130,7 @@ export async function loadData(): Promise<Data> {
       lastSync: orion[0]?.terminada_en ?? undefined,
       syncs: orion.map((s) => ({ at: s.iniciada_en, updated: s.vehiculos_actualizados, note: s.nota })),
     },
-    serviceTypes: tipos.map((t) => ({ id: t.id, name: t.nombre, resetsCounter: t.reinicia_contador, hint: t.descripcion })),
+    serviceTypes: tipos.map((t) => ({ id: t.id, name: t.nombre, resetsCounter: t.reinicia_contador, hint: t.descripcion, active: t.activo, order: t.orden })),
   }
 }
 

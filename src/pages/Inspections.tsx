@@ -94,6 +94,8 @@ export function NewInspection() {
     date: TODAY, km: 0, fuel: 8, notes: '',
   })
   const [photos, setPhotos] = useState<PhotoRef[]>([])
+  // Mismo id en cada reintento: la base no duplica la inspección ni sus fotos ya subidas.
+  const [id] = useState(() => crypto.randomUUID())
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const v = data.vehicles.find((x) => x.id === f.vehicleId)
@@ -111,7 +113,7 @@ export function NewInspection() {
         if (busy) return
         setBusy(true); setError('')
         try {
-          await addInspection({ ...f, km: f.km || v.currentKm, rentalId, photos })
+          await addInspection({ ...f, id, km: f.km || v.currentKm, rentalId, photos })
           nav(`/flota/${v.id}`)
         } catch (err) {
           setError((err as Error).message)

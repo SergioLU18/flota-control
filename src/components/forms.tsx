@@ -2,11 +2,12 @@
 // Si la base rechaza algo (reglas de rentas, km, permisos), el mensaje se muestra en el formulario.
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useStore } from '../data/store'
+import { useStore, type NewTire } from '../data/store'
 import { COLOR_HEX, SHOPS } from '../data/catalogs'
-import type { Driver, ExpenseCategory, Incident, PaymentMethod, PhotoRef, Rental, Vehicle } from '../data/types'
+import type { Charge, Driver, Expense, ExpenseCategory, Incident, PaymentMethod, PhotoRef, Rental, ServiceType, Tire, Vehicle } from '../data/types'
 import { EXPENSE_LABEL } from '../lib/finance'
-import { activeRentalOf, activeRentalOfDriver, inFleet, rentalBalance, vehicleLabel } from '../lib/calc'
+import { activeRentalOf, activeRentalOfDriver, depositLeft, inFleet, rentalBalance, vehicleLabel } from '../lib/calc'
+import { can } from '../data/permissions'
 import { TODAY, fuelLabel, mxn } from '../lib/format'
 import { Field, Photo } from './ui'
 import { compressImage } from '../lib/files'
@@ -42,7 +43,8 @@ const num = (s: string) => Number(s.replace(/[^\d.]/g, '')) || 0
 
 // ---------- Vehículo ----------
 export function VehicleForm({ vehicle, onDone }: { vehicle?: Vehicle; onDone: () => void }) {
-  const { data, saveVehicle } = useStore()
+  const { data, user, saveVehicle } = useStore()
+  const seesPrice = can(user, 'finanzas')
   const [v, setV] = useState<Vehicle>(vehicle ?? {
     id: '', brand: '', model: '', year: new Date().getFullYear(), plates: '', color: 'Blanco', vin: '', currentKm: 0, status: 'disponible',
     notes: '', purchasePrice: 0, purchaseDate: TODAY, tires: [],
@@ -76,7 +78,8 @@ export function VehicleForm({ vehicle, onDone }: { vehicle?: Vehicle; onDone: ()
           {v.status === 'baja' && <option value="baja">Dado de baja</option>}
         </select>
       </Field>
-      <Field label="Precio de compra" hint="Para el cálculo inversión vs. generado"><input inputMode="numeric" value={v.purchasePrice || ''} onChange={(e) => set('purchasePrice', num(e.target.value))} /></Field>
+      {/* Solo con el permiso de finanzas: sin él, la base ni lo envía ni deja cambiarlo. */}
+      {seesPrice && <Field label="Precio de compra" hint="Para el cálculo inversión vs. generado"><input inputMode="numeric" value={v.purchasePrice || ''} onChange={(e) => set('purchasePrice', num(e.target.value))} /></Field>}
       <Field label="Fecha de compra"><input type="date" value={v.purchaseDate} onChange={(e) => set('purchaseDate', e.target.value)} /></Field>
       <Field label="ID de equipo Orión" hint="Opcional"><input value={v.orionDeviceId ?? ''} onChange={(e) => set('orionDeviceId', e.target.value || undefined)} /></Field>
       <Field label="Notas" full><textarea rows={2} value={v.notes} onChange={(e) => set('notes', e.target.value)} /></Field>
@@ -185,8 +188,11 @@ export function EndRentalForm({ rental, onDone }: { rental: Rental; onDone: () =
   const nav = useNavigate()
   const v = data.vehicles.find((x) => x.id === rental.vehicleId)!
   const bal = rentalBalance(data, rental.id).balance
-  const [f, setF] = useState({ endDate: TODAY, endKm: v.currentKm, deposit: (bal > 0 ? 'aplicado' : 'devuelto') as Rental['depositStatus'], inspect: true })
+  const left = depositLeft(data, rental)
+  const [f, setF] = useState({ endDate: TODAY, endKm: v.currentKm, deposit: (bal > 0 && left > 0 ? 'aplicado' : 'devuelto') as Rental['depositStatus'], inspect: true })
   const [error, setError] = useState('')
+  // Aproximado: al finalizar, la base todavía cobra las semanas que hayan empezado antes de la fecha de fin.
+  const applies = Math.min(left, Math.max(0, bal))
   return (
     <FormShell submit="Finalizar renta" error={error} onSubmit={async () => {
       if (f.endKm < rental.startKm) return setError(`El km de devolución no puede ser menor al de entrega (${rental.startKm}).`)
@@ -197,7 +203,10 @@ export function EndRentalForm({ rental, onDone }: { rental: Rental; onDone: () =
       <p className="field-full muted">{vehicleLabel(v)} · Saldo pendiente: <b className={bal > 0 ? 'neg' : ''}>{mxn(bal)}</b> · Depósito: {mxn(rental.deposit)}</p>
       <Field label="Fecha de fin"><input type="date" value={f.endDate} onChange={(e) => setF({ ...f, endDate: e.target.value })} /></Field>
       <Field label="Km de devolución"><input inputMode="numeric" value={f.endKm} onChange={(e) => setF({ ...f, endKm: num(e.target.value) })} /></Field>
-      <Field label="Depósito" full>
+      <Field label="Depósito" full hint={
+        f.deposit === 'aplicado' ? <>Se registra un pago de "depósito aplicado" por lo que cubra del adeudo (hoy, {mxn(applies)}){left > applies ? <>; los {mxn(left - applies)} restantes se devuelven al conductor</> : ''}. Para daños, agrega antes el cargo en el conductor.</>
+          : f.deposit === 'retenido' ? 'Podrás devolverlo o aplicarlo después desde el expediente del conductor.' : undefined
+      }>
         <select value={f.deposit} onChange={(e) => setF({ ...f, deposit: e.target.value as Rental['depositStatus'] })}>
           <option value="devuelto">Se devuelve al conductor</option>
           <option value="aplicado">Se aplica a adeudo / daños</option>
@@ -271,16 +280,30 @@ export function MileageForm({ vehicleId, onDone }: { vehicleId?: string; onDone:
   )
 }
 
+export const TIRE_LABEL: Record<Tire['position'], string> = { DI: 'Delantera izq.', DD: 'Delantera der.', TI: 'Trasera izq.', TD: 'Trasera der.' }
+const POSITIONS = Object.keys(TIRE_LABEL) as Tire['position'][]
+const isTireChange = (t: ServiceType) => /llanta/i.test(t.name)
+
 export function ServiceForm({ vehicleId, onDone }: { vehicleId?: string; onDone: () => void }) {
   const { data, addService } = useStore()
-  const [f, setF] = useState({ vehicleId: vehicleId ?? data.vehicles.find(inFleet)?.id ?? '', date: TODAY, km: 0, typeId: data.serviceTypes[0]?.id ?? '', cost: 0, shop: SHOPS[0], notes: '' })
+  const types = data.serviceTypes.filter((x) => x.active)
+  // El id se fija al abrir el formulario: si se reintenta tras un error de red, la base no duplica el servicio.
+  const [id] = useState(() => crypto.randomUUID())
+  const [f, setF] = useState({ vehicleId: vehicleId ?? data.vehicles.find(inFleet)?.id ?? '', date: TODAY, km: 0, typeId: types[0]?.id ?? '', cost: 0, shop: SHOPS[0], notes: '' })
+  const [tires, setTires] = useState({ positions: [] as Tire['position'][], brand: '', dotYear: new Date().getFullYear() })
+  const [error, setError] = useState('')
   const v = data.vehicles.find((x) => x.id === f.vehicleId)
-  const t = data.serviceTypes.find((x) => x.id === f.typeId)
+  const t = types.find((x) => x.id === f.typeId)
   if (!v) return <NoVehicles />
   if (!t) return <p className="empty">El catálogo de tipos de servicio está vacío.</p>
+  const tireChange = isTireChange(t)
+  const togglePos = (p: Tire['position']) => setTires({ ...tires, positions: tires.positions.includes(p) ? tires.positions.filter((x) => x !== p) : [...tires.positions, p] })
   return (
-    <FormShell submit="Guardar servicio" onSubmit={async () => {
-      await addService({ vehicleId: f.vehicleId, date: f.date, km: f.km || v.currentKm, cost: f.cost, shop: f.shop, notes: f.notes || undefined, resetsCounter: t.resetsCounter }, t.id); onDone()
+    <FormShell submit="Guardar servicio" error={error} onSubmit={async () => {
+      const newTires: NewTire[] = tireChange ? tires.positions.map((position) => ({ position, brand: tires.brand, dotYear: tires.dotYear })) : []
+      if (tireChange && newTires.length && !tires.brand.trim()) return setError('Escribe la marca de las llantas nuevas.')
+      setError('')
+      await addService({ id, vehicleId: f.vehicleId, date: f.date, km: f.km || v.currentKm, cost: f.cost, shop: f.shop, notes: f.notes || undefined, resetsCounter: t.resetsCounter }, t.id, newTires); onDone()
     }}>
       <Field label="Coche" full>
         <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })} disabled={!!vehicleId}>
@@ -288,7 +311,7 @@ export function ServiceForm({ vehicleId, onDone }: { vehicleId?: string; onDone:
         </select>
       </Field>
       <Field label="Tipo (catálogo)" hint={t.resetsCounter ? 'Reinicia el contador de 10,000 km' : t.hint}>
-        <select value={f.typeId} onChange={(e) => setF({ ...f, typeId: e.target.value })}>{data.serviceTypes.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+        <select value={f.typeId} onChange={(e) => setF({ ...f, typeId: e.target.value })}>{types.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
       </Field>
       <Field label="Fecha"><input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
       <Field label="Km"><input inputMode="numeric" value={f.km || ''} placeholder={String(v.currentKm)} onChange={(e) => setF({ ...f, km: num(e.target.value) })} /></Field>
@@ -297,7 +320,21 @@ export function ServiceForm({ vehicleId, onDone }: { vehicleId?: string; onDone:
         <input list="shops" value={f.shop} onChange={(e) => setF({ ...f, shop: e.target.value })} />
         <datalist id="shops">{SHOPS.map((s) => <option key={s} value={s} />)}</datalist>
       </Field>
-      <Field label="Notas" full hint={t.name === 'Cambio de llantas' ? 'Anota marca y año DOT de las llantas' : undefined}><textarea rows={2} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
+      {tireChange && <>
+        <div className="field field-full"><span>Llantas que se cambiaron</span>
+          <div className="segmented">
+            {POSITIONS.map((p) => {
+              const cur = v.tires.find((x) => x.position === p)
+              return <button type="button" key={p} className={tires.positions.includes(p) ? 'active' : ''} aria-pressed={tires.positions.includes(p)} onClick={() => togglePos(p)}
+                title={cur ? `Actual: ${cur.brand} DOT ${cur.dotYear}` : 'Sin registro'}>{TIRE_LABEL[p]}</button>
+            })}
+          </div>
+          <small className="muted">Las que tenía en esas posiciones quedan en el historial como retiradas, con el km de hoy.</small>
+        </div>
+        <Field label="Marca de las nuevas"><input value={tires.brand} onChange={(e) => setTires({ ...tires, brand: e.target.value })} placeholder="Michelin" /></Field>
+        <Field label="Año DOT"><input inputMode="numeric" value={tires.dotYear || ''} onChange={(e) => setTires({ ...tires, dotYear: num(e.target.value) })} /></Field>
+      </>}
+      <Field label="Notas" full><textarea rows={2} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
     </FormShell>
   )
 }
@@ -373,22 +410,34 @@ export function FuelGauge({ value, onChange }: { value: number; onChange: (v: nu
 }
 
 // ---------- Incidentes ----------
-export function IncidentForm({ vehicleId, onDone }: { vehicleId?: string; onDone: () => void }) {
-  const { data, addIncident } = useStore()
-  const [f, setF] = useState<Omit<Incident, 'id'>>({
-    vehicleId: vehicleId ?? data.vehicles.find(inFleet)?.id ?? '', date: TODAY, type: 'Choque', description: '', cost: 0, responsible: 'conductor', photos: [], status: 'abierto',
+const INCIDENT_TYPES = ['Choque', 'Choque leve', 'Accidente', 'Rayón', 'Cristal estrellado', 'Ponchadura', 'Robo de partes', 'Multa', 'Otro']
+
+/** Alta, o edición si recibe `incident`. Al editar, las fotos nuevas se agregan a las que ya tiene. */
+export function IncidentForm({ vehicleId, incident, onDone }: { vehicleId?: string; incident?: Incident; onDone: () => void }) {
+  const { data, addIncident, updateIncident, addIncidentPhotos } = useStore()
+  // Mismo id en cada reintento: la base no duplica el incidente ni sus fotos ya subidas.
+  const [f, setF] = useState<Incident>(incident ? { ...incident, photos: [] } : {
+    id: crypto.randomUUID(), vehicleId: vehicleId ?? data.vehicles.find(inFleet)?.id ?? '', date: TODAY, type: 'Choque', description: '', cost: 0, responsible: 'conductor', photos: [], status: 'abierto',
   })
   const active = activeRentalOf(data, f.vehicleId)
   if (!f.vehicleId) return <NoVehicles />
   return (
-    <FormShell submit="Guardar incidente" onSubmit={async () => { await addIncident({ ...f, driverId: f.driverId ?? active?.driverId }); onDone() }}>
+    <FormShell submit={incident ? 'Guardar cambios' : 'Guardar incidente'} onSubmit={async () => {
+      if (incident) {
+        await updateIncident(f)
+        if (f.photos.length) await addIncidentPhotos(f.id, f.photos)
+      } else {
+        await addIncident({ ...f, driverId: f.driverId ?? active?.driverId })
+      }
+      onDone()
+    }}>
       <Field label="Coche" full>
-        <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })} disabled={!!vehicleId}>
+        <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })} disabled={!!vehicleId || !!incident}>
           {data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId).map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
         </select>
       </Field>
       <Field label="Conductor" hint={active ? 'Se sugiere el conductor con renta activa' : undefined}>
-        <select value={f.driverId ?? active?.driverId ?? ''} onChange={(e) => setF({ ...f, driverId: e.target.value || undefined })}>
+        <select value={f.driverId ?? (incident ? '' : active?.driverId) ?? ''} onChange={(e) => setF({ ...f, driverId: e.target.value || undefined })}>
           <option value="">— Ninguno —</option>
           {data.drivers.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
@@ -396,7 +445,7 @@ export function IncidentForm({ vehicleId, onDone }: { vehicleId?: string; onDone
       <Field label="Fecha"><input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
       <Field label="Tipo">
         <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
-          {['Choque', 'Choque leve', 'Accidente', 'Rayón', 'Cristal estrellado', 'Ponchadura', 'Robo de partes', 'Multa', 'Otro'].map((t) => <option key={t}>{t}</option>)}
+          {[...new Set([...INCIDENT_TYPES, f.type])].map((t) => <option key={t}>{t}</option>)}
         </select>
       </Field>
       <Field label="Responsable">
@@ -406,7 +455,7 @@ export function IncidentForm({ vehicleId, onDone }: { vehicleId?: string; onDone
       </Field>
       <Field label="Costo estimado (MXN)"><input inputMode="numeric" value={f.cost || ''} onChange={(e) => setF({ ...f, cost: num(e.target.value) })} /></Field>
       <Field label="Descripción" full><textarea rows={3} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
-      <Field label="Fotos" full><PhotoInput photos={f.photos} onChange={(photos) => setF({ ...f, photos })} /></Field>
+      <Field label={incident ? `Agregar fotos (ya tiene ${incident.photos.length})` : 'Fotos'} full><PhotoInput photos={f.photos} onChange={(photos) => setF({ ...f, photos })} /></Field>
     </FormShell>
   )
 }
@@ -429,32 +478,168 @@ export function EditRentalForm({ rental, onDone }: { rental: Rental; onDone: () 
   )
 }
 
-// ---------- Gastos ----------
-export function ExpenseForm({ onDone }: { onDone: () => void }) {
-  const { data, addExpense } = useStore()
-  const [f, setF] = useState({ date: TODAY, category: 'otro' as ExpenseCategory, vehicleId: '', amount: 0, concept: '' })
+// ---------- Gastos (permiso "finanzas") ----------
+/** Alta, o edición si recibe `expense` (con botón para eliminarlo). */
+export function ExpenseForm({ expense, onDone }: { expense?: Expense; onDone: () => void }) {
+  const { data, saveExpense, deleteExpense } = useStore()
+  const [f, setF] = useState({
+    date: expense?.date ?? TODAY, category: expense?.category ?? ('otro' as ExpenseCategory), vehicleId: expense?.vehicleId ?? '',
+    amount: expense?.amount ?? 0, concept: expense?.concept ?? '',
+  })
   const [error, setError] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
   return (
-    <FormShell submit="Guardar gasto" error={error} onSubmit={async () => {
-      if (!f.concept || f.amount <= 0) return setError('Escribe el concepto y un monto mayor a cero.')
+    <>
+      <FormShell submit={expense ? 'Guardar cambios' : 'Guardar gasto'} error={error} onSubmit={async () => {
+        if (!f.concept || f.amount <= 0) return setError('Escribe el concepto y un monto mayor a cero.')
+        setError('')
+        await saveExpense({ id: expense?.id, date: f.date, category: f.category, vehicleId: f.vehicleId || undefined, amount: f.amount, concept: f.concept }); onDone()
+      }}>
+        <Field label="Concepto" full><input value={f.concept} onChange={(e) => setF({ ...f, concept: e.target.value })} placeholder="Ej. seguro anual, verificación, lavado" /></Field>
+        <Field label="Categoría">
+          <select value={f.category} onChange={(e) => setF({ ...f, category: e.target.value as ExpenseCategory })}>
+            {(Object.keys(EXPENSE_LABEL) as ExpenseCategory[]).map((c) => <option key={c} value={c}>{EXPENSE_LABEL[c]}</option>)}
+          </select>
+        </Field>
+        <Field label="Coche" hint="Déjalo vacío si es un gasto general del negocio">
+          <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })}>
+            <option value="">— General (sin coche) —</option>
+            {data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId).map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
+          </select>
+        </Field>
+        <Field label="Fecha"><input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
+        <Field label="Monto (MXN)"><input inputMode="numeric" value={f.amount || ''} onChange={(e) => setF({ ...f, amount: num(e.target.value) })} /></Field>
+        <p className="field-full muted small">Los servicios de mantenimiento y los incidentes se registran en sus propios módulos y ya cuentan como costo.</p>
+      </FormShell>
+      {expense && (
+        <div className="form-danger-zone">
+          {confirmDelete ? <>
+            <span className="small">¿Eliminar este gasto? Queda registrado en la bitácora.</span>
+            <button className="btn btn-sm" onClick={() => setConfirmDelete(false)}>No</button>
+            <button className="btn btn-sm btn-danger" onClick={() => deleteExpense(expense.id).then(onDone, (e: Error) => setError(e.message))}>Sí, eliminar</button>
+          </> : <button className="btn btn-sm btn-ghost" onClick={() => setConfirmDelete(true)}>Eliminar gasto</button>}
+        </div>
+      )}
+    </>
+  )
+}
+
+// ---------- Cargos extra y corrección de cargos ----------
+const rentalLabel = (data: ReturnType<typeof useStore>['data'], r: Rental) =>
+  `${data.drivers.find((d) => d.id === r.driverId)?.name} · ${data.vehicles.find((v) => v.id === r.vehicleId)?.plates}${r.status === 'finalizada' ? ' (finalizada)' : ''}`
+
+/** Cargo al conductor por daños, multas u otros. Si viene de un incidente, se liga a él. */
+export function ChargeForm({ rentalId, driverId, incident, onDone }: { rentalId?: string; driverId?: string; incident?: Incident; onDone: () => void }) {
+  const { data, addCharge } = useStore()
+  const options = data.rentals
+    .filter((r) => (!driverId || r.driverId === driverId) && (!incident || r.vehicleId === incident.vehicleId))
+    .sort((a, b) => (a.status === b.status ? (a.startDate < b.startDate ? 1 : -1) : a.status === 'activa' ? -1 : 1))
+  const fromIncident = incident && (incident.rentalId ?? options.find((r) => r.driverId === incident.driverId && r.startDate <= incident.date && (!r.endDate || r.endDate >= incident.date))?.id)
+  const [f, setF] = useState({
+    rentalId: rentalId ?? fromIncident ?? options[0]?.id ?? '', kind: (incident ? 'danio' : 'otro') as 'danio' | 'otro', date: TODAY,
+    amount: incident?.cost ?? 0, concept: incident ? `${incident.type}${incident.description ? `: ${incident.description}` : ''}`.slice(0, 120) : '',
+  })
+  const [error, setError] = useState('')
+  if (!options.length) return <p className="empty">{incident ? 'Ese coche no tiene rentas a las que cargar el incidente.' : 'Este conductor no tiene rentas.'}</p>
+  return (
+    <FormShell submit="Agregar cargo" error={error} onSubmit={async () => {
+      if (!f.rentalId || f.amount <= 0 || !f.concept.trim()) return setError('Elige la renta, un monto mayor a cero y el concepto.')
       setError('')
-      await addExpense({ date: f.date, category: f.category, vehicleId: f.vehicleId || undefined, amount: f.amount, concept: f.concept }); onDone()
+      await addCharge({ rentalId: f.rentalId, kind: f.kind, date: f.date, amount: f.amount, concept: f.concept, incidentId: incident?.id }); onDone()
     }}>
-      <Field label="Concepto" full><input value={f.concept} onChange={(e) => setF({ ...f, concept: e.target.value })} placeholder="Ej. seguro anual, verificación, lavado" /></Field>
-      <Field label="Categoría">
-        <select value={f.category} onChange={(e) => setF({ ...f, category: e.target.value as ExpenseCategory })}>
-          {(Object.keys(EXPENSE_LABEL) as ExpenseCategory[]).map((c) => <option key={c} value={c}>{EXPENSE_LABEL[c]}</option>)}
+      <Field label="Renta (conductor · coche)" full>
+        <select value={f.rentalId} onChange={(e) => setF({ ...f, rentalId: e.target.value })} disabled={!!rentalId}>
+          {options.map((r) => <option key={r.id} value={r.id}>{rentalLabel(data, r)}</option>)}
         </select>
       </Field>
-      <Field label="Coche" hint="Déjalo vacío si es un gasto general del negocio">
-        <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })}>
-          <option value="">— General (sin coche) —</option>
-          {data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId).map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
-        </select>
+      <Field label="Tipo">
+        <div className="segmented">
+          {([['danio', 'Daños'], ['otro', 'Otro']] as const).map(([k, l]) => <button type="button" key={k} className={f.kind === k ? 'active' : ''} onClick={() => setF({ ...f, kind: k })}>{l}</button>)}
+        </div>
       </Field>
       <Field label="Fecha"><input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
       <Field label="Monto (MXN)"><input inputMode="numeric" value={f.amount || ''} onChange={(e) => setF({ ...f, amount: num(e.target.value) })} /></Field>
-      <p className="field-full muted small">Los servicios de mantenimiento y los incidentes se registran en sus propios módulos y ya cuentan como costo.</p>
+      <Field label="Concepto" full hint="Aparece en el estado de cuenta del conductor"><input value={f.concept} onChange={(e) => setF({ ...f, concept: e.target.value })} placeholder="Ej. multa de tránsito, limpieza, rayón en puerta" /></Field>
+    </FormShell>
+  )
+}
+
+/** Permiso "corregir_registros": corrige monto y concepto de un cargo, o lo cancela. El motivo queda en la bitácora. */
+export function CorrectChargeForm({ charge, onDone }: { charge: Charge; onDone: () => void }) {
+  const { correctCharge, voidCharge } = useStore()
+  const [mode, setMode] = useState<'corregir' | 'cancelar'>('corregir')
+  const [f, setF] = useState({ amount: charge.amount, concept: charge.concept, reason: '' })
+  const [error, setError] = useState('')
+  return (
+    <FormShell submit={mode === 'corregir' ? 'Guardar corrección' : 'Cancelar cargo'} error={error} onSubmit={async () => {
+      if (!f.reason.trim()) return setError('Escribe el motivo.')
+      if (mode === 'corregir' && (f.amount <= 0 || !f.concept.trim())) return setError('El monto debe ser mayor a cero y el concepto no puede quedar vacío. Para quitarlo, cancélalo.')
+      setError('')
+      if (mode === 'corregir') await correctCharge(charge.id, f.amount, f.concept, f.reason.trim())
+      else await voidCharge(charge.id, f.reason.trim())
+      onDone()
+    }}>
+      <div className="field field-full">
+        <div className="segmented">
+          <button type="button" className={mode === 'corregir' ? 'active' : ''} onClick={() => setMode('corregir')}>Corregir</button>
+          <button type="button" className={mode === 'cancelar' ? 'active' : ''} onClick={() => setMode('cancelar')}>Cancelar</button>
+        </div>
+      </div>
+      {mode === 'corregir' ? <>
+        <Field label="Monto (MXN)" hint={`Actual: ${mxn(charge.amount)}`}><input inputMode="numeric" value={f.amount || ''} onChange={(e) => setF({ ...f, amount: num(e.target.value) })} /></Field>
+        <Field label="Concepto"><input value={f.concept} onChange={(e) => setF({ ...f, concept: e.target.value })} /></Field>
+      </> : (
+        <p className="field-full muted small">
+          El cargo no se borra: queda tachado, deja de contar para el saldo y la cancelación se guarda en la bitácora.
+          {charge.kind === 'renta' && ' Una semana de renta cancelada no se vuelve a generar.'}
+        </p>
+      )}
+      <Field label="Motivo (obligatorio)" full><input value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} placeholder="Ej. descuento acordado, semana que el coche estuvo en taller" /></Field>
+    </FormShell>
+  )
+}
+
+/** Depósito que quedó retenido al finalizar la renta: se devuelve o se aplica al adeudo. */
+export function DepositForm({ rental, onDone }: { rental: Rental; onDone: (applied: number) => void }) {
+  const { data, resolveDeposit } = useStore()
+  const bal = rentalBalance(data, rental.id).balance
+  const left = depositLeft(data, rental)
+  const [status, setStatus] = useState<'devuelto' | 'aplicado'>(bal > 0 ? 'aplicado' : 'devuelto')
+  const applies = Math.min(left, Math.max(0, bal))
+  return (
+    <FormShell submit="Guardar" onSubmit={async () => onDone(await resolveDeposit(rental.id, status))}>
+      <p className="field-full muted">{rentalLabel(data, rental)} · Depósito {mxn(left)} · Saldo de la renta <b className={bal > 0 ? 'neg' : ''}>{mxn(bal)}</b></p>
+      <Field label="¿Qué se hace con el depósito?" full hint={status === 'aplicado'
+        ? <>Se registra un pago de "depósito aplicado" por {mxn(applies)}{left > applies ? <> y los {mxn(left - applies)} restantes se devuelven</> : ''}.</>
+        : 'Se marca como devuelto al conductor; el saldo no cambia.'}>
+        <select value={status} onChange={(e) => setStatus(e.target.value as 'devuelto' | 'aplicado')}>
+          <option value="aplicado">Se aplica al adeudo / daños</option>
+          <option value="devuelto">Se devuelve al conductor</option>
+        </select>
+      </Field>
+    </FormShell>
+  )
+}
+
+// ---------- Catálogo de tipos de servicio (permiso "catalogos") ----------
+export function ServiceTypeForm({ type, onDone }: { type?: ServiceType; onDone: () => void }) {
+  const { data, saveServiceType } = useStore()
+  const [f, setF] = useState<Omit<ServiceType, 'id'>>(type ?? {
+    name: '', resetsCounter: false, hint: '', active: true, order: Math.max(0, ...data.serviceTypes.map((t) => t.order)) + 1,
+  })
+  const [error, setError] = useState('')
+  return (
+    <FormShell submit="Guardar tipo" error={error} onSubmit={async () => {
+      if (!f.name.trim()) return setError('Escribe el nombre.')
+      setError('')
+      await saveServiceType({ ...f, id: type?.id }); onDone()
+    }}>
+      <Field label="Nombre" full><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Ej. Afinación mayor" /></Field>
+      <Field label="Descripción" full hint="Se muestra como ayuda al registrar el servicio"><input value={f.hint} onChange={(e) => setF({ ...f, hint: e.target.value })} /></Field>
+      <Field label="Orden en la lista"><input inputMode="numeric" value={f.order} onChange={(e) => setF({ ...f, order: num(e.target.value) })} /></Field>
+      <label className="check field-full"><input type="checkbox" checked={f.resetsCounter} onChange={(e) => setF({ ...f, resetsCounter: e.target.checked })} /> Reinicia el contador de 10,000 km</label>
+      <label className="check field-full"><input type="checkbox" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} /> Activo (desactivado ya no se ofrece al registrar servicios; el historial se conserva)</label>
+      {/llanta/i.test(f.name) && <p className="field-full muted small">Los tipos con "llanta" en el nombre piden las posiciones, marca y año DOT de las llantas nuevas.</p>}
     </FormShell>
   )
 }

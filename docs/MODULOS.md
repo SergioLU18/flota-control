@@ -73,8 +73,9 @@ Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permi
   - *Resumen*: renta actual, estado del mantenimiento y datos del coche.
   - *Historial*: la historia del vehículo en una sola línea de tiempo (rentas, devoluciones, servicios, incidentes e inspecciones).
   - *Kilometraje*, *Mantenimiento y llantas*, *Incidentes* e *Inspecciones*.
+- **Precio de compra**: solo lo ve y lo captura quien tiene el permiso de Finanzas. La base no se lo entrega a nadie más, ni por la API. **Fase 1**
 - **Rentabilidad** (solo admin): ingresos, costos, utilidad acumulada, ocupación y qué porcentaje de su precio de compra ya recuperó. Ver el módulo 11. **Notas**
-- Llantas actuales por posición, con marca, año DOT y km de instalación. **Notas** ("color y año de la llanta y la marca")
+- Llantas actuales por posición, con marca, año DOT y km de instalación. Se registran con un servicio de "Cambio de llantas"; las que se quitan quedan en el historial como retiradas. **Notas** ("color y año de la llanta y la marca")
 
 **Datos:** `Vehículo` (además: precio y fecha de compra, ID de equipo Orión) y `Llanta` (posición, marca, año DOT, km y fecha de instalación).
 
@@ -94,6 +95,7 @@ Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permi
   - Comprobante de domicilio
   - 2 referencias familiares (nombre, parentesco y teléfono)
 - Historial de coches que ha rentado, con fechas, tarifa, km recorridos, depósito y saldo. **Fase 1**
+- **Cargos extra** al conductor (daños, multas, limpieza…), ligados a una de sus rentas y, si vienen de un incidente, al incidente. Aparecen en su estado de cuenta y en su saldo. **Fase 1**
 - Movimientos y **estado de cuenta mensual** (cargos, pagos y saldo), imprimible o en PDF y exportable a Excel. **Notas**
 
 **Datos:** `Conductor` (CURP, licencia, referencias) y `Documento` (tipo, archivo y vigencia).
@@ -113,6 +115,9 @@ Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permi
 - **Finalizar renta:** fecha de fin, km de devolución y qué se hace con el depósito (se devuelve, se aplica al adeudo o daños, o queda retenido). **Fase 1**
   - El coche vuelve a "disponible" y se ofrece la inspección de recepción.
 - **Depósito** por renta, con su estado. **Notas** ("depósito para rentar")
+  - *Se aplica al adeudo*: la base registra un pago de método "depósito aplicado" por lo que cubra del saldo, nunca más que el saldo ni más que el depósito. Si sobra, se devuelve al conductor.
+  - *Queda retenido*: después se resuelve desde el expediente del conductor (Coches rentados → Resolver), devolviéndolo o aplicándolo.
+  - Cobranza muestra cuánto suman los depósitos retenidos. No son ingreso.
 - **Editar tarifa y depósito** de una renta activa (solo admin). La nueva tarifa aplica a los cargos siguientes; los ya generados no cambian. **Fase 1**
 
 **Reglas**
@@ -136,10 +141,11 @@ Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permi
 - **Saldos:** por conductor, por coche y total global (cargado − pagado). **Fase 1**
 - Pagos parciales: el saldo simplemente queda pendiente. **Fase 1**
 - **Cancelar un pago** mal capturado (solo admin, con motivo obligatorio). El pago no se borra: queda tachado, deja de contar para el saldo y la cancelación queda en la auditoría. Si el monto estaba mal, se registra el pago correcto. **Fase 1**
+- **Corregir o cancelar un cargo** (permiso Corregir registros, con motivo obligatorio). Un cargo cancelado queda tachado y deja de contar; una semana de renta cancelada no se vuelve a generar. El motivo queda en la bitácora. **Fase 1**
 - **Histórico en Excel:** exportación CSV de todos los pagos. **Notas**
 
 **Reglas**
-- Saldo = suma de cargos − suma de pagos vigentes. No se guarda un saldo "a mano" que pueda desfasarse.
+- Saldo = suma de cargos vigentes − suma de pagos vigentes. No se guarda un saldo "a mano" que pueda desfasarse.
 - Los pagos nunca se borran ni se editan; solo se cancelan.
 - Las semanas se calculan en la zona horaria **America/Merida** y los montos están en **MXN**.
 
@@ -157,8 +163,9 @@ Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permi
 - **Registros de kilometraje** con fecha y origen. **Fase 1**
   - Orígenes: *manual*, *entrega*, *recepción* u *Orión*.
   - El km del coche es el del último registro, y no se acepta un km menor que el anterior.
+  - Una lectura capturada mal se borra con el permiso Corregir registros y el km del coche se recalcula. Las de entrega y recepción son parte de la renta y no se borran.
 - **Servicios:** fecha, km, tipo, costo, taller y notas. **Fase 1**
-- **Catálogo de tipos de servicio** (servicio de 10,000 km, frenos y balatas, llantas, alineación, carrocería, suspensión y otro). **Notas**
+- **Catálogo de tipos de servicio** (servicio de 10,000 km, frenos y balatas, llantas, alineación, carrocería, suspensión y otro). Con el permiso Catálogos se agregan, se editan y se desactivan desde la app; un tipo desactivado ya no se ofrece, pero su historial se conserva. **Notas**
 - **Cambio de llantas** con marca y año DOT. **Notas**
 - **Alerta cada 10,000 km**, contados desde el último servicio que reinicia el contador. **Fase 1**
   - Pasa a **Próximo** a los 9,000 km y a **Vencido** a los 10,000 km.
@@ -175,7 +182,8 @@ Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permi
 **Qué hace**
 - Captura: coche, conductor (se sugiere el que tiene la renta activa), fecha, tipo, descripción, costo, responsable y fotos. **Fase 1**
   - Responsable posible: conductor, empresa, tercero o seguro.
-- Estado abierto o cerrado. **Fase 1**
+- Estado abierto o cerrado. Un incidente se puede editar, reabrir y recibir más fotos después. **Fase 1**
+- **Cobrar al conductor**: si el responsable es el conductor, el incidente propone un cargo de daños por su costo, ligado a la renta. **Fase 1**
 - Aparece en el historial del coche. Si el responsable es la empresa, el costo cuenta como inversión. **Fase 1**
 
 **Datos:** `Incidente` y `Foto` (relación genérica: una foto pertenece a un incidente o a una inspección).

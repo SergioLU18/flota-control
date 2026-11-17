@@ -5,8 +5,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { Session } from '@supabase/supabase-js'
 import { BUCKET, must, supabase } from '../lib/supabase'
 import { EMPTY, loadAudit, loadAuditAll, loadData, loadProfile } from './load'
-import type { Data, DocType, Driver, Expense, Incident, Inspection, Payment, PhotoRef, Rental, Service, User, Vehicle } from './types'
-import { TODAY, nowIso } from '../lib/format'
+import type { Charge, Data, DocType, Driver, Expense, Incident, Inspection, Payment, PhotoRef, Rental, Service, ServiceType, Tire, User, Vehicle } from './types'
+import { TODAY, nowIso, todayInMerida } from '../lib/format'
+import type { Json } from '../lib/database.types'
 
 export type Status = 'cargando' | 'sin-sesion' | 'inactivo' | 'listo' | 'error'
 
@@ -15,11 +16,32 @@ const Ctx = createContext<Store | null>(null)
 
 const orNull = (s?: string) => (s?.trim() ? s.trim() : null)
 
+// Fotos ya subidas en esta sesión (id local de la foto → id del archivo). Si guardar falla después de subir
+// (por la red, o porque la base rechazó el registro) y se reintenta, no se vuelven a subir.
+const uploaded = new Map<string, string>()
+
 /** Sube una foto (data URL ya comprimida) al bucket y registra su archivo. Regresa el id del archivo. */
-async function uploadPhoto(dataUrl: string): Promise<string> {
-  const blob = await (await fetch(dataUrl)).blob()
-  return uploadFile(blob, 'image/jpeg', (id) => `fotos/${id}.jpg`)
+async function uploadPhoto(photo: PhotoRef): Promise<string> {
+  const done = uploaded.get(photo.id)
+  if (done) return done
+  const blob = await (await fetch(photo.url!)).blob()
+  const id = await uploadFile(blob, 'image/jpeg', (id) => `fotos/${id}.jpg`)
+  uploaded.set(photo.id, id)
+  return id
 }
+
+/** Sube las fotos nuevas y regresa la lista que esperan las RPC (registrar_incidente, registrar_inspeccion…). */
+async function uploadPhotos(photos: PhotoRef[]): Promise<Json> {
+  const out = []
+  for (const p of photos) {
+    if (!p.url?.startsWith('data:')) continue
+    out.push({ archivo_id: await uploadPhoto(p), etiqueta: p.label, con_danio: !!p.damage })
+  }
+  return out
+}
+
+/** Llanta nueva al registrar un cambio de llantas. */
+export type NewTire = Pick<Tire, 'position' | 'brand' | 'dotYear'>
 
 /** Registra el archivo como pendiente, lo sube y lo marca como subido. El id se genera aquí para que reintentar no duplique. */
 async function uploadFile(blob: Blob, mime: string, path: (id: string) => string): Promise<string> {
@@ -40,14 +62,6 @@ async function usersFunction(body: Record<string, unknown>) {
   throw new Error(msg ?? 'No se pudo contactar la función de usuarios. Revisa tu conexión o que esté desplegada (supabase/README.md).')
 }
 
-async function insertPhotos(photos: PhotoRef[], owner: { inspeccion_id: string } | { incidente_id: string }) {
-  for (const [i, p] of photos.entries()) {
-    if (!p.url) continue
-    const archivo_id = await uploadPhoto(p.url)
-    must(await supabase.from('fotos').insert({ ...owner, archivo_id, etiqueta: p.label, con_danio: !!p.damage, orden: i }))
-  }
-}
-
 function useStoreValue() {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [user, setUser] = useState<User | null>(null)
@@ -61,7 +75,8 @@ function useStoreValue() {
     return () => sub.subscription.unsubscribe()
   }, [])
 
-  const reload = useCallback(async () => setData(await loadData()), [])
+  const [loadedAt, setLoadedAt] = useState(0)
+  const reload = useCallback(async () => { setData(await loadData()); setLoadedAt(Date.now()) }, [])
 
   const uid = session?.user.id
   useEffect(() => {
@@ -77,10 +92,25 @@ function useStoreValue() {
       const d = await loadData()
       if (cancelled) return
       setData(d)
+      setLoadedAt(Date.now())
       setStatus('listo')
     })().catch((e: Error) => { if (!cancelled) { setLoadError(e.message); setStatus('error') } })
     return () => { cancelled = true }
   }, [session === undefined, uid]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // La app puede quedarse abierta días (el iPad del patio). "Hoy" se calcula al abrirla: si cambió el día, se recarga
+  // la página completa. Las URLs de las fotos duran 1 hora: si los datos tienen más de 50 minutos, se vuelven a pedir.
+  useEffect(() => {
+    if (status !== 'listo') return
+    const check = () => {
+      if (document.visibilityState !== 'visible') return
+      if (todayInMerida() !== TODAY) return window.location.reload()
+      if (Date.now() - loadedAt > 50 * 60_000) reload().catch(() => { /* se reintenta en la siguiente revisión */ })
+    }
+    const timer = window.setInterval(check, 60_000)
+    document.addEventListener('visibilitychange', check)
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', check) }
+  }, [status, loadedAt, reload])
 
   /** Corre una escritura y recarga los datos (aunque falle a medias, para no mostrar un estado viejo). */
   const write = async <T,>(fn: () => Promise<T>): Promise<T> => {
@@ -90,8 +120,6 @@ function useStoreValue() {
       await reload()
     }
   }
-
-  const currentKm = (vehicleId: string) => data.vehicles.find((v) => v.id === vehicleId)?.currentKm ?? 0
 
   const actions = {
     login: async (email: string, password: string) => {
@@ -105,40 +133,28 @@ function useStoreValue() {
     loadAudit,
     loadAuditAll,
 
-    /** Alta o edición. El km no se guarda en el coche: se registra como lectura manual si subió. */
-    saveVehicle: (v: Vehicle) => write(async () => {
-      const row = {
+    /** Alta o edición, con su lectura de km si subió, en una transacción. Sin el permiso de finanzas la base ignora el precio. */
+    saveVehicle: (v: Vehicle) => write(async () => must(await supabase.rpc('guardar_vehiculo', {
+      p_id: v.id || null,
+      p_datos: {
         unidad: orNull(v.unit)?.toUpperCase() ?? null, marca: v.brand.trim(), modelo: v.model.trim(), anio: v.year, placas: v.plates.trim().toUpperCase(), color: v.color,
         vin: orNull(v.vin)?.toUpperCase() ?? null, estado: v.status, notas: v.notes, precio_compra: v.purchasePrice || null,
-        fecha_compra: v.purchaseDate || null, orion_equipo_id: orNull(v.orionDeviceId),
-      }
-      const id = v.id
-        ? (must(await supabase.from('vehiculos').update(row).eq('id', v.id).select('id').single())).id
-        : (must(await supabase.from('vehiculos').insert(row).select('id').single())).id
-      if (v.currentKm > (v.id ? currentKm(v.id) : 0)) {
-        must(await supabase.from('registros_km').insert({ vehiculo_id: id, fecha: TODAY, km: v.currentKm, origen: 'manual' }))
-      }
-      return id
-    }),
+        fecha_compra: v.purchaseDate || null, orion_equipo_id: orNull(v.orionDeviceId), km: v.currentKm || null,
+      },
+    }))),
 
     setVehicleStatus: (id: string, status: Vehicle['status']) =>
       write(async () => { must(await supabase.from('vehiculos').update({ estado: status }).eq('id', id)) }),
 
-    /** Alta o edición del conductor y sus referencias (se reemplazan completas). Regresa el id. */
-    saveDriver: (d: Driver) => write(async () => {
-      const row = {
+    /** Alta o edición del conductor y sus referencias (se reemplazan completas), en una transacción. Regresa el id. */
+    saveDriver: (d: Driver) => write(async () => must(await supabase.rpc('guardar_conductor', {
+      p_id: d.id || null,
+      p_datos: {
         nombre: d.name.trim(), telefono: d.phone.trim(), correo: orNull(d.email)?.toLowerCase() ?? null, curp: orNull(d.curp)?.toUpperCase() ?? null,
         domicilio: d.address, licencia_numero: orNull(d.licenseNumber), licencia_vence: d.licenseExpires || null, notas: d.notes ?? '',
-      }
-      const id = d.id
-        ? (must(await supabase.from('conductores').update(row).eq('id', d.id).select('id').single())).id
-        : (must(await supabase.from('conductores').insert(row).select('id').single())).id
-      if (d.id) must(await supabase.from('referencias_conductor').delete().eq('conductor_id', id))
-      const refs = d.references.filter((r) => r.name.trim())
-        .map((r, i) => ({ conductor_id: id, nombre: r.name.trim(), parentesco: r.relation, telefono: r.phone, orden: i }))
-      if (refs.length) must(await supabase.from('referencias_conductor').insert(refs))
-      return id
-    }),
+      },
+      p_referencias: d.references.map((r) => ({ nombre: r.name.trim(), parentesco: r.relation, telefono: r.phone })),
+    }))),
 
     /** Sube un documento del expediente. Reemplaza al vigente de ese tipo; el archivo anterior se conserva. */
     uploadDriverDocument: (driverId: string, type: DocType, file: File, expires?: string) => write(async () => {
@@ -160,9 +176,13 @@ function useStoreValue() {
         p_fecha_inicio: r.startDate, p_km_entrega: r.startKm, p_notas: r.notes ?? '',
       }))),
 
-    endRental: (id: string, endDate: string, endKm: number, depositStatus: Rental['depositStatus']) => write(async () => {
-      must(await supabase.rpc('finalizar_renta', { p_renta_id: id, p_km_devolucion: endKm, p_deposito_estado: depositStatus, p_fecha_fin: endDate }))
-    }),
+    /** Si el depósito se aplica, la base registra el pago por lo que cubra del adeudo. Regresa cuánto aplicó. */
+    endRental: (id: string, endDate: string, endKm: number, depositStatus: Rental['depositStatus']) => write(async () =>
+      must(await supabase.rpc('finalizar_renta', { p_renta_id: id, p_km_devolucion: endKm, p_deposito_estado: depositStatus, p_fecha_fin: endDate }))),
+
+    /** Depósito que quedó retenido: se devuelve o se aplica al adeudo. Regresa cuánto aplicó. */
+    resolveDeposit: (rentalId: string, status: 'devuelto' | 'aplicado') => write(async () =>
+      must(await supabase.rpc('resolver_deposito', { p_renta_id: rentalId, p_estado: status }))),
 
     /** Idempotente: crea las semanas de renta que falten hasta hoy. Regresa cuántos cargos creó. */
     generateWeeklyCharges: () => write(async () => must(await supabase.rpc('generar_cargos'))),
@@ -176,50 +196,100 @@ function useStoreValue() {
       must(await supabase.rpc('cancelar_pago', { p_pago_id: id, p_motivo: reason }))
     }),
 
+    /** Cargo extra al conductor (daños, multas, limpieza…). Las semanas de renta solo las crea la base. */
+    addCharge: (c: Pick<Charge, 'rentalId' | 'date' | 'amount' | 'concept' | 'incidentId'> & { kind: 'danio' | 'otro' }) => write(async () => {
+      must(await supabase.from('cargos').insert({
+        renta_id: c.rentalId, tipo: c.kind, fecha: c.date, monto: c.amount, concepto: c.concept.trim(), incidente_id: c.incidentId ?? null,
+      }))
+    }),
+
+    /** Permiso "corregir_registros". El motivo queda en la bitácora. */
+    correctCharge: (id: string, amount: number, concept: string, reason: string) => write(async () => {
+      must(await supabase.rpc('corregir_cargo', { p_cargo_id: id, p_monto: amount, p_concepto: concept, p_motivo: reason }))
+    }),
+
+    /** Permiso "corregir_registros". No lo borra: deja de contar para el saldo y una semana cancelada no se vuelve a generar. */
+    voidCharge: (id: string, reason: string) => write(async () => {
+      must(await supabase.rpc('cancelar_cargo', { p_cargo_id: id, p_motivo: reason }))
+    }),
+
     /** Permiso "editar_rentas". La nueva tarifa aplica a los cargos que se generen después; los ya generados no cambian. */
     updateRental: (id: string, weeklyRate: number, deposit: number) => write(async () => {
       must(await supabase.rpc('editar_renta', { p_renta_id: id, p_tarifa_semanal: weeklyRate, p_deposito: deposit }))
     }),
 
-    addExpense: (e: Omit<Expense, 'id' | 'userId'>) => write(async () => {
-      must(await supabase.from('gastos').insert({ fecha: e.date, categoria: e.category, vehiculo_id: e.vehicleId ?? null, monto: e.amount, concepto: e.concept }))
+    /** Alta o edición de un gasto (permiso "finanzas"). */
+    saveExpense: (e: Omit<Expense, 'id' | 'userId'> & { id?: string }) => write(async () => {
+      const row = { fecha: e.date, categoria: e.category, vehiculo_id: e.vehicleId ?? null, monto: e.amount, concepto: e.concept }
+      must(e.id ? await supabase.from('gastos').update(row).eq('id', e.id) : await supabase.from('gastos').insert(row))
     }),
+
+    deleteExpense: (id: string) => write(async () => { must(await supabase.from('gastos').delete().eq('id', id)) }),
 
     addMileage: (vehicleId: string, km: number, date: string) => write(async () => {
       must(await supabase.from('registros_km').insert({ vehiculo_id: vehicleId, fecha: date, km, origen: 'manual' }))
     }),
 
-    addService: (s: Omit<Service, 'id' | 'type'>, typeId: string) => write(async () => {
-      must(await supabase.from('servicios').insert({
-        vehiculo_id: s.vehicleId, tipo_servicio_id: typeId, fecha: s.date, km: s.km, costo: s.cost, taller: s.shop, notas: s.notes ?? '', reinicia_contador: s.resetsCounter,
-      }))
-      if (s.km > currentKm(s.vehicleId)) {
-        must(await supabase.from('registros_km').insert({ vehiculo_id: s.vehicleId, fecha: s.date, km: s.km, origen: 'manual' }))
-      }
+    /** Permiso "corregir_registros". El km del coche se recalcula solo con la lectura más alta que quede. */
+    deleteMileage: (id: string) => write(async () => {
+      const rows = must(await supabase.from('registros_km').delete().eq('id', id).select('id'))
+      if (!rows.length) throw new Error('No tienes permiso para borrar lecturas de km.')
     }),
 
-    addIncident: (i: Omit<Incident, 'id'>) => write(async () => {
-      const { id } = must(await supabase.from('incidentes').insert({
-        vehiculo_id: i.vehicleId, conductor_id: i.driverId ?? null, fecha: i.date, tipo: i.type, descripcion: i.description,
-        costo: i.cost, responsable: i.responsible,
-      }).select('id').single())
-      await insertPhotos(i.photos, { incidente_id: id })
+    /**
+     * Servicio + lectura de km + (en un cambio de llantas) las llantas nuevas, en una transacción.
+     * `id` lo genera el formulario: si se reintenta tras un error de red, no se duplica.
+     */
+    addService: (s: Omit<Service, 'type'>, typeId: string, tires: NewTire[] = []) => write(async () => {
+      must(await supabase.rpc('registrar_servicio', {
+        p_id: s.id,
+        p_datos: { vehiculo_id: s.vehicleId, tipo_servicio_id: typeId, fecha: s.date, km: s.km, costo: s.cost, taller: s.shop, notas: s.notes ?? '', reinicia_contador: s.resetsCounter },
+        p_llantas: tires.map((t) => ({ posicion: t.position, marca: t.brand.trim(), anio_dot: t.dotYear || null })),
+      }))
+    }),
+
+    /** Sube las fotos y luego guarda el incidente con ellas en una transacción. `id` lo genera el formulario. */
+    addIncident: (i: Omit<Incident, 'status'>) => write(async () => {
+      const fotos = await uploadPhotos(i.photos)
+      must(await supabase.rpc('registrar_incidente', {
+        p_id: i.id,
+        p_datos: { vehiculo_id: i.vehicleId, conductor_id: i.driverId ?? null, fecha: i.date, tipo: i.type, descripcion: i.description, costo: i.cost, responsable: i.responsible },
+        p_fotos: fotos,
+      }))
+    }),
+
+    updateIncident: (i: Pick<Incident, 'id' | 'driverId' | 'date' | 'type' | 'description' | 'cost' | 'responsible'>) => write(async () => {
+      must(await supabase.from('incidentes').update({
+        conductor_id: i.driverId ?? null, fecha: i.date, tipo: i.type, descripcion: i.description, costo: i.cost, responsable: i.responsible,
+      }).eq('id', i.id))
+    }),
+
+    addIncidentPhotos: (id: string, photos: PhotoRef[]) => write(async () => {
+      must(await supabase.rpc('agregar_fotos_incidente', { p_incidente_id: id, p_fotos: await uploadPhotos(photos) }))
     }),
 
     closeIncident: (id: string) => write(async () => {
       must(await supabase.from('incidentes').update({ estado: 'cerrado', cerrado_en: nowIso(), cerrado_por: uid }).eq('id', id))
     }),
 
-    /** Guarda la inspección, su lectura de km (si es mayor a la última) y sus fotos. */
-    addInspection: (ins: Omit<Inspection, 'id' | 'userId'>) => write(async () => {
-      const id = crypto.randomUUID()
-      must(await supabase.from('inspecciones').insert({
-        id, vehiculo_id: ins.vehicleId, renta_id: ins.rentalId ?? null, tipo: ins.kind, fecha: ins.date, km: ins.km, combustible: ins.fuel, notas: ins.notes,
+    reopenIncident: (id: string) => write(async () => {
+      must(await supabase.from('incidentes').update({ estado: 'abierto', cerrado_en: null, cerrado_por: null }).eq('id', id))
+    }),
+
+    /** Inspección + lectura de km (si es mayor a la última) + fotos, en una transacción. `id` lo genera el formulario. */
+    addInspection: (ins: Omit<Inspection, 'userId'>) => write(async () => {
+      const fotos = await uploadPhotos(ins.photos)
+      must(await supabase.rpc('registrar_inspeccion', {
+        p_id: ins.id,
+        p_datos: { vehiculo_id: ins.vehicleId, renta_id: ins.rentalId ?? null, tipo: ins.kind, fecha: ins.date, km: ins.km, combustible: ins.fuel, notas: ins.notes },
+        p_fotos: fotos,
       }))
-      if (ins.km > currentKm(ins.vehicleId)) {
-        must(await supabase.from('registros_km').insert({ vehiculo_id: ins.vehicleId, fecha: ins.date, km: ins.km, origen: ins.kind, renta_id: ins.rentalId ?? null }))
-      }
-      await insertPhotos(ins.photos, { inspeccion_id: id })
+    }),
+
+    /** Catálogo de tipos de servicio (permiso "catalogos"). Un tipo no se borra: se desactiva. */
+    saveServiceType: (t: Omit<ServiceType, 'id'> & { id?: string }) => write(async () => {
+      const row = { nombre: t.name.trim(), reinicia_contador: t.resetsCounter, descripcion: t.hint.trim(), activo: t.active, orden: t.order }
+      must(t.id ? await supabase.from('tipos_servicio').update(row).eq('id', t.id) : await supabase.from('tipos_servicio').insert(row))
     }),
 
     /** Nombre, rol, permisos y si la cuenta está activa. La base decide quién puede cambiar qué (guardar_usuario). */

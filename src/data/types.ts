@@ -94,13 +94,22 @@ export interface Rental {
   notes?: string
 }
 
+/** 'renta' = semana de renta (la genera la base); 'danio' y 'otro' = cargos extra al conductor. */
+export type ChargeKind = 'renta' | 'danio' | 'otro'
+
 export interface Charge {
   id: string
   rentalId: string
+  kind: ChargeKind
+  /** Fecha contable: el inicio de la semana en las de renta, el día del cargo en los extra. */
+  date: string
   periodStart: string
   periodEnd: string
   amount: number
   concept: string
+  incidentId?: string
+  /** Los cargos no se borran: se cancelan con motivo y dejan de contar para el saldo. */
+  voided?: { reason: string; userId: string; at: string }
 }
 
 export type PaymentMethod = 'efectivo' | 'transferencia' | 'deposito'
@@ -158,6 +167,7 @@ export interface Incident {
   responsible: 'conductor' | 'empresa' | 'tercero' | 'seguro'
   photos: PhotoRef[]
   status: 'abierto' | 'cerrado'
+  rentalId?: string
 }
 
 export interface Inspection {
@@ -225,6 +235,9 @@ export interface ServiceType {
   name: string
   resetsCounter: boolean
   hint: string
+  /** Los tipos no se borran: se desactivan y dejan de ofrecerse al registrar un servicio. */
+  active: boolean
+  order: number
 }
 
 export interface Data {

@@ -446,6 +446,129 @@ console.log('\nPermisos · usuario nuevo')
   })
 }
 
+console.log('\nDepósito')
+{
+  // Renta de 3 semanas sin pagos (9,000) con depósito de 5,000.
+  const rentaDe3Semanas = async (u) => (await one('select iniciar_renta($1, $2, 3000, 5000, hoy_merida() - 14) id', [id('v23'), id('d24')])).id
+  const saldo = async (renta) => num((await one('select saldo from v_saldos_rentas where renta_id = $1', [renta])).saldo)
+  await como(OPERADOR, async () => {
+    const renta = await rentaDe3Semanas()
+    const antes = await saldo(renta)
+    const aplicado = num((await one("select finalizar_renta($1, $2, 'aplicado') n", [renta, seed.vehicles[22].currentKm + 900])).n)
+    const p = await one("select monto, metodo, registrado_por from pagos where renta_id = $1", [renta])
+    ok(antes === 9000 && aplicado === 5000 && (await saldo(renta)) === 4000 && p.metodo === 'deposito' && p.registrado_por === id(OPERADOR),
+      'aplicarlo al finalizar registra el pago y baja el saldo', JSON.stringify({ antes, aplicado, p }))
+  })
+  await como(OPERADOR, async () => {
+    const renta = await rentaDe3Semanas()
+    await insert('pagos', { renta_id: renta, fecha: '2026-11-01', monto: 8000, metodo: 'efectivo' })
+    const aplicado = num((await one("select finalizar_renta($1, $2, 'aplicado') n", [renta, seed.vehicles[22].currentKm + 900])).n)
+    ok(aplicado === 1000 && (await saldo(renta)) === 0, 'nunca aplica más que el adeudo (el resto se devuelve)', String(aplicado))
+  })
+  await como(OPERADOR, async () => {
+    const renta = await rentaDe3Semanas()
+    await q("select finalizar_renta($1, $2, 'retenido')", [renta, seed.vehicles[22].currentKm + 900])
+    const sigue = await saldo(renta)
+    const aplicado = num((await one("select resolver_deposito($1, 'aplicado') n", [renta])).n)
+    const despues = await saldo(renta)
+    const e = await intenta(() => q("select resolver_deposito($1, 'devuelto')", [renta]))
+    ok(sigue === 9000 && aplicado === 5000 && despues === 4000 && /ya no está retenido/.test(e?.message), 'uno retenido se aplica después, una sola vez', e?.message)
+  })
+}
+
+console.log('\nCorrección de cargos')
+{
+  const cargo = id(seed.charges.find((c) => c.rentalId === 'r01').id)
+  const renta = id('r01')
+  ok(/Sin permiso/.test(await rechazaComo(OPERADOR, "select cancelar_cargo($1, 'x')", [cargo])), 'un operador no cancela cargos')
+  await como(ADMIN, async () => {
+    const r = await db.query('update cargos set monto = 1 where id = $1', [cargo])
+    ok(r.affectedRows === 0, 'nadie edita un cargo directo, solo por RPC')
+  })
+  await como(ADMIN, async () => {
+    const antes = num((await one('select saldo from v_saldos_rentas where renta_id = $1', [renta])).saldo)
+    const monto = num((await one('select monto from cargos where id = $1', [cargo])).monto)
+    await q("select corregir_cargo($1, $2, 'Renta semana 1 (tarifa acordada)', 'Se acordó descuento')", [cargo, monto - 500])
+    const corregido = num((await one('select saldo from v_saldos_rentas where renta_id = $1', [renta])).saldo)
+    await q("select cancelar_cargo($1, 'Semana que no se usó el coche')", [cargo])
+    const cancelado = num((await one('select saldo from v_saldos_rentas where renta_id = $1', [renta])).saldo)
+    const regenera = (await one("select generar_cargos('2026-10-08', $1) n", [renta])).n
+    const acc = (await q("select accion from auditoria where tabla = 'cargos' and operacion = 'cambio' and registro_id = $1 order by id", [cargo])).map((x) => x.accion)
+    ok(antes - corregido === 500 && corregido - cancelado === monto - 500 && regenera === 0,
+      'corregir baja el saldo, cancelar lo quita y generar_cargos no lo vuelve a crear', JSON.stringify({ antes, corregido, cancelado, regenera }))
+    ok(acc.join() === 'Corrigió cargo: Se acordó descuento,Canceló cargo', 'el motivo queda en la bitácora', acc.join())
+    const e = await intenta(() => q("select corregir_cargo($1, 10, 'x', 'y')", [cargo]))
+    ok(/cancelado/.test(e?.message), 'un cargo cancelado ya no se corrige')
+  })
+}
+
+console.log('\nPrecio de compra')
+await como(OPERADOR, async () => {
+  ok(/permission denied/.test((await intenta(() => q('select precio_compra from vehiculos limit 1')))?.message), 'un operador no lee el precio de compra')
+})
+await como(OPERADOR, async () => {
+  const filas = await q('select id, placas, km_actual, fecha_compra from vehiculos')
+  ok(filas.length === 30 && (await q('select * from precios_compra()')).length === 0, 'pero sí el resto del coche; precios_compra() le llega vacía')
+})
+await como(CON_FINANZAS, async () => {
+  ok((await q('select * from precios_compra()')).length === 30, 'con el permiso de finanzas llegan los 30 precios')
+})
+ok(/permiso de finanzas/.test(await rechazaComo(OPERADOR, "update vehiculos set precio_compra = 1 where id = $1", [id('v01')])), 'sin el permiso no lo cambia directo')
+await como(OPERADOR, async () => {
+  const antes = (await (async () => { await db.exec('reset role'); const r = await one('select precio_compra from vehiculos where id = $1', [id('v01')]); await db.exec('set local role authenticated'); return r })()).precio_compra
+  const v = seed.vehicles[0]
+  await q('select guardar_vehiculo($1, $2)', [id('v01'), { unidad: v.unit ?? null, marca: v.brand, modelo: v.model, anio: v.year, placas: v.plates, color: 'Rojo', vin: v.vin, notas: 'x', precio_compra: 1, fecha_compra: v.purchaseDate, km: v.currentKm + 50 }])
+  await db.exec('reset role')
+  const d = await one('select precio_compra, color, km_actual from vehiculos where id = $1', [id('v01')])
+  ok(num(d.precio_compra) === num(antes) && d.color === 'Rojo' && d.km_actual === v.currentKm + 50, 'al editar el coche, guardar_vehiculo conserva el precio y registra el km', JSON.stringify(d))
+})
+
+console.log('\nEscrituras de varios pasos')
+await como(OPERADOR, async () => {
+  const c = await one('select guardar_conductor(null, $1, $2) id', [{ nombre: 'Prueba Uno', telefono: '999' }, [{ nombre: 'Mamá', parentesco: 'Madre' }, { nombre: ' ' }]])
+  await q('select guardar_conductor($1, $2, $3)', [c.id, { nombre: 'Prueba Uno', telefono: '999' }, [{ nombre: 'Papá' }, { nombre: 'Tía' }]])
+  const refs = (await q('select nombre from referencias_conductor where conductor_id = $1 order by orden', [c.id])).map((r) => r.nombre)
+  ok(refs.join() === 'Papá,Tía', 'guardar_conductor reemplaza las referencias completas', refs.join())
+})
+// Un error dentro de la RPC revierte todo lo que hizo: las referencias que alcanzó a borrar siguen ahí.
+await como(OPERADOR, async () => {
+  await db.exec('savepoint antes')
+  const c = await one('select guardar_conductor(null, $1, $2) id', [{ nombre: 'Prueba Dos' }, [{ nombre: 'Mamá' }]])
+  await db.exec('savepoint intento')
+  const e = await intenta(() => q('select guardar_conductor($1, $2, $3)', [c.id, { nombre: '' }, [{ nombre: 'Otro' }]]))
+  await db.exec('rollback to savepoint intento')
+  const refs = (await q('select nombre from referencias_conductor where conductor_id = $1', [c.id])).map((r) => r.nombre)
+  ok(/nombre/.test(e?.message) && refs.join() === 'Mamá', 'si algo falla no guarda nada a medias', `${e?.message} · ${refs.join()}`)
+})
+await como(OPERADOR, async () => {
+  const incidente = randomUUID()
+  const a1 = await archivo('fotos/a.jpg', OPERADOR), a2 = await archivo('fotos/b.jpg', OPERADOR)
+  const datos = { vehiculo_id: id('v01'), conductor_id: id(seed.rentals.find((r) => r.vehicleId === 'v01' && r.status === 'activa').driverId), fecha: '2026-11-10', tipo: 'Rayón', costo: 800, responsable: 'conductor' }
+  const fotos = [{ archivo_id: a1, etiqueta: 'Puerta' }, { archivo_id: a2, etiqueta: 'Defensa', con_danio: true }]
+  await q('select registrar_incidente($1, $2, $3)', [incidente, datos, fotos])
+  await q('select registrar_incidente($1, $2, $3)', [incidente, datos, fotos]) // reintento
+  const r = await one('select (select count(*) from incidentes where id = $1) n, (select count(*) from fotos where incidente_id = $1) f, (select renta_id from incidentes where id = $1) renta', [incidente])
+  ok(num(r.n) === 1 && num(r.f) === 2 && r.renta === id('r01'), 'registrar_incidente guarda fotos, liga la renta y un reintento no duplica', JSON.stringify(r))
+})
+await como(OPERADOR, async () => {
+  const servicio = randomUUID()
+  const km = seed.vehicles[0].currentKm + 100
+  const tipo = (await one("select id from tipos_servicio where nombre = 'Cambio de llantas'")).id
+  await q('select registrar_servicio($1, $2, $3)', [servicio, { vehiculo_id: id('v01'), tipo_servicio_id: tipo, fecha: '2026-11-15', km, costo: 6000, reinicia_contador: false },
+    [{ posicion: 'DI', marca: 'Michelin', anio_dot: 2026 }, { posicion: 'DD', marca: 'Michelin', anio_dot: 2026 }]])
+  const ll = await q("select posicion, marca, retirada_en is null vigente from llantas where vehiculo_id = $1 and posicion in ('DI', 'DD') order by vigente, posicion", [id('v01')])
+  const v = await one('select km_actual from vehiculos where id = $1', [id('v01')])
+  ok(ll.length === 4 && ll.filter((x) => x.vigente).every((x) => x.marca === 'Michelin') && v.km_actual === km,
+    'registrar_servicio retira las llantas cambiadas, instala las nuevas y sube el km', JSON.stringify(ll))
+})
+await como(OPERADOR, async () => {
+  const insp = randomUUID()
+  const km = seed.vehicles[22].currentKm + 10
+  await q('select registrar_inspeccion($1, $2, $3)', [insp, { vehiculo_id: id('v23'), tipo: 'entrega', fecha: '2026-11-15', km, combustible: 6 }, [{ archivo_id: await archivo('fotos/c.jpg', OPERADOR), etiqueta: 'Frente' }]])
+  const r = await one("select (select count(*) from fotos where inspeccion_id = $1) f, (select count(*) from registros_km where vehiculo_id = $2 and km = $3 and origen = 'entrega') k", [insp, id('v23'), km])
+  ok(num(r.f) === 1 && num(r.k) === 1, 'registrar_inspeccion guarda fotos y la lectura de km')
+})
+
 await db.close()
 console.log(fallas ? `\n${fallas} verificaciones fallaron` : '\nTodo en orden')
 process.exit(fallas ? 1 : 0)

@@ -1,8 +1,10 @@
 // Formatos y fechas. Las fechas se manejan como 'YYYY-MM-DD' (día calendario en America/Merida).
 
 export const TZ = 'America/Merida'
-// "Hoy" en Mérida al abrir la app (en-CA da el formato YYYY-MM-DD).
-export const TODAY = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date())
+// "Hoy" en Mérida (en-CA da el formato YYYY-MM-DD).
+export const todayInMerida = () => new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(new Date())
+// Fijo desde que se abrió la app; el store recarga la página si cambia el día (ver src/data/store.tsx).
+export const TODAY = todayInMerida()
 // Fecha fija de los datos ficticios (src/data/mock.ts), para que las pruebas sean reproducibles.
 export const DEMO_TODAY = '2026-10-08'
 

@@ -113,6 +113,8 @@ export type Database = {
       }
       cargos: {
         Row: {
+          cancelado_en: string | null
+          cancelado_por: string | null
           concepto: string
           creado_en: string
           creado_por: string | null
@@ -120,12 +122,15 @@ export type Database = {
           id: string
           incidente_id: string | null
           monto: number
+          motivo_cancelacion: string | null
           periodo_fin: string | null
           periodo_inicio: string | null
           renta_id: string
           tipo: string
         }
         Insert: {
+          cancelado_en?: string | null
+          cancelado_por?: string | null
           concepto: string
           creado_en?: string
           creado_por?: string | null
@@ -133,12 +138,15 @@ export type Database = {
           id?: string
           incidente_id?: string | null
           monto: number
+          motivo_cancelacion?: string | null
           periodo_fin?: string | null
           periodo_inicio?: string | null
           renta_id: string
           tipo?: string
         }
         Update: {
+          cancelado_en?: string | null
+          cancelado_por?: string | null
           concepto?: string
           creado_en?: string
           creado_por?: string | null
@@ -146,6 +154,7 @@ export type Database = {
           id?: string
           incidente_id?: string | null
           monto?: number
+          motivo_cancelacion?: string | null
           periodo_fin?: string | null
           periodo_inicio?: string | null
           renta_id?: string
@@ -1365,8 +1374,20 @@ export type Database = {
       }
     }
     Functions: {
+      agregar_fotos_incidente: {
+        Args: { p_fotos: Json; p_incidente_id: string }
+        Returns: undefined
+      }
+      cancelar_cargo: {
+        Args: { p_cargo_id: string; p_motivo: string }
+        Returns: undefined
+      }
       cancelar_pago: {
         Args: { p_motivo: string; p_pago_id: string }
+        Returns: undefined
+      }
+      corregir_cargo: {
+        Args: { p_cargo_id: string; p_concepto: string; p_monto: number; p_motivo: string }
         Returns: undefined
       }
       editar_renta: {
@@ -1386,11 +1407,15 @@ export type Database = {
           p_km_devolucion: number
           p_renta_id: string
         }
-        Returns: undefined
+        Returns: number
       }
       generar_cargos: {
         Args: { p_hasta?: string; p_renta_id?: string }
         Returns: number
+      }
+      guardar_conductor: {
+        Args: { p_datos: Json; p_id: string | null; p_referencias: Json }
+        Returns: string
       }
       guardar_usuario: {
         Args: {
@@ -1401,6 +1426,10 @@ export type Database = {
           p_rol: string
         }
         Returns: undefined
+      }
+      guardar_vehiculo: {
+        Args: { p_datos: Json; p_id: string | null }
+        Returns: string
       }
       hoy_merida: { Args: never; Returns: string }
       iniciar_renta: {
@@ -1414,6 +1443,26 @@ export type Database = {
           p_vehiculo_id: string
         }
         Returns: string
+      }
+      precios_compra: {
+        Args: never
+        Returns: { precio_compra: number | null; vehiculo_id: string }[]
+      }
+      registrar_incidente: {
+        Args: { p_datos: Json; p_fotos?: Json; p_id: string }
+        Returns: string
+      }
+      registrar_inspeccion: {
+        Args: { p_datos: Json; p_fotos?: Json; p_id: string }
+        Returns: string
+      }
+      registrar_servicio: {
+        Args: { p_datos: Json; p_id: string; p_llantas?: Json }
+        Returns: string
+      }
+      resolver_deposito: {
+        Args: { p_estado: string; p_renta_id: string }
+        Returns: number
       }
       rol_actual: { Args: never; Returns: string }
       tiene_permiso: { Args: { p_permiso: string }; Returns: boolean }

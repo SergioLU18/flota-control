@@ -3,13 +3,15 @@ import { Link } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { Card, Lightbox, Modal, PageHeader, Photo, StatusBadge, Tabs } from '../components/ui'
 import { Icon } from '../components/Icon'
-import { IncidentForm } from '../components/forms'
+import { ChargeForm, IncidentForm } from '../components/forms'
 import { fecha, mxn } from '../lib/format'
-import type { PhotoRef } from '../data/types'
+import type { Incident, PhotoRef } from '../data/types'
 import { carName } from '../lib/calc'
 
 export default function Incidents() {
-  const { data, closeIncident } = useStore()
+  const { data, closeIncident, reopenIncident } = useStore()
+  const [editing, setEditing] = useState<Incident | null>(null)
+  const [charging, setCharging] = useState<Incident | null>(null)
   const [error, setError] = useState('')
   const L = useLookup()
   const [tab, setTab] = useState<'abierto' | 'cerrado' | 'todos'>('abierto')
@@ -27,7 +29,17 @@ export default function Incidents() {
           const v = L.vehicle(i.vehicleId)
           const d = L.driver(i.driverId)
           return (
-            <Card key={i.id} title={<>{i.type} <StatusBadge value={i.status} /></>} actions={i.status === 'abierto' && <button className="btn btn-sm" onClick={() => closeIncident(i.id).catch((e: Error) => setError(e.message))}>Cerrar</button>}>
+            <Card key={i.id} title={<>{i.type} <StatusBadge value={i.status} /></>} actions={<>
+              {(() => {
+                const charged = data.charges.filter((c) => c.incidentId === i.id && !c.voided).reduce((a, c) => a + c.amount, 0)
+                return charged > 0 ? <span className="muted small">Cargado al conductor: {mxn(charged)}</span>
+                  : i.responsible === 'conductor' && i.cost > 0 && <button className="btn btn-sm" onClick={() => setCharging(i)}>Cobrar al conductor</button>
+              })()}
+              <button className="btn btn-sm btn-ghost" onClick={() => setEditing(i)}>Editar</button>
+              {i.status === 'abierto'
+                ? <button className="btn btn-sm" onClick={() => closeIncident(i.id).catch((e: Error) => setError(e.message))}>Cerrar</button>
+                : <button className="btn btn-sm btn-ghost" onClick={() => reopenIncident(i.id).catch((e: Error) => setError(e.message))}>Reabrir</button>}
+            </>}>
               <p className="muted small">
                 {fecha(i.date)} · <Link to={`/flota/${v.id}`}>{carName(v)} {v.plates}</Link>
                 {d && <> · <Link to={`/conductores/${d.id}`}>{d.name}</Link></>} · Costo {mxn(i.cost)} · Responsable: <b>{i.responsible}</b>
@@ -39,6 +51,8 @@ export default function Incidents() {
         })}
       </div>
       <Modal open={adding} title="Registrar incidente" onClose={() => setAdding(false)} wide><IncidentForm onDone={() => setAdding(false)} /></Modal>
+      <Modal open={!!editing} title="Editar incidente" onClose={() => setEditing(null)} wide>{editing && <IncidentForm incident={editing} onDone={() => setEditing(null)} />}</Modal>
+      <Modal open={!!charging} title="Cobrar incidente al conductor" onClose={() => setCharging(null)}>{charging && <ChargeForm incident={charging} onDone={() => setCharging(null)} />}</Modal>
       <Lightbox photo={photo} onClose={() => setPhoto(null)} />
     </>
   )

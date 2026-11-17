@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { Badge, Card, Field, Modal, PageHeader, Stat, StatusBadge, Tabs } from '../components/ui'
 import { Icon } from '../components/Icon'
-import { PaymentForm } from '../components/forms'
-import { carName, driverBalance, globalBalance, monthIncome, vehicleBalance, weekIncome } from '../lib/calc'
+import { CorrectChargeForm, PaymentForm } from '../components/forms'
+import { carName, depositsHeld, driverBalance, globalBalance, monthIncome, vehicleBalance, weekIncome } from '../lib/calc'
 import { CURRENT_MONDAY, TODAY, addDays, fecha, fechaCorta, mes, mxn } from '../lib/format'
 import type { PaymentMethod } from '../data/types'
 import { downloadCsv } from '../lib/files'
-import type { Payment } from '../data/types'
+import type { Charge, Payment } from '../data/types'
 import { can } from '../data/permissions'
 
 type Tab = 'conductores' | 'coches' | 'pagos' | 'cargos'
@@ -26,12 +26,14 @@ export default function Billing() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const canVoid = can(user, 'cancelar_pagos')
+  const canCorrect = can(user, 'corregir_registros')
+  const [correcting, setCorrecting] = useState<Charge | null>(null)
   const g = globalBalance(data)
 
   const byDriver = data.drivers.map((d) => ({ d, ...driverBalance(data, d.id) })).filter((x) => x.charged > 0).sort((a, b) => b.balance - a.balance)
   const byVehicle = data.vehicles.map((v) => ({ v, ...vehicleBalance(data, v.id) })).filter((x) => x.charged > 0).sort((a, b) => b.balance - a.balance)
   const payments = [...data.payments].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 60)
-  const charges = data.charges.filter((c) => c.periodStart >= addDays(CURRENT_MONDAY, -7)).sort((a, b) => (a.periodStart < b.periodStart ? 1 : -1))
+  const charges = data.charges.filter((c) => c.date >= addDays(CURRENT_MONDAY, -7)).sort((a, b) => (a.date < b.date ? 1 : -1))
 
   const exportAll = () => downloadCsv('historico-pagos.csv', [
     ['Fecha', 'Conductor', 'Coche', 'Monto', 'Método', 'Notas', 'Registró', 'Estado'],
@@ -60,7 +62,7 @@ export default function Billing() {
       <div className="stats">
         <Stat label="Cobrado esta semana" value={mxn(weekIncome(data))} icon="trend" tone="green" />
         <Stat label={`Cobrado en ${mes(TODAY.slice(0, 7))}`} value={mxn(monthIncome(data))} icon="calendar" />
-        <Stat label="Adeudo total" value={mxn(g.balance)} tone="red" icon="wallet" />
+        <Stat label="Adeudo total" value={mxn(g.balance)} tone="red" icon="wallet" hint={`Depósitos en garantía: ${mxn(depositsHeld(data))}`} />
         <Stat label="Histórico cobrado" value={mxn(g.paid)} hint={`de ${mxn(g.charged)} cargado`} icon="cash" />
       </div>
 
@@ -111,15 +113,26 @@ export default function Billing() {
       {tab === 'cargos' && (
         <Card title="Cargos de la semana actual y la anterior">
           <div className="table-wrap"><table className="table compact">
-            <thead><tr><th>Periodo</th><th>Conductor</th><th>Coche</th><th>Concepto</th><th className="num">Monto</th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Conductor</th><th>Coche</th><th>Concepto</th><th className="num">Monto</th>{canCorrect && <th></th>}</tr></thead>
             <tbody>{charges.map((c) => {
               const r = L.rental(c.rentalId)
-              return <tr key={c.id}><td>{fechaCorta(c.periodStart)} – {fechaCorta(c.periodEnd)}</td><td>{L.driver(r.driverId)?.name}</td><td>{L.vehicle(r.vehicleId).plates}</td><td>{c.concept}</td><td className="num">{mxn(c.amount)}</td></tr>
+              return (
+                <tr key={c.id} className={c.voided ? 'voided' : ''}>
+                  <td>{c.kind === 'renta' ? <>{fechaCorta(c.periodStart)} – {fechaCorta(c.periodEnd)}</> : fecha(c.date)}</td>
+                  <td>{L.driver(r.driverId)?.name}</td><td>{L.vehicle(r.vehicleId).plates}</td>
+                  <td>{c.concept} {c.kind !== 'renta' && <Badge tone="amber">{c.kind === 'danio' ? 'daños' : 'extra'}</Badge>}
+                    {c.voided && <div className="small"><Badge tone="red">Cancelado</Badge> <span className="muted">{c.voided.reason} · {L.user(c.voided.userId)?.name}</span></div>}</td>
+                  <td className="num amount">{mxn(c.amount)}</td>
+                  {canCorrect && <td className="row-actions">{!c.voided && <button className="btn btn-sm btn-ghost" onClick={() => setCorrecting(c)}>Corregir</button>}</td>}
+                </tr>
+              )
             })}</tbody>
           </table></div>
+          <p className="muted small">Los cargos por daños u otros se agregan desde el expediente del conductor o desde el incidente.</p>
         </Card>
       )}
 
+      <Modal open={!!correcting} title="Corregir cargo" onClose={() => setCorrecting(null)}>{correcting && <CorrectChargeForm charge={correcting} onDone={() => setCorrecting(null)} />}</Modal>
       <Modal open={paying} title="Registrar pago" onClose={() => setPaying(false)}><PaymentForm onDone={() => setPaying(false)} /></Modal>
       <Modal open={!!voiding} title="Cancelar pago" onClose={() => setVoiding(null)}>
         {voiding && (

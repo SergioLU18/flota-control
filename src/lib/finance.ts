@@ -2,7 +2,7 @@
 // No es contabilidad fiscal (sin IVA, CFDI ni depreciación): sirve para decidir, no para declarar.
 import type { Data, ExpenseCategory, Vehicle } from '../data/types'
 import { TODAY, addDays, diffDays, mes } from './format'
-import { validPayments } from './calc'
+import { validCharges, validPayments } from './calc'
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
 
@@ -49,7 +49,7 @@ const within = (p: Period) => (date: string) => date >= p.from && date <= p.to
 export function incomeStatement(d: Data, p: Period) {
   const inP = within(p)
   const income = sum(validPayments(d).filter((x) => inP(x.date)).map((x) => x.amount))
-  const charged = sum(d.charges.filter((c) => inP(c.periodStart)).map((c) => c.amount))
+  const charged = sum(validCharges(d).filter((c) => inP(c.date)).map((c) => c.amount))
   const maintenance = sum(d.services.filter((s) => inP(s.date)).map((s) => s.cost))
   const incidents = sum(d.incidents.filter((i) => i.responsible === 'empresa' && inP(i.date)).map((i) => i.cost))
   const byCategory = (Object.keys(EXPENSE_LABEL) as ExpenseCategory[]).map((cat) => ({

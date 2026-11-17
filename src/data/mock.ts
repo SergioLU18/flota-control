@@ -147,7 +147,7 @@ rentals.forEach((r, idx) => {
   for (let m = r.startDate; r.endDate ? m < r.endDate : m <= CURRENT_MONDAY; m = addDays(m, 7)) weeks.push(m)
   weeks.forEach((m, k) => {
     const cid = `c-${r.id}-${k}`
-    charges.push({ id: cid, rentalId: r.id, periodStart: m, periodEnd: addDays(m, 6), amount: r.weeklyRate, concept: `Renta semana ${k + 1}` })
+    charges.push({ id: cid, rentalId: r.id, kind: 'renta', date: m, periodStart: m, periodEnd: addDays(m, 6), amount: r.weeklyRate, concept: `Renta semana ${k + 1}` })
     const fromEnd = weeks.length - k
     if (UNPAID_LAST[r.id] && fromEnd <= UNPAID_LAST[r.id]) return
     if (m === CURRENT_MONDAY && idx % 4 === 0) return // aún no paga esta semana
@@ -307,5 +307,5 @@ export const audit: AuditEntry[] = auditRaw
 export const seed: Data = {
   users, vehicles, drivers, rentals, charges, payments, mileage, services, incidents, inspections, expenses,
   orion: { status: 'pendiente', syncs: [] },
-  serviceTypes: SERVICE_TYPES.map((t, i) => ({ id: `t${i + 1}`, name: t.type, resetsCounter: t.resetsCounter, hint: t.hint })),
+  serviceTypes: SERVICE_TYPES.map((t, i) => ({ id: `t${i + 1}`, name: t.type, resetsCounter: t.resetsCounter, hint: t.hint, active: true, order: i + 1 })),
 }

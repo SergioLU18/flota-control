@@ -620,6 +620,7 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 .user-cell .avatar { flex-shrink: 0; }
 .page-note { margin: 12px 4px 0; line-height: 1.5; }
 .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.form-danger-zone { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
 .form .form-actions .btn-primary { min-width: 150px; min-height: 40px; }
 .form-error { display: flex; align-items: center; gap: 8px; color: var(--red); background: var(--red-soft); border: 1px solid color-mix(in srgb, var(--sys-red) 25%, transparent); padding: 9px 12px; border-radius: var(--radius-sm); margin: 14px 0 0; font-size: .85rem; font-weight: 500; }
 .form-error::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }

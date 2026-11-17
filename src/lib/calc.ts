@@ -10,8 +10,20 @@ const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
 /** Pagos vigentes: los cancelados no cuentan para saldos ni ingresos. */
 export const validPayments = (d: Data) => d.payments.filter((p) => !p.voided)
 
+/** Cargos vigentes: los cancelados no cuentan para saldos ni finanzas. */
+export const validCharges = (d: Data) => d.charges.filter((c) => !c.voided)
+
+/** Lo que queda del depósito de una renta, descontando lo que ya se aplicó al adeudo. */
+export function depositLeft(d: Data, r: Rental) {
+  const applied = sum(validPayments(d).filter((p) => p.rentalId === r.id && p.method === 'deposito').map((p) => p.amount))
+  return Math.max(0, r.deposit - applied)
+}
+
+/** Depósitos en garantía que el negocio tiene en su poder (retenidos y sin aplicar). No son ingreso. */
+export const depositsHeld = (d: Data) => sum(d.rentals.filter((r) => r.depositStatus === 'retenido').map((r) => depositLeft(d, r)))
+
 export function rentalBalance(d: Data, rentalId: string) {
-  const charged = sum(d.charges.filter((c) => c.rentalId === rentalId).map((c) => c.amount))
+  const charged = sum(validCharges(d).filter((c) => c.rentalId === rentalId).map((c) => c.amount))
   const paid = sum(validPayments(d).filter((p) => p.rentalId === rentalId).map((p) => p.amount))
   return { charged, paid, balance: charged - paid }
 }
@@ -67,8 +79,9 @@ export function alerts(d: Data) {
     if (active && ls === 'vencida') out.push({ level: 'alta', text: `${dr.name}: licencia vencida y tiene coche asignado`, to: `/conductores/${dr.id}` })
     else if (active && ls === 'por_vencer') out.push({ level: 'media', text: `${dr.name}: licencia vence el ${fecha(dr.licenseExpires)}`, to: `/conductores/${dr.id}` })
     const bal = driverBalance(d, dr.id).balance
-    const rate = active?.weeklyRate ?? 3000
-    if (bal > rate) out.push({ level: 'alta', text: `${dr.name}: adeuda ${Math.round(bal).toLocaleString('es-MX')} MXN (más de una semana)`, to: `/conductores/${dr.id}` })
+    // "Más de una semana" con la tarifa de su renta activa, o de la última si ya devolvió el coche.
+    const last = active ?? d.rentals.filter((r) => r.driverId === dr.id).sort((a, b) => (a.startDate < b.startDate ? 1 : -1))[0]
+    if (last && bal > last.weeklyRate) out.push({ level: 'alta', text: `${dr.name}: adeuda ${Math.round(bal).toLocaleString('es-MX')} MXN (más de una semana)`, to: `/conductores/${dr.id}` })
   })
   d.incidents.filter((i) => i.status === 'abierto').forEach((i) => {
     const v = d.vehicles.find((x) => x.id === i.vehicleId)!
