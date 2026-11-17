@@ -40,8 +40,13 @@ KM_MAX_SEMANA = 2500
 ORIGEN = 'Importado del concentrado de rentas.'
 
 # Mismo conductor escrito de dos formas (C-18, semanas seguidas).
-ALIAS = {'JOSE AREVAR': 'JOSE RENE ARENAL AYVAR'}
-NO_ES_CONDUCTOR = {'PENDIENTE DE ENTREGA', 'BLANCO'}
+ALIAS = {'JOSE AREVAR': 'JOSE RENE ARENAL AYVAR', 'LUIS GERARDO': 'LUIS GERARDO BAUTISTA DURAND'}
+NO_ES_CONDUCTOR = {'PENDIENTE DE ENTREGA', 'BLANCO', 'LIBRE'}
+# En la columna de conductor a veces va dónde está el coche: "TALLER CENTRO DE COLISION", "Taller monforte", "corralon".
+EN_TALLER = re.compile(r'^(TALLER\b|CORRALON\b)')
+# Modelos que el Excel escribe sin marca o sin año ("VENTO 2022", "SEAT TARRACO"): marca por modelo; el año sale del VIN.
+MARCA_DE = {'VENTO': 'VOLKSWAGEN', 'JETTA': 'VOLKSWAGEN', 'TARRACO': 'SEAT'}
+ANIO_VIN = {c: 2010 + i for i, c in enumerate('ABCDEFGHJKLMNPRSTVWXY')}  # 10º carácter del VIN (A = 2010)
 # Coches que cubrieron una unidad de forma temporal: no se quedan con ella (la C-25 es del Kia YWX 006 J).
 UNIDAD_TEMPORAL = {'ZBE 026 G': 'Cubrió la unidad C-25 unas semanas.'}
 # Coches que ya salieron de la flota: se cargan dados de baja.
@@ -72,7 +77,7 @@ def limpio(v):
 
 
 def clave(nombre):
-    return sin_acentos(nombre).upper()
+    return re.sub(r'\s*\(.*?\)\s*', ' ', sin_acentos(nombre)).strip().upper()  # "luis gerardo (temporal)" = LUIS GERARDO
 
 
 def titulo(s):
@@ -142,7 +147,8 @@ for ws in hojas:
         if not placas:
             continue
         conductor = limpio(r[3])
-        if conductor and clave(conductor) in NO_ES_CONDUCTOR:
+        taller = bool(conductor and EN_TALLER.match(clave(conductor)))
+        if conductor and (clave(conductor) in NO_ES_CONDUCTOR or taller):
             conductor = None
         if conductor:
             k = ALIAS.get(clave(conductor), clave(conductor))
@@ -152,7 +158,7 @@ for ws in hojas:
         estado = limpio(r[12])
         filas.append({
             'semana': sem, 'unidad': limpio(r[0]), 'vehiculo': limpio(r[1]), 'color': limpio(r[2]),
-            'conductor': conductor, 'vin': limpio(r[4]), 'placas': placas.upper(),
+            'conductor': conductor, 'vin': limpio(r[4]), 'placas': placas.upper(), 'taller': taller,
             'km': int(r[6]) if isinstance(r[6], (int, float)) else None, 'deposito': deposito(r[7]),
             'multa': (limpio(r[8]) or '').upper() == 'MULTA', 'tipo_pago': (limpio(r[10]) or '').upper(),
             'precio': dinero(r[11]) if isinstance(r[11], (int, float)) else None, 'estado': estado,
@@ -184,12 +190,22 @@ def ultimo(semanas, campo):
 
 vehiculos = {}
 for placas, semanas in por_placas.items():
-    desc = ultimo(semanas, 'vehiculo')
-    m = re.fullmatch(r'(\w+) (.+?) (\d{4})(?: \((\w+)\))?', desc)
-    marca, modelo, anio, trans = m.group(1), m.group(2), int(m.group(3)), m.group(4)
+    desc = ultimo(semanas, 'vehiculo').upper()
+    vin = ultimo(semanas, 'vin')
+    m = re.fullmatch(r'(.+?)(?: (\d{4}))?(?: \((\w+)\))?', desc)
+    palabras, anio, trans = m.group(1).split(' '), m.group(2), m.group(3)
+    if palabras[0] in MARCA_DE:
+        palabras.insert(0, MARCA_DE[palabras[0]])
+    marca, modelo = palabras[0], ' '.join(palabras[1:])
+    if anio:
+        anio = int(anio)
+    elif vin and len(vin) == 17 and vin[9] in ANIO_VIN:
+        anio = ANIO_VIN[vin[9]]
+        avisos.append(f'{placas} ({desc}) no trae año en el concentrado; se tomó {anio} del VIN.')
+    else:
+        raise SystemExit(f'Sin año para {placas} ({desc}): agrégalo en el Excel o en MARCA_DE/ANIO_VIN')
     color = ultimo(semanas, 'color') or ''
     color = color.upper().replace('OBSCURO', 'OSCURO').capitalize()
-    vin = ultimo(semanas, 'vin')
     if vin and len(vin) != 17:
         avisos.append(f'El VIN de {placas} ({vin}) tiene {len(vin)} caracteres; se guardó tal cual.')
     unidad = ultimo(semanas, 'unidad')
@@ -198,6 +214,7 @@ for placas, semanas in por_placas.items():
         'id': uid('vehiculo', placas), 'unidad': unidad, 'marca': marca.capitalize(),
         'modelo': modelo.title() if not re.search(r'\d', modelo) else modelo.upper(), 'anio': anio,
         'placas': placas, 'color': color, 'vin': vin, 'notas': notas,
+        'taller': semanas[max(semanas)]['taller'],  # en la última semana está en el taller o el corralón
     }
 
 # Una unidad repetida no se le asigna a ninguno de sus coches: queda en las notas para resolverla a mano.
@@ -401,130 +418,135 @@ for placas, semanas in por_placas.items():
                     break
 
 # ------------------------------------------------------------
-# SQL
+# Salida (solo al correr el script; sincronizar_concentrado.py lo importa para reusar el modelo)
 # ------------------------------------------------------------
 
-L = []
-w = L.append
-w(f'-- Historial importado de "{EXCEL.name}" ({SEMANAS[0]} a {ULTIMA}).')
-w('-- Generado por supabase/historial/importar_concentrado.py: no editar a mano, volver a generarlo.')
-w('-- Requiere un admin activo (los pagos quedan registrados a su nombre) y una base sin estos coches.')
-w('-- Todo va en un solo bloque: el SQL Editor de Supabase no respeta begin/commit y guardaría la carga a medias.')
-w('do $$ begin')
-w("perform set_config('app.accion', 'Importó historial del concentrado', true);")
-w("""if not exists (select 1 from public.usuarios where rol in ('superadmin', 'admin') and activo) then
-  raise exception 'Primero da de alta y activa un admin (ver supabase/README.md)';
-end if;""")
-w('')
-w('insert into public.vehiculos (id, unidad, marca, modelo, anio, placas, color, vin, notas, estado) values')
-w(',\n'.join(f"  ({sql(v['id'])}, {sql(v['unidad_bd'])}, {sql(v['marca'])}, {sql(v['modelo'])}, {v['anio']}, {sql(v['placas'])}, {sql(v['color'])}, {sql(v['vin'])}, {sql(v['notas'])}, {sql('baja' if v['placas'] in BAJA else 'disponible')})"
-             for v in sorted(vehiculos.values(), key=lambda v: int(v['unidad'][2:]))) + ';')
-w('')
-w('insert into public.conductores (id, nombre, notas) values')
-w(',\n'.join(f"  ({sql(c['id'])}, {sql(c['nombre'])}, {sql(ORIGEN)})" for c in sorted(conductores.values(), key=lambda c: c['nombre'])) + ';')
-w('')
-w('-- Primero las finalizadas; las activas pasan el coche a "rentado".')
-w('insert into public.rentas (id, vehiculo_id, conductor_id, fecha_inicio, fecha_fin, tarifa_semanal, deposito, km_entrega, km_devolucion, estado, notas) values')
-w(',\n'.join(
-    f"  ({sql(r['id'])}, {sql(vehiculos[r['placas']]['id'])}, {sql(r['conductor']['id'])}, {sql(r['inicio'])}, {sql(r['fin'])}, "
-    f"{r['tarifa']}, {r['deposito']}, {r['km_entrega']}, {sql(r['km_devolucion'])}, {sql('activa' if r['activa'] else 'finalizada')}, {sql(r['notas'])})"
-    for r in sorted(rentas, key=lambda r: (r['activa'], r['inicio']))) + ';')
-w('')
-w('insert into public.registros_km (vehiculo_id, fecha, km, origen) values')
-w(',\n'.join(f"  ({sql(vehiculos[p]['id'])}, {sql(s)}, {k}, 'manual')" for p in sorted(lecturas) for s, k in lecturas[p]) + ';')
-w('')
-w('insert into public.servicios (id, vehiculo_id, tipo_servicio_id, fecha, km, notas, reinicia_contador)')
-w('select s.id::uuid, s.vehiculo_id::uuid, t.id, s.fecha::date, s.km, s.notas, t.reinicia_contador from (values')
-w(',\n'.join(f"  ({sql(s['id'])}, {sql(vehiculos[s['placas']]['id'])}, {sql(s['tipo'])}, {sql(s['fecha'])}, {s['km']}, {sql(s['notas'])})" for s in servicios))
-w(') s (id, vehiculo_id, tipo, fecha, km, notas) join public.tipos_servicio t on t.nombre = s.tipo;')
-w('')
-w('-- Semanas de renta con el mismo concepto que usa generar_cargos, para que no las vuelva a crear.')
-w('insert into public.cargos (renta_id, tipo, fecha, periodo_inicio, periodo_fin, monto, concepto) values')
-cargos_sql = []
-for r in rentas:
-    for c in r['cargos']:
-        n = (c['semana'] - r['inicio']).days // 7 + 1
-        cargos_sql.append(f"  ({sql(r['id'])}, 'renta', {sql(c['semana'])}, {sql(c['semana'])}, {sql(c['semana'] + timedelta(6))}, {c['monto']}, 'Renta semana {n}')")
-    if r['danio']:
-        cargos_sql.append(f"  ({sql(r['id'])}, 'danio', {sql(r['danio']['semana'])}, null, null, {r['danio']['monto']}, 'Reparación pendiente según concentrado')")
-    if r['ajuste'] < 0:
-        cargos_sql.append(f"  ({sql(r['id'])}, 'otro', {sql(r['fecha_ajuste'])}, null, null, {-r['ajuste']}, 'Ajuste por importación: deuda anotada en el concentrado')")
-w(',\n'.join(cargos_sql) + ';')
-w('')
-w('insert into public.pagos (renta_id, fecha, monto, metodo, notas, registrado_por)')
-w("select p.renta_id::uuid, p.fecha::date, p.monto, 'efectivo', p.notas,")
-w("       (select id from public.usuarios where rol in ('superadmin', 'admin') and activo order by creado_en limit 1) from (values")
-pagos_sql = []
-for r in rentas:
-    for c in r['cargos']:
-        if c['pagado']:
+if __name__ == '__main__':
+    # ------------------------------------------------------------
+    # SQL
+    # ------------------------------------------------------------
+
+    L = []
+    w = L.append
+    w(f'-- Historial importado de "{EXCEL.name}" ({SEMANAS[0]} a {ULTIMA}).')
+    w('-- Generado por supabase/historial/importar_concentrado.py: no editar a mano, volver a generarlo.')
+    w('-- Requiere un admin activo (los pagos quedan registrados a su nombre) y una base sin estos coches.')
+    w('-- Todo va en un solo bloque: el SQL Editor de Supabase no respeta begin/commit y guardaría la carga a medias.')
+    w('do $$ begin')
+    w("perform set_config('app.accion', 'Importó historial del concentrado', true);")
+    w("if not exists (select 1 from public.usuarios where rol in ('superadmin', 'admin') and activo) then")
+    w("  raise exception 'Primero da de alta y activa un admin (ver supabase/README.md)';")
+    w('end if;')
+    w('')
+    w('insert into public.vehiculos (id, unidad, marca, modelo, anio, placas, color, vin, notas, estado) values')
+    w(',\n'.join(f"  ({sql(v['id'])}, {sql(v['unidad_bd'])}, {sql(v['marca'])}, {sql(v['modelo'])}, {v['anio']}, {sql(v['placas'])}, {sql(v['color'])}, {sql(v['vin'])}, {sql(v['notas'])}, {sql('baja' if v['placas'] in BAJA else 'disponible')})"
+                 for v in sorted(vehiculos.values(), key=lambda v: int(v['unidad'][2:]))) + ';')
+    w('')
+    w('insert into public.conductores (id, nombre, notas) values')
+    w(',\n'.join(f"  ({sql(c['id'])}, {sql(c['nombre'])}, {sql(ORIGEN)})" for c in sorted(conductores.values(), key=lambda c: c['nombre'])) + ';')
+    w('')
+    w('-- Primero las finalizadas; las activas pasan el coche a "rentado".')
+    w('insert into public.rentas (id, vehiculo_id, conductor_id, fecha_inicio, fecha_fin, tarifa_semanal, deposito, km_entrega, km_devolucion, estado, notas) values')
+    w(',\n'.join(
+        f"  ({sql(r['id'])}, {sql(vehiculos[r['placas']]['id'])}, {sql(r['conductor']['id'])}, {sql(r['inicio'])}, {sql(r['fin'])}, "
+        f"{r['tarifa']}, {r['deposito']}, {r['km_entrega']}, {sql(r['km_devolucion'])}, {sql('activa' if r['activa'] else 'finalizada')}, {sql(r['notas'])})"
+        for r in sorted(rentas, key=lambda r: (r['activa'], r['inicio']))) + ';')
+    w('')
+    w('insert into public.registros_km (vehiculo_id, fecha, km, origen) values')
+    w(',\n'.join(f"  ({sql(vehiculos[p]['id'])}, {sql(s)}, {k}, 'manual')" for p in sorted(lecturas) for s, k in lecturas[p]) + ';')
+    w('')
+    w('insert into public.servicios (id, vehiculo_id, tipo_servicio_id, fecha, km, notas, reinicia_contador)')
+    w('select s.id::uuid, s.vehiculo_id::uuid, t.id, s.fecha::date, s.km, s.notas, t.reinicia_contador from (values')
+    w(',\n'.join(f"  ({sql(s['id'])}, {sql(vehiculos[s['placas']]['id'])}, {sql(s['tipo'])}, {sql(s['fecha'])}, {s['km']}, {sql(s['notas'])})" for s in servicios))
+    w(') s (id, vehiculo_id, tipo, fecha, km, notas) join public.tipos_servicio t on t.nombre = s.tipo;')
+    w('')
+    w('-- Semanas de renta con el mismo concepto que usa generar_cargos, para que no las vuelva a crear.')
+    w('insert into public.cargos (renta_id, tipo, fecha, periodo_inicio, periodo_fin, monto, concepto) values')
+    cargos_sql = []
+    for r in rentas:
+        for c in r['cargos']:
             n = (c['semana'] - r['inicio']).days // 7 + 1
-            pagos_sql.append(f"  ({sql(r['id'])}, {sql(c['semana'])}, {c['monto']}, {sql(f'Semana {n} marcada PAGADO en el concentrado (método no registrado).')})")
-    if r['ajuste'] > 0:
-        pagos_sql.append(f"  ({sql(r['id'])}, {sql(r['fecha_ajuste'])}, {r['ajuste']}, 'Ajuste por importación: abonos que el concentrado no detalla semana a semana.')")
-w(',\n'.join(pagos_sql))
-w(') p (renta_id, fecha, monto, notas);')
-w('')
-w('end $$;')
-(AQUI / 'concentrado.sql').write_text('\n'.join(L) + '\n', encoding='utf-8')
+            cargos_sql.append(f"  ({sql(r['id'])}, 'renta', {sql(c['semana'])}, {sql(c['semana'])}, {sql(c['semana'] + timedelta(6))}, {c['monto']}, 'Renta semana {n}')")
+        if r['danio']:
+            cargos_sql.append(f"  ({sql(r['id'])}, 'danio', {sql(r['danio']['semana'])}, null, null, {r['danio']['monto']}, 'Reparación pendiente según concentrado')")
+        if r['ajuste'] < 0:
+            cargos_sql.append(f"  ({sql(r['id'])}, 'otro', {sql(r['fecha_ajuste'])}, null, null, {-r['ajuste']}, 'Ajuste por importación: deuda anotada en el concentrado')")
+    w(',\n'.join(cargos_sql) + ';')
+    w('')
+    w('insert into public.pagos (renta_id, fecha, monto, metodo, notas, registrado_por)')
+    w("select p.renta_id::uuid, p.fecha::date, p.monto, 'efectivo', p.notas,")
+    w("       (select id from public.usuarios where rol in ('superadmin', 'admin') and activo order by creado_en limit 1) from (values")
+    pagos_sql = []
+    for r in rentas:
+        for c in r['cargos']:
+            if c['pagado']:
+                n = (c['semana'] - r['inicio']).days // 7 + 1
+                pagos_sql.append(f"  ({sql(r['id'])}, {sql(c['semana'])}, {c['monto']}, {sql(f'Semana {n} marcada PAGADO en el concentrado (método no registrado).')})")
+        if r['ajuste'] > 0:
+            pagos_sql.append(f"  ({sql(r['id'])}, {sql(r['fecha_ajuste'])}, {r['ajuste']}, 'Ajuste por importación: abonos que el concentrado no detalla semana a semana.')")
+    w(',\n'.join(pagos_sql))
+    w(') p (renta_id, fecha, monto, notas);')
+    w('')
+    w('end $$;')
+    (AQUI / 'concentrado.sql').write_text('\n'.join(L) + '\n', encoding='utf-8')
 
-# ------------------------------------------------------------
-# Valores esperados y reporte
-# ------------------------------------------------------------
+    # ------------------------------------------------------------
+    # Valores esperados y reporte
+    # ------------------------------------------------------------
 
-esperado = {
-    'ultima_semana': ULTIMA.isoformat(),
-    'conteos': {
-        'vehiculos': len(vehiculos), 'conductores': len(conductores), 'rentas': len(rentas),
-        'rentas_activas': sum(r['activa'] for r in rentas), 'servicios': len(servicios),
-        'registros_km': sum(len(v) for v in lecturas.values()),
-    },
-    'rentas': {r['id']: str(r['objetivo']) for r in rentas},
-    'rentados': sorted(vehiculos[r['placas']]['id'] for r in rentas if r['activa']),
-    'km_actual': {v['id']: (lecturas[p][-1][1] if lecturas[p] else 0) for p, v in vehiculos.items()},
-}
-(AQUI / 'esperado.json').write_text(json.dumps(esperado, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+    esperado = {
+        'ultima_semana': ULTIMA.isoformat(),
+        'conteos': {
+            'vehiculos': len(vehiculos), 'conductores': len(conductores), 'rentas': len(rentas),
+            'rentas_activas': sum(r['activa'] for r in rentas), 'servicios': len(servicios),
+            'registros_km': sum(len(v) for v in lecturas.values()),
+        },
+        'rentas': {r['id']: str(r['objetivo']) for r in rentas},
+        'rentados': sorted(vehiculos[r['placas']]['id'] for r in rentas if r['activa']),
+        'km_actual': {v['id']: (lecturas[p][-1][1] if lecturas[p] else 0) for p, v in vehiculos.items()},
+    }
+    (AQUI / 'esperado.json').write_text(json.dumps(esperado, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
 
-pesos = lambda x: f'${x:,.2f}'
-R = []
-w = R.append
-w('# Importación del concentrado de rentas')
-w('')
-w(f'Fuente: `{EXCEL.name}`, {len(SEMANAS)} semanas ({SEMANAS[0]:%d/%m/%Y} a {ULTIMA:%d/%m/%Y}). Generado por `importar_concentrado.py`.')
-w('')
-c = esperado['conteos']
-w(f"- {c['vehiculos']} vehículos, {c['conductores']} conductores, {c['rentas']} rentas ({c['rentas_activas']} activas)")
-w(f"- {len(cargos_sql)} cargos, {len(pagos_sql)} pagos, {c['registros_km']} lecturas de km, {c['servicios']} servicios")
-w(f"- Saldo total por cobrar: {pesos(sum(r['objetivo'] for r in rentas))}")
-w('')
-w('## Rentas')
-w('')
-w('"Según semanas" es lo que debería si solo contaran las marcas PAGADO / NO PAGADO. "Saldo final" es lo que dicen las notas de deuda y es lo que queda en la base; la diferencia entra como ajuste (abono si es positiva, cargo si es negativa).')
-w('')
-w('| Unidad | Placas | Conductor | Inicio | Fin | Semanas | Tarifa | Según semanas | Saldo final | Ajuste |')
-w('|---|---|---|---|---|---|---|---|---|---|')
-for r in sorted(rentas, key=lambda r: (int(r['unidad'][2:]), r['inicio'])):
-    w(f"| {r['unidad']} | {r['placas']} | {r['conductor']['nombre']} | {r['inicio']:%d/%m} | {f'{r['fin']:%d/%m}' if r['fin'] else 'activa'} | {len(r['cargos'])} | "
-      f"{pesos(r['tarifa'])} | {pesos(r['saldo_semanas'])} | {pesos(r['objetivo'])} | {pesos(r['ajuste']) if r['ajuste'] else '—'} |")
-w('')
-w('## Servicios')
-w('')
-for s in servicios:
-    w(f"- {vehiculos[s['placas']]['unidad']} ({s['placas']}), {s['fecha']:%d/%m}: {s['tipo']} a {s['km']:,} km. {s['notas']}")
-w('')
-w('## Para revisar')
-w('')
-for a in avisos:
-    w(f'- {a}')
-sin_renta = [c['nombre'] for k, c in conductores.items() if not any(r['conductor'] is c for r in rentas)]
-if sin_renta:
-    w(f"- Conductores anotados sin semanas rentadas (se dieron de alta sin renta): {', '.join(sin_renta)}.")
-w('- Los pagos se registraron como **efectivo**: el concentrado no dice el método.')
-w('- El depósito de las rentas finalizadas quedó como **retenido**: el concentrado no dice si se devolvió o se aplicó.')
-w('- Las rentas que ya existían al iniciar el concentrado empiezan el 13/07/2026; lo anterior no está en el archivo.')
-w('- Las notas de "Abono semana actual" (columna P) no se usan: el ajuste ya refleja los abonos parciales.')
-w('- Los avisos sin monto ("Mantenimiento 10,000", "Programar mantenimiento…", "faltan 500 deposito") quedaron en las notas de la renta.')
-(AQUI / 'REPORTE.md').write_text('\n'.join(R) + '\n', encoding='utf-8')
+    pesos = lambda x: f'${x:,.2f}'
+    R = []
+    w = R.append
+    w('# Importación del concentrado de rentas')
+    w('')
+    w(f'Fuente: `{EXCEL.name}`, {len(SEMANAS)} semanas ({SEMANAS[0]:%d/%m/%Y} a {ULTIMA:%d/%m/%Y}). Generado por `importar_concentrado.py`.')
+    w('')
+    c = esperado['conteos']
+    w(f"- {c['vehiculos']} vehículos, {c['conductores']} conductores, {c['rentas']} rentas ({c['rentas_activas']} activas)")
+    w(f"- {len(cargos_sql)} cargos, {len(pagos_sql)} pagos, {c['registros_km']} lecturas de km, {c['servicios']} servicios")
+    w(f"- Saldo total por cobrar: {pesos(sum(r['objetivo'] for r in rentas))}")
+    w('')
+    w('## Rentas')
+    w('')
+    w('"Según semanas" es lo que debería si solo contaran las marcas PAGADO / NO PAGADO. "Saldo final" es lo que dicen las notas de deuda y es lo que queda en la base; la diferencia entra como ajuste (abono si es positiva, cargo si es negativa).')
+    w('')
+    w('| Unidad | Placas | Conductor | Inicio | Fin | Semanas | Tarifa | Según semanas | Saldo final | Ajuste |')
+    w('|---|---|---|---|---|---|---|---|---|---|')
+    for r in sorted(rentas, key=lambda r: (int(r['unidad'][2:]), r['inicio'])):
+        w(f"| {r['unidad']} | {r['placas']} | {r['conductor']['nombre']} | {r['inicio']:%d/%m} | {f'{r['fin']:%d/%m}' if r['fin'] else 'activa'} | {len(r['cargos'])} | "
+          f"{pesos(r['tarifa'])} | {pesos(r['saldo_semanas'])} | {pesos(r['objetivo'])} | {pesos(r['ajuste']) if r['ajuste'] else '—'} |")
+    w('')
+    w('## Servicios')
+    w('')
+    for s in servicios:
+        w(f"- {vehiculos[s['placas']]['unidad']} ({s['placas']}), {s['fecha']:%d/%m}: {s['tipo']} a {s['km']:,} km. {s['notas']}")
+    w('')
+    w('## Para revisar')
+    w('')
+    for a in avisos:
+        w(f'- {a}')
+    sin_renta = [c['nombre'] for k, c in conductores.items() if not any(r['conductor'] is c for r in rentas)]
+    if sin_renta:
+        w(f"- Conductores anotados sin semanas rentadas (se dieron de alta sin renta): {', '.join(sin_renta)}.")
+    w('- Los pagos se registraron como **efectivo**: el concentrado no dice el método.')
+    w('- El depósito de las rentas finalizadas quedó como **retenido**: el concentrado no dice si se devolvió o se aplicó.')
+    w('- Las rentas que ya existían al iniciar el concentrado empiezan el 13/07/2026; lo anterior no está en el archivo.')
+    w('- Las notas de "Abono semana actual" (columna P) no se usan: el ajuste ya refleja los abonos parciales.')
+    w('- Los avisos sin monto ("Mantenimiento 10,000", "Programar mantenimiento…", "faltan 500 deposito") quedaron en las notas de la renta.')
+    (AQUI / 'REPORTE.md').write_text('\n'.join(R) + '\n', encoding='utf-8')
 
-print(f"{c['vehiculos']} vehículos, {c['conductores']} conductores, {c['rentas']} rentas, {len(cargos_sql)} cargos, {len(pagos_sql)} pagos, "
-      f"{c['registros_km']} km, {c['servicios']} servicios, {len(avisos)} avisos")
+    print(f"{c['vehiculos']} vehículos, {c['conductores']} conductores, {c['rentas']} rentas, {len(cargos_sql)} cargos, {len(pagos_sql)} pagos, "
+          f"{c['registros_km']} km, {c['servicios']} servicios, {len(avisos)} avisos")

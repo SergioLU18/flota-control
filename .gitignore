@@ -7,3 +7,7 @@ dist
 supabase/historial/concentrado.sql
 supabase/historial/esperado.json
 supabase/historial/REPORTE.md
+supabase/historial/sincronizacion.sql
+supabase/historial/sincronizacion_prueba.sql
+supabase/historial/SINCRONIZACION.md
+__pycache__/
