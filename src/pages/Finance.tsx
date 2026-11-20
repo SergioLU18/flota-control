@@ -63,7 +63,8 @@ export default function Finance() {
         <Stat label="Ingresos cobrados" value={mxn(st.income)} hint={`de ${mxn(st.charged)} cargado (${st.charged ? pct(st.income / st.charged) : '—'} cobrado)`} icon="trend" />
         <Stat label="Gastos operativos" value={mxn(st.expenses)} icon="wallet" />
         <Stat label="Utilidad operativa" value={mxn(st.profit)} tone={st.profit >= 0 ? 'green' : 'red'} hint={`Margen ${pct(st.margin)}`} icon="chart" />
-        <Stat label="Compra de coches" value={mxn(st.purchases)} hint="Inversión del periodo; no se cuenta como gasto" icon="car" />
+        <Stat label="Compra de coches" value={mxn(st.purchases)} icon="car"
+          hint={st.undatedPurchases ? `Inversión del periodo; ${st.undatedPurchases} coches con precio pero sin fecha de compra no se cuentan` : 'Inversión del periodo; no se cuenta como gasto'} />
       </div>
 
       <Tabs value={tab} onChange={setTab} tabs={[['resultados', 'Estado de resultados'], ['coches', 'Rentabilidad por coche'], ['gastos', 'Gastos']]} />

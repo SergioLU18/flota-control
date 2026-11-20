@@ -5,7 +5,7 @@ import { BackLink, Badge, Card, Empty, Lightbox, Modal, PageHeader, Photo, Progr
 import { EndRentalForm, IncidentForm, MileageForm, RetireVehicleForm, ServiceForm, StartRentalForm, TIRE_LABEL, VehicleForm } from '../components/forms'
 import { DeleteKm } from './Maintenance'
 import { activeRentalOf, maintenanceStatus, rentalBalance, vehicleBalance, MAINTENANCE_INTERVAL } from '../lib/calc'
-import { vehicleRecovery } from '../lib/finance'
+import { fleetSince, vehicleRecovery } from '../lib/finance'
 import { fecha, fuelLabel, km, mxn } from '../lib/format'
 import type { PhotoRef } from '../data/types'
 import { can } from '../data/permissions'
@@ -31,7 +31,7 @@ export default function VehicleDetail() {
 
   const r = activeRentalOf(data, v.id)
   const driver = r && L.driver(r.driverId)
-  const m = maintenanceStatus(v, data.services)
+  const m = maintenanceStatus(v, data.services, data.mileage)
   const gps = data.gps.find((g) => g.vehicleId === v.id)
   const rentals = data.rentals.filter((x) => x.vehicleId === v.id).sort((a, b) => (a.startDate < b.startDate ? 1 : -1))
   const services = data.services.filter((s) => s.vehicleId === v.id).sort((a, b) => b.km - a.km)
@@ -54,7 +54,7 @@ export default function VehicleDetail() {
     ...services.map((s) => ({ date: s.date, icon: 'wrench' as IconName, text: <>{s.type} en {s.shop} · {km(s.km)} · {mxn(s.cost)}</> })),
     ...incidents.map((i) => ({ date: i.date, icon: 'alert' as IconName, text: <>{i.type}: {i.description} ({mxn(i.cost)})</> })),
     ...inspections.map((i) => ({ date: i.date, icon: 'camera' as IconName, text: <>Inspección de {i.kind === 'entrega' ? 'entrega' : 'recepción'} · {i.photos.length} fotos · combustible {fuelLabel(i.fuel)}</> })),
-    { date: v.purchaseDate, icon: 'car' as IconName, text: <>Alta en la flota{seesFinance ? ` · compra ${mxn(v.purchasePrice)}` : ''}</> },
+    { date: fleetSince(v), icon: 'car' as IconName, text: <>{v.purchaseDate ? 'Compra' : 'Alta en el sistema'}{seesFinance && v.purchasePrice ? ` · ${mxn(v.purchasePrice)}` : ''}</> },
   ].sort((a, b) => (a.date < b.date ? 1 : -1))
 
   const tabs: [Tab, string][] = [
@@ -111,7 +111,7 @@ export default function VehicleDetail() {
               <dt>Km capturado</dt><dd><CapturedKm currentKm={v.currentKm} date={lastReading(data.mileage, v.id)} inline /></dd>
               <dt>Km Orión</dt><dd>{gps ? <OrionKm g={gps} currentKm={v.currentKm} inline /> : <span className="muted">Sin equipo GPS</span>}</dd>
               {gps && <><dt>GPS</dt><dd><StatusBadge value={gps.status} /> <span className="small muted">{hace(gps.reportedAt)}</span></dd></>}
-              <dt>Último servicio</dt><dd>{m.last ? `${fecha(m.last.date)} · ${km(m.last.km)}` : '—'}</dd>
+              <dt>Último servicio</dt><dd>{m.last ? `${fecha(m.last.date)} · ${km(m.last.km)}` : <span className="warn">Ninguno registrado{m.fromFirstReading && ` · cuenta desde ${km(m.baseKm)}`}</span>}</dd>
               <dt>Próximo servicio</dt><dd>{km(m.nextKm)} <StatusBadge value={m.level} /></dd>
             </dl>
           </Card>
@@ -216,7 +216,7 @@ export default function VehicleDetail() {
         return (
           <>
             <div className="stats">
-              <Stat label="Ingresos cobrados" value={mxn(f.income)} hint={`desde la compra (${fecha(v.purchaseDate)})`} icon="trend" />
+              <Stat label="Ingresos cobrados" value={mxn(f.income)} hint={v.purchaseDate ? `desde la compra (${fecha(v.purchaseDate)})` : `desde ${fecha(fleetSince(v))} · captura la fecha de compra para precisarlo`} icon="trend" />
               <Stat label="Costos" value={mxn(f.costs)} hint={`Mantenimiento ${mxn(f.maintenance)} · incidentes ${mxn(f.incidents)} · seguro, refrendo y GPS ${mxn(f.other)}`} icon="wrench" />
               <Stat label="Utilidad acumulada" value={mxn(f.profit)} tone={f.profit >= 0 ? 'green' : 'red'} hint={`${mxn(f.profitPerMonth)} al mes · ocupación ${Math.round(f.occupancy * 100)}%`} icon="chart" />
               <Stat label="Recuperado del costo" value={v.purchasePrice ? `${Math.round(f.recovered * 100)}%` : '—'} icon="clock"

@@ -53,7 +53,7 @@ export default function Vehicles() {
         v,
         rental: r,
         driver: r && data.drivers.find((d) => d.id === r.driverId),
-        m: maintenanceStatus(v, data.services),
+        m: maintenanceStatus(v, data.services, data.mileage),
         balance: vehicleBalance(data, v.id).balance,
       }
     })

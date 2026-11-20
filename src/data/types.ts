@@ -41,7 +41,13 @@ export interface Vehicle {
   status: VehicleStatus
   notes: string
   purchasePrice: number
+  /** Fecha de compra capturada; vacía si no se conoce (no se inventa). */
   purchaseDate: string
+  /**
+   * Desde cuándo está en la flota, para ocupación y rentabilidad: la fecha de compra o, sin ella, lo primero que
+   * se sabe del coche (su alta en el sistema o su primera renta, lo que sea antes).
+   */
+  inFleetSince?: string
   orionDeviceId?: string
   tires: Tire[]
 }

@@ -1,5 +1,5 @@
 // Reglas de negocio derivadas. En producción vivirían en el backend (servicios/consultas SQL).
-import type { Data, Driver, Rental, Service, Vehicle } from '../data/types'
+import type { Data, Driver, MileageRecord, Rental, Service, Vehicle } from '../data/types'
 import { CURRENT_MONDAY, TODAY, addDays, diffDays, fecha } from './format'
 
 export const MAINTENANCE_INTERVAL = 10000
@@ -35,7 +35,15 @@ const balanceOf = (d: Data, rentals: Rental[]) => {
 
 export const driverBalance = (d: Data, driverId: string) => balanceOf(d, d.rentals.filter((r) => r.driverId === driverId))
 export const vehicleBalance = (d: Data, vehicleId: string) => balanceOf(d, d.rentals.filter((r) => r.vehicleId === vehicleId))
-export const globalBalance = (d: Data) => balanceOf(d, d.rentals)
+/**
+ * Totales de la flota. `balance` es el neto (cargado − pagado); `debt` suma solo lo que deben los conductores con
+ * saldo en contra y `credit` lo que tienen a favor los que pagaron de más: un adelanto no reduce la deuda de otro.
+ */
+export const globalBalance = (d: Data) => {
+  const total = balanceOf(d, d.rentals)
+  const byDriver = d.drivers.map((dr) => driverBalance(d, dr.id).balance)
+  return { ...total, debt: sum(byDriver.filter((b) => b > 0)), credit: -sum(byDriver.filter((b) => b < 0)) }
+}
 
 export const activeRentalOf = (d: Data, vehicleId: string) => d.rentals.find((r) => r.vehicleId === vehicleId && r.status === 'activa')
 export const activeRentalOfDriver = (d: Data, driverId: string) => d.rentals.find((r) => r.driverId === driverId && r.status === 'activa')
@@ -46,20 +54,41 @@ export const weekIncome = (d: Data) => incomeBetween(d, CURRENT_MONDAY, addDays(
 export const monthIncome = (d: Data) => incomeBetween(d, TODAY.slice(0, 8) + '01', TODAY)
 
 export type MaintLevel = 'ok' | 'proximo' | 'vencido'
-export function maintenanceStatus(v: Vehicle, services: Service[]) {
+/**
+ * Km desde el último servicio que reinicia el contador. Si el coche no tiene ninguno registrado y se pasan las
+ * lecturas de km, cuenta desde la primera lectura (no desde 0: un coche que llegó con 80,000 km no está "vencido").
+ */
+export function maintenanceStatus(v: Vehicle, services: Service[], mileage?: MileageRecord[]) {
   const last = services
     .filter((s) => s.vehicleId === v.id && s.resetsCounter)
     .sort((a, b) => b.km - a.km)[0]
-  const baseKm = last?.km ?? 0
+  const first = !last && mileage ? Math.min(...mileage.filter((m) => m.vehicleId === v.id).map((m) => m.km)) : Infinity
+  const fromFirstReading = !last && Number.isFinite(first)
+  const baseKm = last?.km ?? (fromFirstReading ? first : 0)
   const since = v.currentKm - baseKm
   const level: MaintLevel = since >= MAINTENANCE_INTERVAL ? 'vencido' : since >= MAINTENANCE_WARN ? 'proximo' : 'ok'
-  return { last, since, remaining: MAINTENANCE_INTERVAL - since, nextKm: baseKm + MAINTENANCE_INTERVAL, level }
+  return { last, since, remaining: MAINTENANCE_INTERVAL - since, nextKm: baseKm + MAINTENANCE_INTERVAL, level, fromFirstReading, baseKm }
 }
 
-export type LicenseLevel = 'ok' | 'por_vencer' | 'vencida'
+export type LicenseLevel = 'ok' | 'por_vencer' | 'vencida' | 'sin_fecha'
 export function licenseStatus(dr: Driver): LicenseLevel {
+  if (!dr.licenseExpires) return 'sin_fecha'
   const days = diffDays(dr.licenseExpires, TODAY)
   return days < 0 ? 'vencida' : days <= 30 ? 'por_vencer' : 'ok'
+}
+
+/** Lo que conviene revisar antes de entregarle un coche a ese conductor (avisos, no bloqueos). */
+export function driverWarnings(d: Data, dr: Driver): string[] {
+  const out: string[] = []
+  const ls = licenseStatus(dr)
+  if (ls === 'vencida') out.push(`Licencia vencida (${fecha(dr.licenseExpires)})`)
+  else if (ls === 'por_vencer') out.push(`La licencia vence el ${fecha(dr.licenseExpires)}`)
+  else if (ls === 'sin_fecha') out.push('No tiene capturada la vigencia de la licencia')
+  const missing = dr.documents.filter((x) => !x.uploaded).length
+  if (missing) out.push(`Le faltan ${missing} documento${missing > 1 ? 's' : ''} del expediente`)
+  const bal = driverBalance(d, dr.id).balance
+  if (bal > 0) out.push(`Debe ${Math.round(bal).toLocaleString('es-MX')} MXN de rentas anteriores`)
+  return out
 }
 
 /** Coches que siguen en la flota (los dados de baja solo cuentan para historial y finanzas). */
@@ -69,7 +98,7 @@ export const inFleet = (v: Vehicle) => v.status !== 'baja'
 export function alerts(d: Data) {
   const out: { level: 'alta' | 'media'; text: string; to: string }[] = []
   d.vehicles.filter(inFleet).forEach((v) => {
-    const m = maintenanceStatus(v, d.services)
+    const m = maintenanceStatus(v, d.services, d.mileage)
     if (m.level === 'vencido') out.push({ level: 'alta', text: `${carName(v)} ${v.plates}: servicio vencido (${m.since.toLocaleString('es-MX')} km desde el último)`, to: `/flota/${v.id}` })
     else if (m.level === 'proximo') out.push({ level: 'media', text: `${carName(v)} ${v.plates}: servicio en ${m.remaining.toLocaleString('es-MX')} km`, to: `/flota/${v.id}` })
   })
@@ -78,6 +107,7 @@ export function alerts(d: Data) {
     const ls = licenseStatus(dr)
     if (active && ls === 'vencida') out.push({ level: 'alta', text: `${dr.name}: licencia vencida y tiene coche asignado`, to: `/conductores/${dr.id}` })
     else if (active && ls === 'por_vencer') out.push({ level: 'media', text: `${dr.name}: licencia vence el ${fecha(dr.licenseExpires)}`, to: `/conductores/${dr.id}` })
+    else if (active && ls === 'sin_fecha') out.push({ level: 'media', text: `${dr.name}: tiene coche y no tiene capturada la vigencia de su licencia`, to: `/conductores/${dr.id}` })
     const bal = driverBalance(d, dr.id).balance
     // "Más de una semana" con la tarifa de su renta activa, o de la última si ya devolvió el coche.
     const last = active ?? d.rentals.filter((r) => r.driverId === dr.id).sort((a, b) => (a.startDate < b.startDate ? 1 : -1))[0]

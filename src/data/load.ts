@@ -105,12 +105,24 @@ export async function loadData(): Promise<Data> {
     }])
   })
 
+  const firstRental = new Map<string, string>()
+  rentas.forEach((r) => {
+    const cur = firstRental.get(r.vehiculo_id)
+    if (!cur || r.fecha_inicio < cur) firstRental.set(r.vehiculo_id, r.fecha_inicio)
+  })
+  const since = (v: { id: string; fecha_compra: string | null; creado_en: string }) => {
+    if (v.fecha_compra) return v.fecha_compra
+    const alta = v.creado_en.slice(0, 10)
+    const renta = firstRental.get(v.id)
+    return renta && renta < alta ? renta : alta
+  }
+
   return {
     users: usuarios.map(toUser),
     vehicles: vehiculos.map((v) => ({
       id: v.id, unit: v.unidad ?? undefined, brand: v.marca, model: v.modelo, year: v.anio, plates: v.placas, color: v.color, vin: v.vin ?? '',
       currentKm: v.km_actual, status: v.estado as Data['vehicles'][number]['status'], notes: v.notas,
-      purchasePrice: precio.get(v.id) ?? 0, purchaseDate: v.fecha_compra ?? v.creado_en.slice(0, 10),
+      purchasePrice: precio.get(v.id) ?? 0, purchaseDate: v.fecha_compra ?? '', inFleetSince: since(v),
       orionDeviceId: v.orion_equipo_id ?? undefined, tires: tiresByVehicle.get(v.id) ?? [],
     })),
     drivers: conductores.map((c): Driver => ({

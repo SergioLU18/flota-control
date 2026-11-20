@@ -57,7 +57,8 @@ export default function DriverDetail() {
   ].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : b.charge - a.charge))
   let run = 0
   const ledger = moves.map((m) => ({ ...m, balance: (run += m.charge - m.payment) }))
-  const months = [...new Set(ledger.map((m) => m.date.slice(0, 7)))].sort().reverse()
+  // El mes actual siempre está en la lista (es el que se elige al abrir), aunque todavía no tenga movimientos.
+  const months = [...new Set([TODAY.slice(0, 7), ...ledger.map((m) => m.date.slice(0, 7))])].sort().reverse()
   const opening = ledger.filter((m) => m.date.slice(0, 7) < month).at(-1)?.balance ?? 0
   const monthRows = ledger.filter((m) => m.date.slice(0, 7) === month)
 
@@ -72,8 +73,9 @@ export default function DriverDetail() {
         actions={<>
           <button className="btn" onClick={() => setModal('edit')}>Editar</button>
           {rentals.length > 0 && <button className="btn" onClick={() => setModal('charge')}>Agregar cargo</button>}
-          {active ? <button className="btn btn-primary" onClick={() => setModal('pay')}>Registrar pago</button>
-            : <button className="btn btn-primary" onClick={() => setModal('rent')}>Asignar coche</button>}
+          {/* Sin coche pero con adeudo de una renta anterior: también se le cobra desde aquí. */}
+          {(active || bal.balance > 0) && <button className={`btn ${active ? 'btn-primary' : ''}`} onClick={() => setModal('pay')}>Registrar pago</button>}
+          {!active && <button className="btn btn-primary" onClick={() => setModal('rent')}>Asignar coche</button>}
         </>} />
 
       {notice && <div className="banner banner-green" onClick={() => setNotice('')}>{notice}</div>}
@@ -81,7 +83,8 @@ export default function DriverDetail() {
         <Stat label="Saldo / adeudo" value={mxn(bal.balance)} tone={bal.balance > 0 ? 'red' : 'green'} icon="wallet" />
         <Stat label="Total pagado" value={mxn(bal.paid)} icon="cash" />
         <Stat label="Coche actual" value={active ? L.vehicle(active.vehicleId).plates : '—'} hint={active && <Link to={`/flota/${active.vehicleId}`}>{L.vehicle(active.vehicleId).brand} {L.vehicle(active.vehicleId).model}</Link>} icon="car" />
-        <Stat label="Licencia" value={fecha(d.licenseExpires)} tone={lic === 'vencida' ? 'red' : lic === 'por_vencer' ? 'amber' : undefined} hint={lic === 'vencida' ? 'Vencida' : lic === 'por_vencer' ? 'Vence en menos de 30 días' : 'Vigente'} icon="id" />
+        <Stat label="Licencia" value={fecha(d.licenseExpires)} tone={lic === 'vencida' ? 'red' : lic === 'por_vencer' || lic === 'sin_fecha' ? 'amber' : undefined}
+          hint={lic === 'vencida' ? 'Vencida' : lic === 'por_vencer' ? 'Vence en menos de 30 días' : lic === 'sin_fecha' ? 'Sin vigencia capturada: edita al conductor' : 'Vigente'} icon="id" />
       </div>
 
       <Tabs value={tab} onChange={setTab} tabs={[['expediente', 'Expediente'], ['rentas', `Coches rentados (${rentals.length})`], ['cuenta', 'Movimientos'], ['estado', 'Estado de cuenta mensual']]} />
@@ -190,13 +193,13 @@ export default function DriverDetail() {
         )}
       </Modal>
       <Modal open={modal === 'edit'} title="Editar conductor" onClose={() => setModal(null)} wide><DriverForm driver={d} onDone={() => setModal(null)} /></Modal>
-      <Modal open={modal === 'pay'} title="Registrar pago" onClose={() => setModal(null)}>{active && <PaymentForm rentalId={active.id} onDone={() => setModal(null)} />}</Modal>
+      <Modal open={modal === 'pay'} title="Registrar pago" onClose={() => setModal(null)}>{active ? <PaymentForm rentalId={active.id} onDone={() => setModal(null)} /> : <PaymentForm driverId={d.id} onDone={() => setModal(null)} />}</Modal>
       <Modal open={modal === 'charge'} title="Agregar cargo" onClose={() => setModal(null)}><ChargeForm driverId={d.id} onDone={() => setModal(null)} /></Modal>
       <Modal open={!!correcting} title="Corregir cargo" onClose={() => setCorrecting(null)}>{correcting && <CorrectChargeForm charge={correcting} onDone={() => setCorrecting(null)} />}</Modal>
       <Modal open={!!deposit} title="Resolver depósito" onClose={() => setDeposit(null)}>
         {deposit && <DepositForm rental={deposit} onDone={(applied) => { setDeposit(null); setNotice(applied ? `Se aplicaron ${mxn(applied)} del depósito al adeudo.` : 'Depósito actualizado.') }} />}
       </Modal>
-      <Modal open={modal === 'rent'} title="Asignar coche" onClose={() => setModal(null)}><StartRentalForm onDone={() => setModal(null)} /></Modal>
+      <Modal open={modal === 'rent'} title="Asignar coche" onClose={() => setModal(null)}><StartRentalForm driverId={d.id} onDone={() => setModal(null)} /></Modal>
     </>
   )
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
-import { Badge, Card, Field, Modal, PageHeader, Stat, StatusBadge, Tabs } from '../components/ui'
+import { Badge, Card, Field, Modal, PageHeader, ShowMore, Stat, StatusBadge, Tabs, norm, useShowMore } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { CorrectChargeForm, PaymentForm } from '../components/forms'
 import { carName, depositsHeld, driverBalance, globalBalance, monthIncome, vehicleBalance, weekIncome } from '../lib/calc'
@@ -32,8 +32,32 @@ export default function Billing() {
 
   const byDriver = data.drivers.map((d) => ({ d, ...driverBalance(data, d.id) })).filter((x) => x.charged > 0).sort((a, b) => b.balance - a.balance)
   const byVehicle = data.vehicles.map((v) => ({ v, ...vehicleBalance(data, v.id) })).filter((x) => x.charged > 0).sort((a, b) => b.balance - a.balance)
-  const payments = [...data.payments].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 60)
-  const charges = data.charges.filter((c) => c.date >= addDays(CURRENT_MONDAY, -7)).sort((a, b) => (a.date < b.date ? 1 : -1))
+  // Pagos y cargos: búsqueda por conductor, placas, unidad, notas o concepto, y rango de fechas.
+  const [pf, setPf] = useState({ q: '', from: '', to: '' })
+  const [cf, setCf] = useState({ q: '', from: addDays(CURRENT_MONDAY, -7), to: '' })
+  const who = (rentalId: string) => {
+    const r = L.rental(rentalId)
+    const v = L.vehicle(r.vehicleId)
+    return `${L.driver(r.driverId)?.name ?? ''} ${v.plates} ${v.unit ?? ''}`
+  }
+  const inRange = (date: string, f: { from: string; to: string }) => (!f.from || date >= f.from) && (!f.to || date <= f.to)
+  const payments = data.payments
+    .filter((p) => inRange(p.date, pf) && norm(`${who(p.rentalId)} ${p.notes ?? ''}`).includes(norm(pf.q.trim())))
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+  const charges = data.charges
+    .filter((c) => inRange(c.date, cf) && norm(`${who(c.rentalId)} ${c.concept}`).includes(norm(cf.q.trim())))
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+  const pMore = useShowMore(60, JSON.stringify(pf))
+  const cMore = useShowMore(60, JSON.stringify(cf))
+  // Función y no componente: un componente definido aquí se volvería a montar en cada tecla y el campo perdería el foco.
+  const filters = (f: { q: string; from: string; to: string }, set: (f: { q: string; from: string; to: string }) => void, placeholder: string) => (
+    <div className="toolbar toolbar-row">
+      <input className="search" placeholder={placeholder} value={f.q} onChange={(e) => set({ ...f, q: e.target.value })} />
+      <label className="field inline"><span>Desde</span><input type="date" value={f.from} onChange={(e) => set({ ...f, from: e.target.value })} /></label>
+      <label className="field inline"><span>Hasta</span><input type="date" value={f.to} onChange={(e) => set({ ...f, to: e.target.value })} /></label>
+      {(f.q || f.from || f.to) && <button className="btn btn-sm" onClick={() => set({ q: '', from: '', to: '' })}>Limpiar</button>}
+    </div>
+  )
 
   const exportAll = () => downloadCsv('historico-pagos.csv', [
     ['Fecha', 'Conductor', 'Coche', 'Monto', 'Método', 'Notas', 'Registró', 'Estado'],
@@ -62,7 +86,8 @@ export default function Billing() {
       <div className="stats" data-tour="indicadores">
         <Stat label="Cobrado esta semana" value={mxn(weekIncome(data))} icon="trend" tone="green" />
         <Stat label={`Cobrado en ${mes(TODAY.slice(0, 7))}`} value={mxn(monthIncome(data))} icon="calendar" />
-        <Stat label="Adeudo total" value={mxn(g.balance)} tone="red" icon="wallet" hint={`Depósitos en garantía: ${mxn(depositsHeld(data))}`} />
+        <Stat label="Adeudo total" value={mxn(g.debt)} tone="red" icon="wallet"
+          hint={<>{g.credit ? <>Saldos a favor: {mxn(g.credit)} · </> : null}Depósitos en garantía: {mxn(depositsHeld(data))}</>} />
         <Stat label="Histórico cobrado" value={mxn(g.paid)} hint={`de ${mxn(g.charged)} cargado`} icon="cash" />
       </div>
 
@@ -88,10 +113,11 @@ export default function Billing() {
       )}
 
       {tab === 'pagos' && (
-        <Card tour="pagos" title="Últimos pagos" actions={<button className="btn btn-sm" onClick={exportAll}><Icon name="download" />Histórico a Excel (CSV)</button>}>
+        <Card tour="pagos" title="Pagos" actions={<button className="btn btn-sm" onClick={exportAll}><Icon name="download" />Histórico a Excel (CSV)</button>}>
+          {filters(pf, setPf, 'Buscar por conductor, placas, unidad o notas…')}
           <div className="table-wrap"><table className="table compact">
             <thead><tr><th>Fecha</th><th>Conductor</th><th>Coche</th><th>Método</th><th className="num">Monto</th><th>Registró</th>{canVoid && <th></th>}</tr></thead>
-            <tbody>{payments.map((p) => {
+            <tbody>{payments.slice(0, pMore.n).map((p) => {
               const r = L.rental(p.rentalId)
               return (
                 <tr key={p.id} className={p.voided ? 'voided' : ''}>
@@ -107,14 +133,16 @@ export default function Billing() {
               )
             })}</tbody>
           </table></div>
+          <ShowMore shown={Math.min(pMore.n, payments.length)} total={payments.length} step={60} onMore={pMore.more} />
         </Card>
       )}
 
       {tab === 'cargos' && (
-        <Card tour="cargos" title="Cargos de la semana actual y la anterior">
+        <Card tour="cargos" title="Cargos">
+          {filters(cf, setCf, 'Buscar por conductor, placas, unidad o concepto…')}
           <div className="table-wrap"><table className="table compact">
             <thead><tr><th>Fecha</th><th>Conductor</th><th>Coche</th><th>Concepto</th><th className="num">Monto</th>{canCorrect && <th></th>}</tr></thead>
-            <tbody>{charges.map((c) => {
+            <tbody>{charges.slice(0, cMore.n).map((c) => {
               const r = L.rental(c.rentalId)
               return (
                 <tr key={c.id} className={c.voided ? 'voided' : ''}>
@@ -128,7 +156,8 @@ export default function Billing() {
               )
             })}</tbody>
           </table></div>
-          <p className="muted small">Los cargos por daños u otros se agregan desde el expediente del conductor o desde el incidente.</p>
+          <ShowMore shown={Math.min(cMore.n, charges.length)} total={charges.length} step={60} onMore={cMore.more} />
+          <p className="muted small">Por omisión se ven la semana actual y la anterior; cambia las fechas para buscar cargos más viejos. Los cargos por daños u otros se agregan desde el expediente del conductor o desde el incidente.</p>
         </Card>
       )}
 

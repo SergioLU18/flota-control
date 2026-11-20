@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
-import { Modal, PageHeader, StatusBadge, Tabs } from '../components/ui'
+import { Modal, PageHeader, ShowMore, StatusBadge, Tabs, norm, useShowMore } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { EditRentalForm, EndRentalForm, PaymentForm, StartRentalForm } from '../components/forms'
 import { carName, rentalBalance } from '../lib/calc'
@@ -18,7 +18,15 @@ export default function Rentals() {
   const [paying, setPaying] = useState<Rental | null>(null)
   const [editing, setEditing] = useState<Rental | null>(null)
 
-  const list = data.rentals.filter((r) => r.status === tab).sort((a, b) => (a.startDate < b.startDate ? 1 : -1))
+  const [q, setQ] = useState('')
+  const list = data.rentals
+    .filter((r) => r.status === tab)
+    .filter((r) => {
+      const v = L.vehicle(r.vehicleId)
+      return norm(`${L.driver(r.driverId)?.name ?? ''} ${v.plates} ${v.unit ?? ''} ${v.brand} ${v.model}`).includes(norm(q.trim()))
+    })
+    .sort((a, b) => (a.startDate < b.startDate ? 1 : -1))
+  const more = useShowMore(50, `${tab}|${q}`)
   const active = data.rentals.filter((r) => r.status === 'activa')
   const weekly = active.reduce((a, r) => a + r.weeklyRate, 0)
 
@@ -26,12 +34,15 @@ export default function Rentals() {
     <>
       <PageHeader module="rentas" title="Rentas" subtitle={`${active.length} activas · ${mxn(weekly)} por cobrar por semana`}
         actions={<button className="btn btn-primary" data-tour="btn-nueva-renta" onClick={() => setCreating(true)}><Icon name="plus" />Nueva renta</button>} />
-      <Tabs value={tab} onChange={setTab} tabs={[['activa', `Activas (${active.length})`], ['finalizada', 'Finalizadas']]} />
+      <div className="toolbar">
+        <Tabs value={tab} onChange={setTab} tabs={[['activa', `Activas (${active.length})`], ['finalizada', 'Finalizadas']]} />
+        <input className="search" placeholder="Buscar por conductor, placas, unidad o modelo…" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
       <div className="table-wrap card">
         <table className="table">
           <thead><tr><th>Coche</th><th>Conductor</th><th>Inicio</th>{tab === 'finalizada' && <th>Fin</th>}<th className="num">Tarifa / sem</th><th className="num">Depósito</th><th className="num">Saldo</th><th></th></tr></thead>
           <tbody>
-            {list.map((r, i) => {
+            {list.slice(0, more.n).map((r, i) => {
               const v = L.vehicle(r.vehicleId)
               const d = L.driver(r.driverId)!
               const bal = rentalBalance(data, r.id).balance
@@ -55,6 +66,7 @@ export default function Rentals() {
           </tbody>
         </table>
       </div>
+      <ShowMore shown={Math.min(more.n, list.length)} total={list.length} onMore={more.more} />
       <Modal open={creating} title="Nueva renta" onClose={() => setCreating(false)}><StartRentalForm onDone={() => setCreating(false)} /></Modal>
       <Modal open={!!ending} title="Finalizar renta" onClose={() => setEnding(null)}>{ending && <EndRentalForm rental={ending} onDone={() => setEnding(null)} />}</Modal>
       <Modal open={!!editing} title="Editar tarifa y depósito" onClose={() => setEditing(null)}>{editing && <EditRentalForm rental={editing} onDone={() => setEditing(null)} />}</Modal>

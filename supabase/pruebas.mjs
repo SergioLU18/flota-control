@@ -474,6 +474,23 @@ console.log('\nDepósito')
     const e = await intenta(() => q("select resolver_deposito($1, 'devuelto')", [renta]))
     ok(sigue === 9000 && aplicado === 5000 && despues === 4000 && /ya no está retenido/.test(e?.message), 'uno retenido se aplica después, una sola vez', e?.message)
   })
+  await como(OPERADOR, async () => {
+    const renta = await rentaDe3Semanas()
+    const pago = (monto) => insert('pagos', { renta_id: renta, fecha: '2026-11-01', monto, metodo: 'deposito' })
+    // Un error aborta la transacción de como(): cada intento fallido va en su savepoint.
+    const rechazado = async (monto) => {
+      await q('savepoint intento')
+      const e = await intenta(() => pago(monto))
+      await q(e ? 'rollback to savepoint intento' : 'release savepoint intento')
+      return e
+    }
+    const demasiado = await rechazado(6000)
+    await pago(3000)
+    const resto = await rechazado(2500)
+    await pago(2000)
+    ok(/solo tiene/.test(demasiado?.message) && /solo tiene/.test(resto?.message) && (await saldo(renta)) === 4000,
+      'un pago de depósito a mano nunca pasa de lo que queda del depósito', resto?.message)
+  })
 }
 
 console.log('\nCorrección de cargos')

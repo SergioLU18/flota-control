@@ -71,7 +71,7 @@ Los cambios que hacen las tareas automáticas (cargos de cada noche, Orión) apa
 
 **Qué hace**
 - Contacto: nombre, teléfono o WhatsApp, correo y domicilio.
-- Licencia: número y vigencia, con aviso si está vencida o vence en menos de 30 días.
+- Licencia: número y vigencia, con aviso si está vencida, vence en menos de 30 días o no tiene vigencia capturada. La lista se filtra por "Licencia por revisar".
 - Documentos (archivos opcionales):
   - INE
   - Licencia
@@ -89,10 +89,11 @@ Los cambios que hacen las tareas automáticas (cargos de cada noche, Orión) apa
 **Para qué sirve:** registrar quién tiene qué coche, desde cuándo y a qué tarifa.
 
 **Qué hace**
-- **Iniciar renta:** coche disponible + conductor + fecha de inicio + tarifa semanal + depósito. El km de entrega se toma del coche.
+- **Iniciar renta:** coche disponible + conductor + fecha de inicio + tarifa semanal + depósito + km de entrega (propone el último capturado; se puede escribir el del tablero o usar el de Orión si es mayor).
+  - Si el conductor tiene la licencia vencida, por vencer o sin capturar, documentos faltantes o deuda de rentas anteriores, se avisa antes de entregar (no lo impide).
   - Al iniciar, el coche pasa a "rentado" y se genera el primer cargo semanal.
   - Ofrece hacer en ese momento la inspección de entrega con fotos.
-- **Finalizar renta:** fecha de fin, km de devolución y qué se hace con el depósito (se devuelve, se aplica al adeudo o daños, o queda retenido).
+- **Finalizar renta:** fecha de fin, km de devolución (igual que el de entrega: editable, con opción de usar Orión) y qué se hace con el depósito (se devuelve, se aplica al adeudo o daños, o queda retenido).
   - El coche vuelve a "disponible" y se ofrece la inspección de recepción.
 - **Depósito** por renta, con su estado.
   - *Se aplica al adeudo*: se registra un pago de método "depósito aplicado" por lo que cubra del saldo, nunca más que el saldo ni más que el depósito. Si sobra, se devuelve al conductor.
@@ -116,8 +117,12 @@ Los cambios que hacen las tareas automáticas (cargos de cada noche, Orión) apa
   - Cada semana se cuenta desde el día en que empezó la renta (semana 1, semana 2…), no desde el lunes.
   - Una tarea automática los genera cada noche (00:05, hora de Mérida); el botón "Generar cargos de la semana" hace lo mismo al momento.
   - Nunca se duplica un cargo: si la semana ya se cobró, no se vuelve a generar.
-- **Registrar un pago:** renta, fecha, monto, método (efectivo o transferencia/depósito) y notas, por ejemplo el folio. Se guarda quién lo registró.
-- **Saldos:** por conductor, por coche y total global (cargado − pagado).
+- **Registrar un pago:** renta, fecha, monto, método (efectivo o transferencia) y notas, por ejemplo el folio. Se guarda quién lo registró.
+  - Si ya hay un pago de esa renta con la misma fecha y monto, pide confirmar (casi siempre es una captura doble).
+  - El depósito no se aplica como pago a mano: lo aplican "Finalizar renta" y "Resolver depósito". La base rechaza aplicar más de lo que queda del depósito.
+  - A un conductor que ya devolvió el coche y quedó debiendo se le registra el pago desde su expediente.
+- **Saldos:** por conductor, por coche y total global (cargado − pagado). El adeudo total suma solo a los conductores que deben; los saldos a favor (pagos adelantados) se muestran aparte y no reducen la deuda de otros.
+- **Pagos y cargos** se buscan por conductor, placas, unidad, notas o concepto y por rango de fechas. Los cargos muestran por omisión la semana actual y la anterior.
 - Pagos parciales: el saldo simplemente queda pendiente.
 - **Cancelar un pago** mal capturado (solo admin, con motivo obligatorio). El pago no se borra: queda tachado, deja de contar para el saldo y la cancelación queda en la auditoría. Si el monto estaba mal, se registra el pago correcto.
 - **Corregir o cancelar un cargo** (permiso Corregir registros, con motivo obligatorio). Un cargo cancelado queda tachado y deja de contar; una semana de renta cancelada no se vuelve a generar. El motivo queda en la bitácora.
@@ -145,6 +150,7 @@ Los cambios que hacen las tareas automáticas (cargos de cada noche, Orión) apa
 - **Cambio de llantas** con marca y año DOT.
 - **Alerta cada 10,000 km**, contados desde el último servicio que reinicia el contador.
   - Pasa a **Próximo** a los 9,000 km y a **Vencido** a los 10,000 km.
+  - Un coche sin ningún servicio registrado cuenta desde su primera lectura de km y se marca "Sin servicio registrado".
   - Aparece en el dashboard, en el listado de mantenimiento y en la ficha del coche.
 
 ---
@@ -173,6 +179,7 @@ Los cambios que hacen las tareas automáticas (cargos de cada noche, Orión) apa
 - Las fotos se reducen antes de subirse para que carguen rápido aun con poca señal.
 - **Galería histórica por coche:** cada renta muestra lado a lado "cómo se entregó" y "cómo regresó".
 - Se enlaza con Rentas: al iniciar o finalizar una renta se ofrece hacer la inspección.
+  - Si se hace desde "Nueva inspección", la entrega se liga a la renta activa del coche y la recepción a la activa o a la que terminó en la última semana y aún no tiene recepción. El formulario dice a qué renta queda ligada.
 
 ---
 
@@ -203,11 +210,12 @@ Los cambios que hacen las tareas automáticas (cargos de cada noche, Orión) apa
 **Qué muestra**
 - Coches por estado y ocupación.
 - Ingresos de la semana y del mes, es decir, los pagos registrados.
-- Adeudo total y adeudo por conductor.
+- Adeudo total (sin restar saldos a favor) y adeudo por conductor.
+- Rentas activas con saldo pendiente.
 - Próximos mantenimientos.
 - **Avisos internos**:
   - Servicios vencidos o próximos.
-  - Licencias vencidas o por vencer de conductores con coche.
+  - Licencias vencidas, por vencer o sin vigencia capturada de conductores con coche.
   - Adeudos de más de una semana.
   - Incidentes abiertos.
 
@@ -237,4 +245,5 @@ Los cambios que hacen las tareas automáticas (cargos de cada noche, Orión) apa
 - Los costos de un coche son su mantenimiento, sus incidentes a cargo de la empresa y sus gastos propios. Los gastos generales cuentan en el estado de resultados, pero no se reparten entre coches.
 - Los incidentes a cargo del conductor no son gasto de la empresa.
 - Los pagos cancelados no cuentan como ingreso.
+- Un coche sin fecha de compra capturada no suma a "Compra de coches" (no se sabe en qué periodo cayó) y su ocupación se cuenta desde su alta en el sistema o su primera renta, lo que sea antes.
 - **Los números solo son tan buenos como lo que se capture.** Si no se registran el seguro o el GPS, los coches se verán más rentables de lo que son.

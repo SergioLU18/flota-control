@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
-import { Badge, Card, Modal, PageHeader, Progress, StatusBadge, Tabs } from '../components/ui'
+import { Badge, Card, Modal, PageHeader, Progress, ShowMore, StatusBadge, Tabs, norm, useShowMore } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { MileageForm, ServiceForm, ServiceTypeForm } from '../components/forms'
 import { can } from '../data/permissions'
@@ -22,9 +22,16 @@ export default function Maintenance() {
   const [tab, setTab] = useState<Tab>('alertas')
   const [modal, setModal] = useState<'km' | 'service' | null>(null)
 
-  const status = data.vehicles.filter(inFleet).map((v) => ({ v, m: maintenanceStatus(v, data.services) })).sort((a, b) => a.m.remaining - b.m.remaining)
-  const services = [...data.services].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 50)
-  const mileage = [...data.mileage].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 50)
+  const status = data.vehicles.filter(inFleet).map((v) => ({ v, m: maintenanceStatus(v, data.services, data.mileage) })).sort((a, b) => a.m.remaining - b.m.remaining)
+  const [q, setQ] = useState('')
+  const matches = (vehicleId: string, extra = '') => {
+    const v = L.vehicle(vehicleId)
+    return norm(`${v.unit ?? ''} ${v.brand} ${v.model} ${v.plates} ${extra}`).includes(norm(q.trim()))
+  }
+  const services = data.services.filter((s) => matches(s.vehicleId, `${s.type} ${s.shop}`)).sort((a, b) => (a.date < b.date ? 1 : -1))
+  const mileage = data.mileage.filter((x) => matches(x.vehicleId)).sort((a, b) => (a.date < b.date ? 1 : -1))
+  const more = useShowMore(50, `${tab}|${q}`)
+  const search = <div className="toolbar"><input className="search" placeholder="Buscar por unidad, modelo o placas…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
   const due = status.filter((s) => s.m.level !== 'ok').length
 
   return (
@@ -36,13 +43,15 @@ export default function Maintenance() {
 
       {tab === 'alertas' && (
         <Card tour="alertas-km">
-          <p className="muted small">La alerta cuenta los km desde el último servicio que reinicia el contador. Pasa a <Badge tone="amber">Próximo</Badge> a los 9,000 km y a <Badge tone="red">Vencido</Badge> a los 10,000 km.</p>
+          <p className="muted small">La alerta cuenta los km desde el último servicio que reinicia el contador. Pasa a <Badge tone="amber">Próximo</Badge> a los 9,000 km y a <Badge tone="red">Vencido</Badge> a los 10,000 km.
+            Si un coche no tiene ningún servicio registrado, cuenta desde su primera lectura de km: registra su último servicio para que la alerta sea exacta.</p>
           <div className="table-wrap"><table className="table">
             <thead><tr><th>Coche</th><th>Último servicio</th><th style={{ minWidth: 160 }}>Km desde servicio</th><th className="num">Próximo a los</th><th>Estado</th></tr></thead>
             <tbody>{status.map(({ v, m }) => (
               <tr key={v.id}>
                 <td><Link to={`/flota/${v.id}`}>{carName(v)}</Link><div className="muted small">{v.plates} · <StatusBadge value={v.status} /></div></td>
-                <td>{m.last ? fecha(m.last.date) : '—'}<div className="muted small">{m.last && km(m.last.km)}</div></td>
+                <td>{m.last ? <>{fecha(m.last.date)}<div className="muted small">{km(m.last.km)}</div></>
+                  : <><span className="warn small">Sin servicio registrado</span><div className="muted small">{m.fromFirstReading ? `cuenta desde la 1.ª lectura (${km(m.baseKm)})` : 'cuenta desde 0 km'}</div></>}</td>
                 <td><Progress value={m.since / MAINTENANCE_INTERVAL} tone={m.level === 'vencido' ? 'red' : m.level === 'proximo' ? 'amber' : 'green'} /><span className="small">{km(m.since)}</span></td>
                 <td className="num">{km(m.nextKm)}</td>
                 <td><StatusBadge value={m.level} /></td>
@@ -53,24 +62,24 @@ export default function Maintenance() {
       )}
 
       {tab === 'servicios' && (
-        <Card title="Servicios recientes"><div className="table-wrap"><table className="table compact">
+        <Card title="Servicios">{search}<div className="table-wrap"><table className="table compact">
           <thead><tr><th>Fecha</th><th>Coche</th><th>Tipo</th><th className="num">Km</th><th>Taller</th><th className="num">Costo</th></tr></thead>
-          <tbody>{services.map((s) => {
+          <tbody>{services.slice(0, more.n).map((s) => {
             const v = L.vehicle(s.vehicleId)
             return <tr key={s.id}><td>{fecha(s.date)}</td><td><Link to={`/flota/${v.id}`}>{v.model} {v.plates}</Link></td><td>{s.type}{s.notes && <div className="muted small">{s.notes}</div>}</td><td className="num">{km(s.km)}</td><td>{s.shop}</td><td className="num">{mxn(s.cost)}</td></tr>
           })}</tbody>
-        </table></div></Card>
+        </table></div><ShowMore shown={Math.min(more.n, services.length)} total={services.length} onMore={more.more} /></Card>
       )}
 
       {tab === 'km' && (
-        <Card title="Últimos registros de kilometraje"><div className="table-wrap"><table className="table compact">
+        <Card title="Registros de kilometraje">{search}<div className="table-wrap"><table className="table compact">
           <thead><tr><th>Fecha</th><th>Coche</th><th className="num">Odómetro</th><th>Origen</th>{canCorrect && <th></th>}</tr></thead>
-          <tbody>{mileage.map((x) => {
+          <tbody>{mileage.slice(0, more.n).map((x) => {
             const v = L.vehicle(x.vehicleId)
             return <tr key={x.id}><td>{fecha(x.date)}</td><td><Link to={`/flota/${v.id}`}>{v.model} {v.plates}</Link></td><td className="num">{km(x.km)}</td><td><StatusBadge value={x.source} /></td>
               {canCorrect && <td className="row-actions"><DeleteKm record={x} onDelete={removeKm} /></td>}</tr>
           })}</tbody>
-        </table></div></Card>
+        </table></div><ShowMore shown={Math.min(more.n, mileage.length)} total={mileage.length} onMore={more.more} /></Card>
       )}
 
       {tab === 'catalogo' && (

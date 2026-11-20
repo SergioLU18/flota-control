@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useStore } from '../data/store'
 import { Badge, Card, PageHeader, Progress, Stat, StatusBadge } from '../components/ui'
 import { Icon } from '../components/Icon'
-import { carName, inFleet, activeRentalOfDriver, alerts, driverBalance, globalBalance, maintenanceStatus, monthIncome, weekIncome, MAINTENANCE_INTERVAL } from '../lib/calc'
+import { carName, inFleet, activeRentalOfDriver, alerts, driverBalance, globalBalance, maintenanceStatus, monthIncome, rentalBalance, weekIncome, MAINTENANCE_INTERVAL } from '../lib/calc'
 import { CURRENT_MONDAY, TODAY, addDays, km, mes, mxn, rangoFechas } from '../lib/format'
 
 export default function Dashboard() {
@@ -18,22 +18,22 @@ export default function Dashboard() {
     .sort((a, b) => b.balance - a.balance)
 
   const upcoming = fleet
-    .map((v) => ({ v, m: maintenanceStatus(v, data.services) }))
+    .map((v) => ({ v, m: maintenanceStatus(v, data.services, data.mileage) }))
     .sort((a, b) => a.m.remaining - b.m.remaining)
     .slice(0, 6)
 
-  const weekPending = data.rentals
-    .filter((r) => r.status === 'activa')
-    .filter((r) => !data.payments.some((p) => !p.voided && p.rentalId === r.id && p.date >= CURRENT_MONDAY)).length
+  // Los cargos de la semana se generan al empezar la semana: una renta activa con saldo en contra no ha cubierto la semana.
+  const weekPending = data.rentals.filter((r) => r.status === 'activa' && rentalBalance(data, r.id).balance > 0).length
+  const g = globalBalance(data)
 
   return (
     <>
       <PageHeader module="dashboard" title={`Hola, ${user?.name.split(' ')[0]}`} subtitle={`Semana del ${rangoFechas(CURRENT_MONDAY, addDays(CURRENT_MONDAY, 6))}`} />
 
       <div className="stats" data-tour="indicadores">
-        <Stat label="Ingresos de la semana" value={mxn(weekIncome(data))} hint={`${weekPending} rentas sin pago esta semana`} icon="trend" tone="green" />
+        <Stat label="Ingresos de la semana" value={mxn(weekIncome(data))} hint={`${weekPending} rentas activas con saldo pendiente`} icon="trend" tone="green" />
         <Stat label={`Ingresos de ${mes(TODAY.slice(0, 7))}`} value={mxn(monthIncome(data))} icon="calendar" />
-        <Stat label="Adeudo total" value={mxn(globalBalance(data).balance)} hint={`${debtors.length} conductores con saldo`} tone="red" icon="wallet" />
+        <Stat label="Adeudo total" value={mxn(g.debt)} hint={`${debtors.length} conductores con saldo${g.credit ? ` · ${mxn(g.credit)} a favor` : ''}`} tone="red" icon="wallet" />
         <Stat label="Avisos" value={avisos.length} hint={`${avisos.filter((a) => a.level === 'alta').length} urgentes`} tone="amber" icon="alert" />
         <div className="stat stat-wide stat-blue" data-tour="dash-flota">
           <div className="stat-head">

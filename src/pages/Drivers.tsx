@@ -7,7 +7,7 @@ import { DriverForm } from '../components/forms'
 import { activeRentalOfDriver, driverBalance, licenseStatus } from '../lib/calc'
 import { fecha, mxn } from '../lib/format'
 
-type Filter = 'todos' | 'activos' | 'adeudo'
+type Filter = 'todos' | 'activos' | 'adeudo' | 'licencia'
 
 export default function Drivers() {
   const { data } = useStore()
@@ -18,14 +18,14 @@ export default function Drivers() {
 
   const rows = data.drivers.map((d) => ({ d, rental: activeRentalOfDriver(data, d.id), bal: driverBalance(data, d.id).balance, lic: licenseStatus(d), missing: d.documents.filter((x) => !x.uploaded).length }))
   const list = rows
-    .filter(({ rental, bal }) => filter === 'todos' || (filter === 'activos' && rental) || (filter === 'adeudo' && bal > 0))
+    .filter(({ rental, bal, lic }) => filter === 'todos' || (filter === 'activos' && rental) || (filter === 'adeudo' && bal > 0) || (filter === 'licencia' && lic !== 'ok'))
     .filter(({ d }) => `${d.name} ${d.curp} ${d.phone}`.toLowerCase().includes(q.toLowerCase()))
 
   return (
     <>
       <PageHeader module="conductores" title="Conductores" subtitle={`${data.drivers.length} registrados`} actions={<button className="btn btn-primary" data-tour="btn-nuevo-conductor" onClick={() => setAdding(true)}><Icon name="plus" />Nuevo conductor</button>} />
       <div className="toolbar" data-tour="filtros">
-        <Tabs<Filter> value={filter} onChange={setFilter} tabs={[['todos', 'Todos'], ['activos', 'Con coche'], ['adeudo', 'Con adeudo']]} />
+        <Tabs<Filter> value={filter} onChange={setFilter} tabs={[['todos', 'Todos'], ['activos', 'Con coche'], ['adeudo', 'Con adeudo'], ['licencia', 'Licencia por revisar']]} />
         <input className="search" placeholder="Buscar por nombre, CURP o teléfono…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <div className="table-wrap card">
@@ -39,7 +39,9 @@ export default function Drivers() {
                   <td><Link to={`/conductores/${d.id}`}>{d.name}</Link><div className="muted small">{d.curp}</div></td>
                   <td>{d.phone}</td>
                   <td>{v ? `${v.model} · ${v.plates}` : <span className="muted">—</span>}</td>
-                  <td>{lic === 'ok' ? <span className="small">{fecha(d.licenseExpires)}</span> : <Badge tone={lic === 'vencida' ? 'red' : 'amber'}>{lic === 'vencida' ? 'Vencida' : 'Por vencer'}</Badge>}</td>
+                  <td>{lic === 'ok' ? <span className="small">{fecha(d.licenseExpires)}</span>
+                    : lic === 'sin_fecha' ? <Badge tone="gray">Sin fecha</Badge>
+                    : <Badge tone={lic === 'vencida' ? 'red' : 'amber'}>{lic === 'vencida' ? 'Vencida' : 'Por vencer'}</Badge>}</td>
                   <td>{missing ? <Badge tone="amber">Faltan {missing}</Badge> : <Badge tone="green">Completos</Badge>}</td>
                   <td className={`num ${bal > 0 ? 'neg' : ''}`}>{mxn(bal)}</td>
                 </tr>

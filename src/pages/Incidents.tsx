@@ -32,7 +32,8 @@ export default function Incidents() {
             <Card key={i.id} tour={n === 0 ? 'incidente-0' : undefined} title={<>{i.type} <StatusBadge value={i.status} /></>} actions={<>
               {(() => {
                 const charged = data.charges.filter((c) => c.incidentId === i.id && !c.voided).reduce((a, c) => a + c.amount, 0)
-                return charged > 0 ? <span className="muted small">Cargado al conductor: {mxn(charged)}</span>
+                return charged > 0 ? <span className={`small ${charged !== i.cost ? 'warn' : 'muted'}`} title={charged !== i.cost ? 'El costo del incidente cambió después de cargarlo; corrige el cargo si hace falta' : undefined}>
+                  Cargado al conductor: {mxn(charged)}{charged !== i.cost && ` (costo ${mxn(i.cost)})`}</span>
                   : i.responsible === 'conductor' && i.cost > 0 && <button className="btn btn-sm" onClick={() => setCharging(i)}>Cobrar al conductor</button>
               })()}
               <button className="btn btn-sm btn-ghost" onClick={() => setEditing(i)}>Editar</button>

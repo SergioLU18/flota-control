@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { MODULES } from '../data/modules'
 import type { PhotoRef } from '../data/types'
@@ -25,6 +25,27 @@ export function StatusBadge({ value }: { value: string }) {
   const [tone, label] = STATUS[value] ?? ['gray', value]
   return <Badge tone={tone}>{label}</Badge>
 }
+
+/** Cuántos renglones mostrar de una lista larga; `more` agrega otra tanda. Se reinicia al cambiar `resetKey` (filtros). */
+export function useShowMore(step = 50, resetKey = '') {
+  const [state, setState] = useState({ key: resetKey, n: step })
+  const n = state.key === resetKey ? state.n : step
+  return { n, more: () => setState({ key: resetKey, n: n + step }) }
+}
+
+/** Pie de una lista recortada: "Mostrando 50 de 320 · Ver 50 más". */
+export function ShowMore({ shown, total, step = 50, onMore }: { shown: number; total: number; step?: number; onMore: () => void }) {
+  if (total <= shown) return total ? <p className="muted small">{total.toLocaleString('es-MX')} en total</p> : <Empty>Nada coincide con esos filtros.</Empty>
+  return (
+    <p className="muted small">
+      Mostrando {shown.toLocaleString('es-MX')} de {total.toLocaleString('es-MX')} ·{' '}
+      <button type="button" className="link" onClick={onMore}>Ver {Math.min(step, total - shown)} más</button>
+    </p>
+  )
+}
+
+/** Texto de búsqueda sin acentos ni mayúsculas. */
+export const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
 export function PageHeader({ module, title, subtitle, actions }: { module?: string; title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   // `data-tour` marca lo que resalta el tour guiado (components/Tour.tsx).

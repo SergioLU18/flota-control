@@ -6,7 +6,7 @@ import { useStore, type NewTire } from '../data/store'
 import { COLOR_HEX, SHOPS } from '../data/catalogs'
 import type { Charge, Driver, Expense, ExpenseCategory, Incident, PaymentMethod, PhotoRef, Rental, ServiceType, Tire, Vehicle } from '../data/types'
 import { EXPENSE_LABEL } from '../lib/finance'
-import { activeRentalOf, activeRentalOfDriver, depositLeft, inFleet, rentalBalance, vehicleLabel } from '../lib/calc'
+import { activeRentalOf, activeRentalOfDriver, depositLeft, driverWarnings, inFleet, rentalBalance, vehicleLabel } from '../lib/calc'
 import { can } from '../data/permissions'
 import { TODAY, fuelLabel, mxn } from '../lib/format'
 import { Field, Photo } from './ui'
@@ -80,7 +80,7 @@ export function VehicleForm({ vehicle, onDone }: { vehicle?: Vehicle; onDone: ()
       </Field>
       {/* Solo con el permiso de finanzas: sin él, la base ni lo envía ni deja cambiarlo. */}
       {seesPrice && <Field label="Precio de compra" hint="Para el cálculo inversión vs. generado"><input inputMode="numeric" value={v.purchasePrice || ''} onChange={(e) => set('purchasePrice', num(e.target.value))} /></Field>}
-      <Field label="Fecha de compra"><input type="date" value={v.purchaseDate} onChange={(e) => set('purchaseDate', e.target.value)} /></Field>
+      <Field label="Fecha de compra" hint={vehicle && !vehicle.purchaseDate ? <span className="warn">Sin capturar: Finanzas no puede ubicar la inversión</span> : undefined}><input type="date" value={v.purchaseDate} onChange={(e) => set('purchaseDate', e.target.value)} /></Field>
       <Field label="ID de equipo Orión" hint="Opcional"><input value={v.orionDeviceId ?? ''} onChange={(e) => set('orionDeviceId', e.target.value || undefined)} /></Field>
       <Field label="Notas" full><textarea rows={2} value={v.notes} onChange={(e) => set('notes', e.target.value)} /></Field>
     </FormShell>
@@ -143,12 +143,40 @@ export function DriverForm({ driver, onDone }: { driver?: Driver; onDone: (id: s
 }
 
 // ---------- Rentas ----------
-export function StartRentalForm({ vehicleId, onDone }: { vehicleId?: string; onDone: () => void }) {
+/**
+ * Km para entregar o recibir un coche: editable (la última lectura puede tener semanas) y, si Orión marca más
+ * que lo capturado, ofrece usar su odómetro. Orión no siempre coincide con el tablero, por eso no se pone solo.
+ */
+function KmInput({ label, vehicle, value, onChange }: { label: string; vehicle: Vehicle; value: number; onChange: (km: number) => void }) {
+  const { data } = useStore()
+  const orion = data.gps.find((g) => g.vehicleId === vehicle.id)?.odometer
+  const useOrion = orion != null && Math.round(orion) > vehicle.currentKm && Math.round(orion) !== value
+  return (
+    <Field label={label} hint={<>Último capturado: {vehicle.currentKm.toLocaleString('es-MX')} km
+      {useOrion && <> · <button type="button" className="link" onClick={() => onChange(Math.round(orion))}>usar Orión ({Math.round(orion).toLocaleString('es-MX')} km)</button></>}</>}>
+      <input inputMode="numeric" value={value || ''} placeholder={String(vehicle.currentKm)} onChange={(e) => onChange(num(e.target.value))} />
+    </Field>
+  )
+}
+
+/** Avisos sobre el conductor elegido: no impiden rentar, pero se ven antes de entregar el coche. */
+function DriverWarnings({ driver }: { driver?: Driver }) {
+  const { data } = useStore()
+  const list = driver ? driverWarnings(data, driver) : []
+  if (!list.length) return null
+  return (
+    <div className="banner banner-amber field-full" style={{ margin: 0 }}>
+      <span><b>Revisa antes de entregar:</b> {list.join(' · ')}.</span>
+    </div>
+  )
+}
+
+export function StartRentalForm({ vehicleId, driverId, onDone }: { vehicleId?: string; driverId?: string; onDone: () => void }) {
   const { data, startRental } = useStore()
   const nav = useNavigate()
   const available = data.vehicles.filter((v) => v.status === 'disponible')
   const eligible = data.drivers.filter((d) => !activeRentalOfDriver(data, d.id))
-  const [f, setF] = useState({ vehicleId: vehicleId ?? available[0]?.id ?? '', driverId: '', startDate: TODAY, weeklyRate: 3000, deposit: 5000, inspect: true })
+  const [f, setF] = useState({ vehicleId: vehicleId ?? available[0]?.id ?? '', driverId: driverId ?? '', startDate: TODAY, weeklyRate: 3000, deposit: 5000, startKm: 0, inspect: true })
   const [error, setError] = useState('')
   const v = data.vehicles.find((x) => x.id === f.vehicleId)
   const driver = data.drivers.find((x) => x.id === f.driverId)
@@ -158,13 +186,15 @@ export function StartRentalForm({ vehicleId, onDone }: { vehicleId?: string; onD
       if (!v || !driver) return setError('Elige coche y conductor.')
       if (activeRentalOf(data, v.id)) return setError('Ese coche ya tiene una renta activa.')
       if (f.weeklyRate <= 0) return setError('La tarifa debe ser mayor a cero.')
+      const startKm = f.startKm || v.currentKm
+      if (startKm < v.currentKm) return setError(`El km de entrega no puede ser menor al último registrado (${v.currentKm.toLocaleString('es-MX')} km).`)
       setError('')
-      const id = await startRental({ vehicleId: v.id, driverId: driver.id, startDate: f.startDate, weeklyRate: f.weeklyRate, deposit: f.deposit, startKm: v.currentKm })
+      const id = await startRental({ vehicleId: v.id, driverId: driver.id, startDate: f.startDate, weeklyRate: f.weeklyRate, deposit: f.deposit, startKm })
       onDone()
       if (f.inspect) nav(`/inspecciones/nueva?vehiculo=${v.id}&tipo=entrega&renta=${id}`)
     }}>
       <Field label="Coche (solo disponibles)" full>
-        <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })}>
+        <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value, startKm: 0 })}>
           {available.map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
         </select>
       </Field>
@@ -174,8 +204,9 @@ export function StartRentalForm({ vehicleId, onDone }: { vehicleId?: string; onD
           {eligible.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
         </select>
       </Field>
+      <DriverWarnings driver={driver} />
       <Field label="Fecha de inicio"><input type="date" value={f.startDate} onChange={(e) => setF({ ...f, startDate: e.target.value })} /></Field>
-      <Field label="Km de entrega"><input value={v?.currentKm ?? ''} readOnly /></Field>
+      {v ? <KmInput label="Km de entrega" vehicle={v} value={f.startKm} onChange={(startKm) => setF({ ...f, startKm })} /> : <Field label="Km de entrega"><input disabled /></Field>}
       <Field label="Tarifa semanal (MXN)"><input inputMode="numeric" value={f.weeklyRate} onChange={(e) => setF({ ...f, weeklyRate: num(e.target.value) })} /></Field>
       <Field label="Depósito (MXN)"><input inputMode="numeric" value={f.deposit} onChange={(e) => setF({ ...f, deposit: num(e.target.value) })} /></Field>
       <label className="check field-full"><input type="checkbox" checked={f.inspect} onChange={(e) => setF({ ...f, inspect: e.target.checked })} /> Hacer inspección de entrega con fotos al terminar</label>
@@ -189,20 +220,22 @@ export function EndRentalForm({ rental, onDone }: { rental: Rental; onDone: () =
   const v = data.vehicles.find((x) => x.id === rental.vehicleId)!
   const bal = rentalBalance(data, rental.id).balance
   const left = depositLeft(data, rental)
-  const [f, setF] = useState({ endDate: TODAY, endKm: v.currentKm, deposit: (bal > 0 && left > 0 ? 'aplicado' : 'devuelto') as Rental['depositStatus'], inspect: true })
+  const [f, setF] = useState({ endDate: TODAY, endKm: 0, deposit: (bal > 0 && left > 0 ? 'aplicado' : 'devuelto') as Rental['depositStatus'], inspect: true })
   const [error, setError] = useState('')
   // Aproximado: al finalizar, la base todavía cobra las semanas que hayan empezado antes de la fecha de fin.
   const applies = Math.min(left, Math.max(0, bal))
   return (
     <FormShell submit="Finalizar renta" error={error} onSubmit={async () => {
-      if (f.endKm < rental.startKm) return setError(`El km de devolución no puede ser menor al de entrega (${rental.startKm}).`)
+      const endKm = f.endKm || v.currentKm
+      if (endKm < rental.startKm) return setError(`El km de devolución no puede ser menor al de entrega (${rental.startKm.toLocaleString('es-MX')} km).`)
+      if (endKm < v.currentKm) return setError(`El km de devolución no puede ser menor al último registrado (${v.currentKm.toLocaleString('es-MX')} km).`)
       setError('')
-      await endRental(rental.id, f.endDate, f.endKm, f.deposit); onDone()
+      await endRental(rental.id, f.endDate, endKm, f.deposit); onDone()
       if (f.inspect) nav(`/inspecciones/nueva?vehiculo=${v.id}&tipo=recepcion&renta=${rental.id}`)
     }}>
       <p className="field-full muted">{vehicleLabel(v)} · Saldo pendiente: <b className={bal > 0 ? 'neg' : ''}>{mxn(bal)}</b> · Depósito: {mxn(rental.deposit)}</p>
       <Field label="Fecha de fin"><input type="date" value={f.endDate} onChange={(e) => setF({ ...f, endDate: e.target.value })} /></Field>
-      <Field label="Km de devolución"><input inputMode="numeric" value={f.endKm} onChange={(e) => setF({ ...f, endKm: num(e.target.value) })} /></Field>
+      <KmInput label="Km de devolución" vehicle={v} value={f.endKm} onChange={(endKm) => setF({ ...f, endKm })} />
       <Field label="Depósito" full hint={
         f.deposit === 'aplicado' ? <>Se registra un pago de "depósito aplicado" por lo que cubra del adeudo (hoy, {mxn(applies)}){left > applies ? <>; los {mxn(left - applies)} restantes se devuelven al conductor</> : ''}. Para daños, agrega antes el cargo en el conductor.</>
           : f.deposit === 'retenido' ? 'Podrás devolverlo o aplicarlo después desde el expediente del conductor.' : undefined
@@ -219,19 +252,30 @@ export function EndRentalForm({ rental, onDone }: { rental: Rental; onDone: () =
 }
 
 // ---------- Pagos ----------
-const PAYMENT_LABEL: Record<PaymentMethod, string> = { efectivo: 'Efectivo', transferencia: 'Transferencia / depósito bancario', deposito: 'Aplicar depósito de la renta' }
+// El depósito no se aplica desde aquí: lo aplican "Finalizar renta" y "Resolver depósito", que nunca pasan de lo
+// que queda del depósito ni del adeudo (la base también lo valida).
+const PAYMENT_LABEL: Record<Exclude<PaymentMethod, 'deposito'>, string> = { efectivo: 'Efectivo', transferencia: 'Transferencia / depósito bancario' }
 
-export function PaymentForm({ rentalId, onDone }: { rentalId?: string; onDone: () => void }) {
+export function PaymentForm({ rentalId, driverId, onDone }: { rentalId?: string; driverId?: string; onDone: () => void }) {
   const { data, addPayment } = useStore()
-  const options = data.rentals.filter((r) => r.status === 'activa' || rentalBalance(data, r.id).balance > 0)
-  const [f, setF] = useState({ rentalId: rentalId ?? options[0]?.id ?? '', date: TODAY, amount: 0, method: 'efectivo' as PaymentMethod, notes: '' })
+  const options = data.rentals.filter((r) => (!driverId || r.driverId === driverId) && (r.status === 'activa' || rentalBalance(data, r.id).balance > 0))
+  const [f, setF] = useState({ rentalId: rentalId ?? options[0]?.id ?? '', date: TODAY, amount: 0, method: 'efectivo' as Exclude<PaymentMethod, 'deposito'>, notes: '' })
   const r = data.rentals.find((x) => x.id === f.rentalId)
   const bal = r ? rentalBalance(data, r.id).balance : 0
   const [error, setError] = useState('')
+  // Un pago igual (misma renta, fecha y monto) ya registrado suele ser una captura doble: se pide confirmar.
+  const duplicate = r && data.payments.find((p) => !p.voided && p.rentalId === r.id && p.date === f.date && p.amount === f.amount)
+  const [confirmed, setConfirmed] = useState('')
+  const dupKey = `${f.rentalId}|${f.date}|${f.amount}`
   const label = (x: Rental) => `${data.drivers.find((d) => d.id === x.driverId)?.name} · ${data.vehicles.find((v) => v.id === x.vehicleId)?.plates}`
+  if (!options.length) return <p className="empty">No hay rentas activas ni con saldo pendiente.</p>
   return (
-    <FormShell submit="Registrar pago" error={error} onSubmit={async () => {
+    <FormShell submit={duplicate && confirmed !== dupKey ? 'Revisar pago' : 'Registrar pago'} error={error} onSubmit={async () => {
       if (!r || f.amount <= 0) return setError('Elige la renta y un monto mayor a cero.')
+      if (duplicate && confirmed !== dupKey) {
+        setConfirmed(dupKey)
+        return setError(`Ya hay un pago de ${mxn(duplicate.amount)} de esta renta con esa fecha (${duplicate.method}${duplicate.notes ? ` · ${duplicate.notes}` : ''}). Si es otro pago, presiona de nuevo "Registrar pago".`)
+      }
       setError('')
       await addPayment({ rentalId: r.id, date: f.date, amount: f.amount, method: f.method, notes: f.notes || undefined }); onDone()
     }}>
@@ -246,12 +290,13 @@ export function PaymentForm({ rentalId, onDone }: { rentalId?: string; onDone: (
       </Field>
       <Field label="Método" full>
         <div className="segmented">
-          {(['efectivo', 'transferencia', 'deposito'] as const).map((m) => (
+          {(['efectivo', 'transferencia'] as const).map((m) => (
             <button type="button" key={m} className={f.method === m ? 'active' : ''} onClick={() => setF({ ...f, method: m })}>{PAYMENT_LABEL[m]}</button>
           ))}
         </div>
       </Field>
       <Field label="Notas" full hint="Ej. folio de transferencia, quién recibió el efectivo"><input value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
+      <p className="field-full muted small">El depósito en garantía se aplica al adeudo al finalizar la renta, o después con "Resolver" en el expediente del conductor.</p>
     </FormShell>
   )
 }
@@ -420,6 +465,7 @@ export function IncidentForm({ vehicleId, incident, onDone }: { vehicleId?: stri
     id: crypto.randomUUID(), vehicleId: vehicleId ?? data.vehicles.find(inFleet)?.id ?? '', date: TODAY, type: 'Choque', description: '', cost: 0, responsible: 'conductor', photos: [], status: 'abierto',
   })
   const active = activeRentalOf(data, f.vehicleId)
+  const charged = incident ? data.charges.filter((c) => c.incidentId === incident.id && !c.voided).reduce((a, c) => a + c.amount, 0) : 0
   if (!f.vehicleId) return <NoVehicles />
   return (
     <FormShell submit={incident ? 'Guardar cambios' : 'Guardar incidente'} onSubmit={async () => {
@@ -453,7 +499,10 @@ export function IncidentForm({ vehicleId, incident, onDone }: { vehicleId?: stri
           <option value="conductor">Conductor</option><option value="empresa">Empresa</option><option value="tercero">Tercero</option><option value="seguro">Seguro</option>
         </select>
       </Field>
-      <Field label="Costo estimado (MXN)"><input inputMode="numeric" value={f.cost || ''} onChange={(e) => setF({ ...f, cost: num(e.target.value) })} /></Field>
+      <Field label="Costo estimado (MXN)" hint={charged > 0 && f.cost !== charged
+        ? <span className="warn">Ya se cargaron {mxn(charged)} al conductor; cambiar el costo no cambia ese cargo (corrígelo en su estado de cuenta).</span> : undefined}>
+        <input inputMode="numeric" value={f.cost || ''} onChange={(e) => setF({ ...f, cost: num(e.target.value) })} />
+      </Field>
       <Field label="Descripción" full><textarea rows={3} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
       <Field label={incident ? `Agregar fotos (ya tiene ${incident.photos.length})` : 'Fotos'} full><PhotoInput photos={f.photos} onChange={(photos) => setF({ ...f, photos })} /></Field>
     </FormShell>
@@ -536,7 +585,7 @@ export function ChargeForm({ rentalId, driverId, incident, onDone }: { rentalId?
     .sort((a, b) => (a.status === b.status ? (a.startDate < b.startDate ? 1 : -1) : a.status === 'activa' ? -1 : 1))
   const fromIncident = incident && (incident.rentalId ?? options.find((r) => r.driverId === incident.driverId && r.startDate <= incident.date && (!r.endDate || r.endDate >= incident.date))?.id)
   const [f, setF] = useState({
-    rentalId: rentalId ?? fromIncident ?? options[0]?.id ?? '', kind: (incident ? 'danio' : 'otro') as 'danio' | 'otro', date: TODAY,
+    rentalId: rentalId ?? fromIncident ?? options[0]?.id ?? '', kind: (incident ? 'danio' : 'otro') as 'danio' | 'otro', date: incident?.date ?? TODAY,
     amount: incident?.cost ?? 0, concept: incident ? `${incident.type}${incident.description ? `: ${incident.description}` : ''}`.slice(0, 120) : '',
   })
   const [error, setError] = useState('')

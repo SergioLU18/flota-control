@@ -5,7 +5,7 @@ import { BackLink, Card, Empty, Field, Lightbox, PageHeader, Photo, StatusBadge 
 import { Icon } from '../components/Icon'
 import { FuelGauge, PhotoInput } from '../components/forms'
 import { activeRentalOf, inFleet, vehicleLabel } from '../lib/calc'
-import { TODAY, fecha, fuelLabel, km } from '../lib/format'
+import { TODAY, addDays, fecha, fuelLabel, km } from '../lib/format'
 import type { Inspection, PhotoRef } from '../data/types'
 
 export const ANGLES = ['Frente', 'Trasera', 'Lateral izq.', 'Lateral der.', 'Interior', 'Tablero']
@@ -102,7 +102,14 @@ export function NewInspection() {
   if (!v) return <Empty>Primero da de alta un coche en <Link to="/flota">Flota</Link>.</Empty>
   // La renta del enlace (al iniciar o finalizar) solo aplica si no se cambió de coche.
   const linked = data.rentals.find((r) => r.id === params.get('renta') && r.vehicleId === v.id)
-  const rentalId = linked?.id ?? (f.kind === 'entrega' ? activeRentalOf(data, v.id)?.id : undefined)
+  // Sin enlace: la entrega va con la renta activa; la recepción, con la activa (si se inspecciona antes de finalizar)
+  // o con la renta de ese coche que terminó en la última semana y todavía no tiene recepción.
+  const lastEnded = data.rentals
+    .filter((r) => r.vehicleId === v.id && r.status === 'finalizada' && (r.endDate ?? '') >= addDays(f.date, -7)
+      && !data.inspections.some((i) => i.rentalId === r.id && i.kind === 'recepcion'))
+    .sort((a, b) => ((a.endDate ?? '') < (b.endDate ?? '') ? 1 : -1))[0]
+  const rentalId = linked?.id ?? activeRentalOf(data, v.id)?.id ?? (f.kind === 'recepcion' ? lastEnded?.id : undefined)
+  const rentalDriver = rentalId ? data.drivers.find((d) => d.id === data.rentals.find((r) => r.id === rentalId)?.driverId) : undefined
 
   return (
     <>
@@ -130,7 +137,7 @@ export function NewInspection() {
               {(['entrega', 'recepcion'] as const).map((k) => <button type="button" key={k} className={f.kind === k ? 'active' : ''} onClick={() => setF({ ...f, kind: k })}>{k === 'entrega' ? 'Entrega' : 'Recepción'}</button>)}
             </div>
           </Field>
-          <Field label="Fecha"><input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
+          <Field label="Fecha" hint={rentalDriver ? `Se liga a la renta de ${rentalDriver.name}` : 'Inspección suelta (sin renta)'}><input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
           <Field label="Kilometraje" hint={`Último registrado: ${km(v.currentKm)}`}><input inputMode="numeric" value={f.km || ''} placeholder={String(v.currentKm)} onChange={(e) => setF({ ...f, km: Number(e.target.value.replace(/\D/g, '')) })} /></Field>
           {/* div y no Field (<label>): un clic en el título activaría el primer botón del indicador. */}
           <div className="field"><span>Combustible</span><FuelGauge value={f.fuel} onChange={(fuel) => setF({ ...f, fuel })} /></div>

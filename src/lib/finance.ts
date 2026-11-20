@@ -43,6 +43,9 @@ export function financePeriods(): Period[] {
   ]
 }
 
+/** Desde cuándo cuenta el coche para ocupación y utilidad mensual (ver Vehicle.inFleetSince). */
+export const fleetSince = (v: Vehicle) => v.purchaseDate || v.inFleetSince || TODAY
+
 const within = (p: Period) => (date: string) => date >= p.from && date <= p.to
 
 /** Estado de resultados del negocio en un periodo. */
@@ -57,8 +60,10 @@ export function incomeStatement(d: Data, p: Period) {
   }))
   const expenses = maintenance + incidents + sum(byCategory.map((c) => c.amount))
   const profit = income - expenses
-  const purchases = sum(d.vehicles.filter((v) => inP(v.purchaseDate)).map((v) => v.purchasePrice))
-  return { income, charged, maintenance, incidents, byCategory, expenses, profit, margin: income ? profit / income : 0, purchases, cashAfterInvestment: profit - purchases }
+  // Solo las compras con fecha capturada: sin ella no se sabe en qué periodo cayó la inversión.
+  const purchases = sum(d.vehicles.filter((v) => v.purchaseDate && inP(v.purchaseDate)).map((v) => v.purchasePrice))
+  const undatedPurchases = d.vehicles.filter((v) => !v.purchaseDate && v.purchasePrice > 0).length
+  return { income, charged, maintenance, incidents, byCategory, expenses, profit, margin: income ? profit / income : 0, purchases, undatedPurchases, cashAfterInvestment: profit - purchases }
 }
 
 /** Ingresos, costos y utilidad de un coche en un periodo, más su ocupación. */
@@ -73,7 +78,8 @@ export function vehicleProfit(d: Data, v: Vehicle, p: Period) {
   const costs = maintenance + incidents + other
   const profit = income - costs
 
-  const start = p.from > v.purchaseDate ? p.from : v.purchaseDate
+  const since = fleetSince(v)
+  const start = p.from > since ? p.from : since
   const fleetDays = Math.max(0, diffDays(p.to, start) + 1)
   const rentedDays = sum(rentals.map((r) => {
     const a = r.startDate > start ? r.startDate : start
