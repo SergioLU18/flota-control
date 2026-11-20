@@ -7,6 +7,7 @@ import { Icon } from '../components/Icon'
 import { VehicleForm } from '../components/forms'
 import { activeRentalOf, inFleet, maintenanceStatus, vehicleBalance, type MaintLevel } from '../lib/calc'
 import { km, mxn } from '../lib/format'
+import { Select } from '../components/pickers'
 
 type Filter = 'todos' | 'disponible' | 'rentado' | 'taller' | 'baja'
 type View = 'tabla' | 'grid'
@@ -100,16 +101,10 @@ export default function Vehicles() {
           ...(count('baja') || filter === 'baja' ? [['baja', `Dados de baja (${count('baja')})`] as [Filter, string]] : [])]} />
       <div className="toolbar toolbar-row" data-tour="filtros">
         <input className="search" placeholder="Buscar por unidad, marca, modelo, placas o VIN…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select className="filter-select" aria-label="Servicio" value={servicio} onChange={(e) => setParam('servicio', e.target.value)}>
-          <option value="">Servicio: todos</option>
-          <option value="vencido">Servicio vencido</option>
-          <option value="proximo">Servicio próximo</option>
-          <option value="ok">Servicio al día</option>
-        </select>
-        <select className="filter-select" aria-label="Saldo" value={adeudo ? '1' : ''} onChange={(e) => setParam('adeudo', e.target.value)}>
-          <option value="">Saldo: todos</option>
-          <option value="1">Con adeudo</option>
-        </select>
+        <Select<MaintLevel | ''> label="Servicio" prefix="Servicio" value={servicio} onChange={(v) => setParam('servicio', v)}
+          options={[{ value: '', label: 'Todos' }, { value: 'vencido', label: 'Vencido' }, { value: 'proximo', label: 'Próximo' }, { value: 'ok', label: 'Al día' }]} />
+        <Select label="Saldo" prefix="Saldo" value={adeudo ? '1' : ''} onChange={(v) => setParam('adeudo', v)}
+          options={[{ value: '', label: 'Todos' }, { value: '1', label: 'Con adeudo' }]} />
         {hasFilters && (
           <button className="btn btn-sm" onClick={() => { setQ(''); setParams(filter === 'todos' ? {} : { estado: filter }) }}>Limpiar</button>
         )}

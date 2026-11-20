@@ -6,6 +6,7 @@ import { ChargeForm, CorrectChargeForm, DepositForm, DriverForm, PaymentForm, St
 import { carName, activeRentalOfDriver, driverBalance, licenseStatus, rentalBalance } from '../lib/calc'
 import { TODAY, fecha, mes, mxn } from '../lib/format'
 import { downloadCsv } from '../lib/files'
+import { Select } from '../components/pickers'
 import type { Charge, DocType, DriverDocument, Rental } from '../data/types'
 import { can } from '../data/permissions'
 import { Icon } from '../components/Icon'
@@ -167,7 +168,7 @@ export default function DriverDetail() {
 
       {tab === 'estado' && (
         <Card title={`Estado de cuenta · ${mes(month)}`} className="printable" actions={<>
-          <select value={month} onChange={(e) => setMonth(e.target.value)}>{months.map((m) => <option key={m} value={m}>{mes(m)}</option>)}</select>
+          <Select label="Mes" value={month} onChange={setMonth} options={months.map((m) => ({ value: m, label: mes(m) }))} />
           <button className="btn btn-sm" onClick={() => window.print()}>Imprimir / PDF</button>
         </>}>
           <p><b>{d.name}</b> · {d.phone}</p>

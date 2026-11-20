@@ -7,6 +7,7 @@ import { ExpenseForm } from '../components/forms'
 import { EXPENSE_LABEL, financePeriods, incomeStatement, lastMonths, vehicleProfit, vehicleRecovery } from '../lib/finance'
 import { fecha, mes, mxn } from '../lib/format'
 import { downloadCsv } from '../lib/files'
+import { Select } from '../components/pickers'
 import type { Expense, ExpenseCategory } from '../data/types'
 
 type Tab = 'resultados' | 'coches' | 'gastos'
@@ -52,10 +53,8 @@ export default function Finance() {
     <>
       <PageHeader module="finanzas" title="Finanzas" subtitle="Números operativos para decidir; no sustituyen la contabilidad fiscal."
         actions={<>
-          <select value={pk} onChange={(e) => setPk(e.target.value)} aria-label="Periodo" data-tour="periodo">
-            <optgroup label="Rangos">{periods.slice(0, 3).map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</optgroup>
-            <optgroup label="Mes">{periods.slice(3).map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</optgroup>
-          </select>
+          <Select label="Periodo" tour="periodo" value={pk} onChange={setPk} searchable={false}
+            options={periods.map((x, i) => ({ value: x.key, label: x.label, group: i < 3 ? 'Rangos' : 'Mes' }))} />
           <button className="btn btn-primary" data-tour="btn-registrar-gasto" onClick={() => setAdding(true)}><Icon name="plus" />Registrar gasto</button>
         </>} />
 
@@ -141,10 +140,8 @@ export default function Finance() {
 
       {tab === 'gastos' && (
         <Card title={`Gastos · ${period.label}`} actions={
-          <select value={cat} onChange={(e) => setCat(e.target.value as ExpenseCategory | '')}>
-            <option value="">Todas las categorías</option>
-            {(Object.keys(EXPENSE_LABEL) as ExpenseCategory[]).map((c) => <option key={c} value={c}>{EXPENSE_LABEL[c]}</option>)}
-          </select>
+          <Select<ExpenseCategory | ''> label="Categoría" value={cat} onChange={setCat}
+            options={[{ value: '', label: 'Todas las categorías' }, ...(Object.keys(EXPENSE_LABEL) as ExpenseCategory[]).map((c) => ({ value: c, label: EXPENSE_LABEL[c] }))]} />
         }>
           <div className="table-wrap"><table className="table compact">
             <thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th>Coche</th><th className="num">Monto</th><th>Registró</th><th></th></tr></thead>

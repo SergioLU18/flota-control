@@ -5,7 +5,8 @@ import type { AuditEntry, AuditFilter, AuditOp } from '../data/types'
 import { AUDIT_MODULES, auditAction, auditDetailText, auditFields, auditSubject, auditSummary, moduleLabel, relatedIds } from '../lib/audit'
 import { downloadCsv } from '../lib/files'
 import { TODAY, TZ, fechaHora } from '../lib/format'
-import { Empty, MultiSelect } from './ui'
+import { Empty } from './ui'
+import { DateRangePicker, MultiSelect, Select } from './pickers'
 import { Icon } from './Icon'
 
 const PAGE = 50
@@ -88,34 +89,25 @@ export function AuditLog() {
           </button>
         </div>
         <div className="audit-filters-row">
-          <MultiSelect label="Usuarios" allLabel="Usuarios: todos" disabled={filter.system === 'solo'}
+          <MultiSelect label="Usuarios" allLabel="Todos" disabled={filter.system === 'solo'}
             options={users.map((u) => ({ value: u.id, label: u.name }))} value={filter.userIds ?? []}
             onChange={(ids) => set({
               userIds: ids.length ? ids : undefined,
               // Al elegir personas se oculta lo automático (es lo que se suele querer ver); se puede volver a incluir.
               ...(!filter.userIds?.length && ids.length && (filter.system ?? 'incluir') === 'incluir' ? { system: 'ocultar' as const } : {}),
             })} />
-          <select aria-label="Cambios del sistema" value={filter.system ?? 'incluir'}
+          <Select label="Cambios del sistema" prefix="Sistema" value={filter.system ?? 'incluir'}
             title="Movimientos automáticos: cargos semanales, Orión, sincronización del concentrado…"
-            onChange={(e) => set({ system: e.target.value === 'incluir' ? undefined : (e.target.value as 'ocultar' | 'solo') })}>
-            <option value="incluir">Sistema: incluido</option>
-            <option value="ocultar">Sistema: oculto</option>
-            <option value="solo">Solo sistema</option>
-          </select>
-          <select aria-label="Módulo" value={filter.module ?? ''} onChange={(e) => set({ module: e.target.value || undefined })}>
-            <option value="">Módulo: todos</option>
-            {AUDIT_MODULES.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
-          </select>
-          <select aria-label="Tipo de movimiento" value={filter.op ?? ''} onChange={(e) => set({ op: (e.target.value || undefined) as AuditOp | undefined })}>
-            <option value="">Tipo: todos</option>
-            {OPS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-          </select>
-          <div className="audit-dates" role="group" aria-label="Rango de fechas">
-            <span className="muted" aria-hidden>Del</span>
-            <input type="date" aria-label="Desde" title="Desde" value={filter.from ?? ''} max={filter.to || TODAY} onChange={(e) => set({ from: e.target.value || undefined })} />
-            <span className="muted" aria-hidden>al</span>
-            <input type="date" aria-label="Hasta" title="Hasta" value={filter.to ?? ''} min={filter.from} max={TODAY} onChange={(e) => set({ to: e.target.value || undefined })} />
-          </div>
+            options={[{ value: 'incluir', label: 'Incluidos' }, { value: 'ocultar', label: 'Ocultos' }, { value: 'solo', label: 'Solo estos' }]}
+            onChange={(v) => set({ system: v === 'incluir' ? undefined : v })} />
+          <Select label="Módulo" prefix="Módulo" value={filter.module ?? ''}
+            options={[{ value: '', label: 'Todos' }, ...AUDIT_MODULES.map((m) => ({ value: m.key, label: m.label }))]}
+            onChange={(v) => set({ module: v || undefined })} />
+          <Select<AuditOp | ''> label="Tipo de movimiento" prefix="Tipo" value={filter.op ?? ''}
+            options={[{ value: '', label: 'Todos' }, ...OPS.map(([k, label]) => ({ value: k, label }))]}
+            onChange={(v) => set({ op: v || undefined })} />
+          <DateRangePicker label="Fechas" value={{ from: filter.from ?? '', to: filter.to ?? '' }}
+            onChange={(r) => set({ from: r.from || undefined, to: r.to || undefined })} />
           {hasFilters && <button className="btn btn-ghost audit-clear" onClick={() => { setText(''); setFilter({}); setPage(0); setOpen(null) }}>Limpiar</button>}
         </div>
       </div>

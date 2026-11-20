@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { MODULES } from '../data/modules'
 import type { PhotoRef } from '../data/types'
@@ -24,47 +24,6 @@ const STATUS: Record<string, [Tone, string]> = {
 export function StatusBadge({ value }: { value: string }) {
   const [tone, label] = STATUS[value] ?? ['gray', value]
   return <Badge tone={tone}>{label}</Badge>
-}
-
-/**
- * Selector de varias opciones con el aspecto de un <select>: abre una lista con casillas. Sin nada marcado
- * muestra `allLabel`. Se cierra con un clic afuera o con Escape.
- */
-export function MultiSelect({ label, allLabel, options, value, onChange, disabled }: {
-  label: string; allLabel: string; options: { value: string; label: string }[]; value: string[]; onChange: (v: string[]) => void; disabled?: boolean
-}) {
-  const [open, setOpen] = useState(false)
-  const box = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!open) return
-    const onDown = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false) }
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
-  }, [open])
-  const picked = options.filter((o) => value.includes(o.value))
-  const text = !picked.length ? allLabel : picked.length === 1 ? `${label}: ${picked[0].label}` : `${label}: ${picked.length}`
-  const toggle = (v: string) => onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v])
-  return (
-    <div className="multi-select" ref={box}>
-      <button type="button" className="multi-select-button" aria-haspopup="listbox" aria-expanded={open} disabled={disabled}
-        title={picked.length > 1 ? picked.map((o) => o.label).join(', ') : undefined} onClick={() => setOpen(!open)}>
-        {text}
-      </button>
-      {open && (
-        <div className="multi-select-menu" role="listbox" aria-multiselectable aria-label={label}>
-          {options.map((o) => (
-            <label key={o.value} className="multi-select-option">
-              <input type="checkbox" checked={value.includes(o.value)} onChange={() => toggle(o.value)} />
-              <span>{o.label}</span>
-            </label>
-          ))}
-          {value.length > 0 && <button type="button" className="link multi-select-clear" onClick={() => onChange([])}>Quitar selección</button>}
-        </div>
-      )}
-    </div>
-  )
 }
 
 /** Cuántos renglones mostrar de una lista larga; `more` agrega otra tanda. Se reinicia al cambiar `resetKey` (filtros). */

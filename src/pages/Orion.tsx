@@ -6,6 +6,7 @@ import { CapturedKm, OrionKm, hace, lastReading } from '../components/gps'
 import type { MapPoint } from '../components/GpsMap'
 import { fechaHora, km } from '../lib/format'
 import { inFleet } from '../lib/calc'
+import { Select } from '../components/pickers'
 import type { GpsPosition, GpsStatus, Vehicle } from '../data/types'
 
 const GpsMap = lazy(() => import('../components/GpsMap'))
@@ -53,10 +54,9 @@ export default function Orion() {
       </div>
 
       <Card tour="mapa" title={`Flota con GPS (${linked.length})`}
-        actions={<select className="filter-select" data-tour="filtro-gps" aria-label="Estado GPS" value={estado} onChange={(e) => setEstado(e.target.value as GpsStatus | '')}>
-          <option value="">Todos</option><option value="movimiento">En movimiento</option><option value="encendido">Motor encendido</option>
-          <option value="detenido">Detenidos</option><option value="sin_senal">Sin señal</option>
-        </select>}>
+        actions={<Select<GpsStatus | ''> label="Estado GPS" prefix="Estado" tour="filtro-gps" value={estado} onChange={setEstado}
+          options={[{ value: '', label: 'Todos' }, { value: 'movimiento', label: 'En movimiento' }, { value: 'encendido', label: 'Motor encendido' },
+            { value: 'detenido', label: 'Detenidos' }, { value: 'sin_senal', label: 'Sin señal' }]} />}>
         <div ref={mapBox}>
           <Suspense fallback={<div className="gps-map" style={{ height: 420 }} />}>
             <GpsMap points={points} selected={sel} />

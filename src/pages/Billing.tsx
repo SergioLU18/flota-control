@@ -8,6 +8,7 @@ import { carName, depositsHeld, driverBalance, globalBalance, monthIncome, vehic
 import { CURRENT_MONDAY, TODAY, addDays, fecha, fechaCorta, mes, mxn } from '../lib/format'
 import type { PaymentMethod } from '../data/types'
 import { downloadCsv } from '../lib/files'
+import { DateRangePicker } from '../components/pickers'
 import type { Charge, Payment } from '../data/types'
 import { can } from '../data/permissions'
 
@@ -53,8 +54,7 @@ export default function Billing() {
   const filters = (f: { q: string; from: string; to: string }, set: (f: { q: string; from: string; to: string }) => void, placeholder: string) => (
     <div className="toolbar toolbar-row">
       <input className="search" placeholder={placeholder} value={f.q} onChange={(e) => set({ ...f, q: e.target.value })} />
-      <label className="field inline"><span>Desde</span><input type="date" value={f.from} onChange={(e) => set({ ...f, from: e.target.value })} /></label>
-      <label className="field inline"><span>Hasta</span><input type="date" value={f.to} onChange={(e) => set({ ...f, to: e.target.value })} /></label>
+      <DateRangePicker value={{ from: f.from, to: f.to }} onChange={(r) => set({ ...f, ...r })} />
       {(f.q || f.from || f.to) && <button className="btn btn-sm" onClick={() => set({ q: '', from: '', to: '' })}>Limpiar</button>}
     </div>
   )

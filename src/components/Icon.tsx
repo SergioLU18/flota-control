@@ -17,6 +17,8 @@ const PATHS = {
   check: <path d="M5 12.5 10 17.5 19 7" />,
   back: <path d="M15 4.5 7.5 12l7.5 7.5" />,
   forward: <path d="M9 4.5 16.5 12 9 19.5" />,
+  chevron: <path d="m7 9.5 5 5 5-5" />,
+  search: <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m15.5 15.5 4.5 4.5" /></>,
   close: <path d="M7 7l10 10M17 7 7 17" />,
   more: <><circle cx="5.5" cy="12" r="1.3" fill="currentColor" /><circle cx="12" cy="12" r="1.3" fill="currentColor" /><circle cx="18.5" cy="12" r="1.3" fill="currentColor" /></>,
   logout: <><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" /><path d="M10 16.5 5.5 12 10 7.5M5.5 12H15" /></>,

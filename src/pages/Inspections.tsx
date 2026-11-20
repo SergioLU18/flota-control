@@ -4,7 +4,8 @@ import { useLookup, useStore } from '../data/store'
 import { BackLink, Card, Empty, Field, Lightbox, PageHeader, Photo, StatusBadge } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { FuelGauge, PhotoInput } from '../components/forms'
-import { activeRentalOf, inFleet, vehicleLabel } from '../lib/calc'
+import { activeRentalOf, carName, inFleet } from '../lib/calc'
+import { DatePicker, Select } from '../components/pickers'
 import { TODAY, addDays, fecha, fuelLabel, km } from '../lib/format'
 import type { Inspection, PhotoRef } from '../data/types'
 
@@ -36,9 +37,10 @@ export default function Inspections() {
         </Card>
       </div>
       <div className="toolbar" data-tour="galeria">
-        <label className="field inline"><span>Galería del coche</span>
-          <select value={vehicleId} onChange={(e) => setVehicleId(e.target.value)}>{data.vehicles.map((v) => <option key={v.id} value={v.id}>{vehicleLabel(v)}</option>)}</select>
-        </label>
+        <div className="field inline"><span>Galería del coche</span>
+          <Select label="Coche" value={vehicleId} onChange={setVehicleId}
+            options={data.vehicles.map((v) => ({ value: v.id, label: carName(v), hint: v.plates }))} />
+        </div>
       </div>
       <InspectionCompare vehicleId={vehicleId} onPhoto={setPhoto} />
       <Lightbox photo={photo} onClose={() => setPhoto(null)} />
@@ -130,14 +132,15 @@ export function NewInspection() {
       }}>
         <div className="form-grid">
           <Field label="Coche" full>
-            <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })}>{data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId).map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}</select>
+            <Select label="Coche" value={f.vehicleId} onChange={(id) => setF({ ...f, vehicleId: id })}
+              options={data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId).map((x) => ({ value: x.id, label: carName(x), hint: x.plates }))} />
           </Field>
           <Field label="Tipo">
             <div className="segmented">
               {(['entrega', 'recepcion'] as const).map((k) => <button type="button" key={k} className={f.kind === k ? 'active' : ''} onClick={() => setF({ ...f, kind: k })}>{k === 'entrega' ? 'Entrega' : 'Recepción'}</button>)}
             </div>
           </Field>
-          <Field label="Fecha" hint={rentalDriver ? `Se liga a la renta de ${rentalDriver.name}` : 'Inspección suelta (sin renta)'}><input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
+          <Field label="Fecha" hint={rentalDriver ? `Se liga a la renta de ${rentalDriver.name}` : 'Inspección suelta (sin renta)'}><DatePicker value={f.date} onChange={(date) => setF({ ...f, date })} /></Field>
           <Field label="Kilometraje" hint={`Último registrado: ${km(v.currentKm)}`}><input inputMode="numeric" value={f.km || ''} placeholder={String(v.currentKm)} onChange={(e) => setF({ ...f, km: Number(e.target.value.replace(/\D/g, '')) })} /></Field>
           {/* div y no Field (<label>): un clic en el título activaría el primer botón del indicador. */}
           <div className="field"><span>Combustible</span><FuelGauge value={f.fuel} onChange={(fuel) => setF({ ...f, fuel })} /></div>

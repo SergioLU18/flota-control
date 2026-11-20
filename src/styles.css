@@ -1,11 +1,11 @@
 /* =========================================================================
-   Flota Control · sistema visual
-   Lenguaje de plataforma de gestión de flota (estilo Samsara / Motive / Fleetio):
+   Flota Control Â· sistema visual
+   Lenguaje de plataforma de gestiÃ³n de flota (estilo Samsara / Motive / Fleetio):
    plano, sin gradientes ni sombras decorativas. Sidebar azul marino, contenido
-   neutro, un solo azul de acción, bordes finos y estados en semáforo.
+   neutro, un solo azul de acciÃ³n, bordes finos y estados en semÃ¡foro.
    ========================================================================= */
 :root {
-  /* Acción */
+  /* AcciÃ³n */
   --accent: #2563EB;
   --accent-hover: #1D4ED8;
   --accent-soft: rgb(37 99 235 / .1);
@@ -42,7 +42,7 @@
   --side-active-text: #ffffff;
   --side-active-icon: #93C5FD;
 
-  /* Semáforo: tono fuerte para texto, suave para fondos, sólido para barras */
+  /* SemÃ¡foro: tono fuerte para texto, suave para fondos, sÃ³lido para barras */
   --sys-green: #22C55E; --sys-orange: #F59E0B; --sys-red: #EF4444; --sys-violet: #8B5CF6;
   --green: #15803D;  --green-soft: rgb(34 197 94 / .12);
   --blue: var(--accent); --blue-soft: var(--accent-soft);
@@ -98,7 +98,7 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; }
-/* Reserva el espacio de la barra de scroll para que la página no cambie de ancho al filtrar. */
+/* Reserva el espacio de la barra de scroll para que la pÃ¡gina no cambie de ancho al filtrar. */
 html { scrollbar-gutter: stable; }
 body {
   background: var(--bg); color: var(--text); min-height: 100vh;
@@ -176,7 +176,7 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
   display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius-sm);
   color: var(--side-text); font-weight: 500; font-size: .9rem; transition: background .15s, color .15s;
 }
-/* Hover solo con mouse: en iPad/teléfono no se queda "pegado" después de tocar. */
+/* Hover solo con mouse: en iPad/telÃ©fono no se queda "pegado" despuÃ©s de tocar. */
 @media (hover: hover) { .sidebar nav a:not(.active):hover { background: var(--side-hover); color: #fff; } }
 .sidebar nav a:not(.active):active { background: var(--side-hover); }
 .sidebar nav a.active { background: var(--side-active); color: var(--side-active-text); font-weight: 600; }
@@ -212,7 +212,7 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 .content { padding: 24px 32px 56px; width: 100%; max-width: 1480px; margin: 0 auto; }
 .scrim { display: none; }
 
-/* Barra de pestañas inferior (solo móvil/tablet). */
+/* Barra de pestaÃ±as inferior (solo mÃ³vil/tablet). */
 .tabbar { display: none; }
 
 @media (max-width: 900px) {
@@ -293,7 +293,7 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 .tour-chapter { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; font-size: .7rem; font-weight: 600; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; }
 .tour-chapter .icon { width: 14px; height: 14px; }
 .tour-of { margin-left: 2px; color: var(--muted); font-weight: 500; letter-spacing: .02em; }
-.tour-of::before { content: "·"; margin-right: 6px; }
+.tour-of::before { content: "Â·"; margin-right: 6px; }
 .tour-skip { font-size: .75rem; }
 .tour-x { display: grid; place-items: center; width: 26px; height: 26px; margin-right: -6px; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; }
 .tour-x:hover { background: var(--surface-2); color: var(--text); }
@@ -385,9 +385,9 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 /* ---------- Cards & grids ---------- */
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; min-width: 0; }
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
-/* Las rejillas se adaptan al ancho disponible: más columnas en pantallas anchas. */
+/* Las rejillas se adaptan al ancho disponible: mÃ¡s columnas en pantallas anchas. */
 .grid-2, .dash { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 16px; margin-bottom: 16px; align-items: start; }
-/* Las tarjetas del dashboard traen tablas: necesitan más ancho mínimo para que no se aprieten. */
+/* Las tarjetas del dashboard traen tablas: necesitan mÃ¡s ancho mÃ­nimo para que no se aprieten. */
 .dash { grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
 .span-2 { grid-column: 1 / -1; }
 /* Tarjetas de resumen: todas las de una fila miden lo mismo, sin huecos debajo de las cortas. */
@@ -416,7 +416,7 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 @media (max-width: 600px) { .stat-value { font-size: 1.25rem; } .stat { padding: 14px; } .card { padding: 16px; } }
 
 .banner { display: flex; align-items: flex-start; gap: 10px; padding: 11px 14px; border-radius: var(--radius-sm); margin-bottom: 16px; font-size: .875rem; font-weight: 500; line-height: 1.5; border: 1px solid transparent; }
-/* El punto se alinea con la primera línea; el texto con <b>/<a> va dentro de un <span> para no partirse en columnas. */
+/* El punto se alinea con la primera lÃ­nea; el texto con <b>/<a> va dentro de un <span> para no partirse en columnas. */
 .banner::before { content: ""; width: 7px; height: 7px; margin-top: calc(.75em - 3.5px); border-radius: 50%; background: currentColor; flex-shrink: 0; }
 .banner-red { background: var(--red-soft); color: var(--red); border-color: color-mix(in srgb, var(--sys-red) 25%, transparent); }
 .banner-amber { background: var(--amber-soft); color: var(--amber); border-color: color-mix(in srgb, var(--sys-orange) 30%, transparent); }
@@ -433,7 +433,7 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 .tabs button:hover:not(.active) { color: var(--text); }
 .tabs button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 .toolbar { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 16px; }
-/* Dentro de una barra de herramientas, las pestañas se ven como segmentado. */
+/* Dentro de una barra de herramientas, las pestaÃ±as se ven como segmentado. */
 .segmented, .toolbar .tabs { display: inline-flex; gap: 2px; padding: 2px; margin: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); flex-wrap: wrap; overflow: visible; }
 .toolbar .tabs { flex: 0 1 auto; min-width: 0; flex-wrap: nowrap; overflow-x: auto; }
 .segmented button, .toolbar .tabs button {
@@ -450,35 +450,108 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 @media (max-width: 760px) { .search { max-width: none; } }
 .toolbar-row { align-items: center; justify-content: flex-start; gap: 8px; }
 .toolbar-row .search { flex: 1 1 240px; max-width: 380px; }
-.toolbar-row .filter-select { width: auto; flex: none; }
 .toolbar-row .segmented { flex: none; flex-wrap: nowrap; margin-left: auto; }
-@media (max-width: 760px) { .toolbar-row .search { flex-basis: 100%; max-width: none; } .toolbar-row .filter-select { flex: 1 1 140px; } }
+@media (max-width: 760px) { .toolbar-row .search { flex-basis: 100%; max-width: none; } }
 
-/* Selector múltiple (components/ui.tsx MultiSelect): botón con el aspecto de un select y lista con casillas. */
-.multi-select { position: relative; flex: none; }
-.multi-select-button {
-  min-height: 38px; padding: 8px 34px 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
-  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 9.5 5 5 5-5'/%3E%3C/svg%3E") no-repeat right 10px center / 16px;
-  cursor: pointer; white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; text-align: left;
+/* Selectores propios (components/pickers.tsx): botÃ³n con aspecto de campo y capa flotante (Popover). */
+.dropdown { position: relative; flex: none; min-width: 0; }
+.field .dropdown, .form .dropdown { width: 100%; }
+.dropdown-button {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 38px; padding: 8px 10px 8px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text);
+  cursor: pointer; text-align: left; font-size: .9rem; transition: border-color .15s, box-shadow .15s, background-color .15s;
 }
-.multi-select-button:hover:not(:disabled) { border-color: var(--tertiary); }
-.multi-select-button:focus-visible, .multi-select-button[aria-expanded="true"] { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
-.multi-select-button:disabled { opacity: .55; cursor: not-allowed; background-color: var(--surface-2); }
-.multi-select-menu {
-  position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; min-width: 100%; width: max-content; max-width: 320px;
-  max-height: 320px; overflow-y: auto; padding: 6px; background: var(--surface); border: 1px solid var(--line);
-  border-radius: var(--radius-sm); box-shadow: var(--shadow-lg);
+.dropdown-button:hover:not(:disabled) { border-color: var(--tertiary); }
+.dropdown-button:focus-visible, .dropdown.open .dropdown-button { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+.dropdown-button:disabled { opacity: .55; cursor: not-allowed; background: var(--surface-2); }
+.dropdown-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+.dropdown-prefix { color: var(--muted); }
+.dropdown-placeholder { color: var(--placeholder); }
+.dropdown-sub { color: var(--muted); font-size: .8rem; white-space: nowrap; }
+.dropdown-chevron { width: 16px; height: 16px; flex-shrink: 0; color: var(--muted); transition: transform .18s var(--ease); }
+.dropdown.open .dropdown-chevron { transform: rotate(180deg); }
+.dropdown-lead { width: 16px; height: 16px; flex-shrink: 0; color: var(--muted); }
+.dropdown.open .dropdown-lead { color: var(--accent); }
+
+.popover {
+  position: fixed; z-index: 55; max-width: min(340px, calc(100vw - 16px)); padding: 4px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-lg);
+  animation: popover-in .12s var(--ease);
 }
-.multi-select-option { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 6px; cursor: pointer; font-size: .9rem; }
-.multi-select-option:hover { background: var(--surface-2); }
-/* Aquí van como casillas, no como interruptores. */
-.multi-select-option input[type="checkbox"] { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--tertiary); background: var(--surface); }
-.multi-select-option input[type="checkbox"]::after { display: none; }
-.multi-select-option input[type="checkbox"]:checked {
-  border-color: var(--accent); background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E") no-repeat center / 12px;
+@keyframes popover-in { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .popover { animation: none; } .dropdown-chevron { transition: none; } }
+.popover-foot { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--line); margin: 4px -4px -4px; padding: 9px 14px; font-size: .84rem; }
+.popover-foot > :last-child:not(:first-child) { margin-left: auto; }
+.link-muted { color: var(--muted); }
+
+/* Lista de opciones */
+.option-list { display: flex; flex-direction: column; max-height: min(360px, 60vh); }
+.option-search { display: flex; align-items: center; gap: 8px; padding: 2px 10px 6px; margin: 0 -4px 4px; border-bottom: 1px solid var(--line); }
+.option-search .icon { width: 16px; height: 16px; color: var(--muted); flex-shrink: 0; }
+.option-search input { border: 0; min-height: 32px; padding: 4px 0; box-shadow: none; background: none; }
+.option-search input:focus { box-shadow: none; }
+.option-scroll { overflow-y: auto; outline: none; }
+.option-group { padding: 10px 10px 4px; font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.option { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: .9rem; white-space: nowrap; }
+.option.active { background: var(--surface-2); }
+.option.selected { color: var(--accent); font-weight: 600; }
+.option-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.option-hint { color: var(--muted); font-size: .8rem; font-weight: 400; }
+.option-check { width: 16px; height: 16px; flex-shrink: 0; }
+.option-box { width: 16px; height: 16px; flex-shrink: 0; border-radius: 4px; border: 1.5px solid var(--tertiary); display: grid; place-items: center; background: var(--surface); }
+.option-box.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.option-box .icon { width: 12px; height: 12px; stroke-width: 3.2; }
+.option.selected:has(.option-box) { color: var(--text); font-weight: 500; }
+.option-empty { padding: 10px; color: var(--muted); font-size: .85rem; }
+.swatch-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .18); }
+
+/* Calendario */
+.popover-calendar { padding: 10px 10px 4px; }
+.calendar { width: 266px; }
+.calendar-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.calendar-title { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 4px 6px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: .92rem; text-transform: capitalize; }
+.calendar-title:hover { background: var(--surface-2); }
+.calendar-title .icon { width: 14px; height: 14px; color: var(--muted); transition: transform .18s var(--ease); }
+.calendar-title .icon.up { transform: rotate(180deg); }
+.calendar-nav { display: flex; }
+.calendar-nav .icon-btn { width: 30px; height: 30px; color: var(--secondary); }
+.calendar-nav .icon-btn .icon { width: 16px; height: 16px; }
+.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px 0; outline: none; }
+.calendar-wd { text-align: center; font-size: .7rem; font-weight: 600; color: var(--muted); padding: 4px 0; }
+.calendar-day {
+  height: 34px; border: 0; background: none; font-size: .85rem; cursor: pointer; border-radius: 8px; color: var(--text);
+  font-variant-numeric: tabular-nums; position: relative;
 }
-.multi-select-clear { display: block; margin: 4px 8px 2px; font-size: .82rem; }
-@media (max-width: 760px) { .toolbar-row .multi-select { flex: 1 1 140px; } .toolbar-row .multi-select-button { width: 100%; max-width: none; } }
+.calendar-day:hover:not(:disabled):not(.selected) { background: var(--surface-2); }
+.calendar-day.other { color: var(--tertiary); }
+.calendar-day:disabled { color: var(--tertiary); opacity: .45; cursor: not-allowed; }
+.calendar-day.today { font-weight: 700; color: var(--accent); }
+.calendar-day.today::after { content: ""; position: absolute; left: 50%; bottom: 5px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: currentColor; }
+.calendar-grid:focus-visible .calendar-day.cursor { box-shadow: inset 0 0 0 2px var(--accent); }
+.calendar-day.in-range { background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 0; }
+.calendar-day.selected { background: var(--accent); color: #fff; font-weight: 600; }
+.calendar-day.range-start:not(.range-end) { border-radius: 8px 0 0 8px; }
+.calendar-day.range-end:not(.range-start) { border-radius: 0 8px 8px 0; }
+.calendar-months { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 6px 0 10px; outline: none; }
+.calendar-month { height: 40px; border: 0; border-radius: 8px; background: none; cursor: pointer; text-transform: capitalize; font-size: .88rem; color: var(--text); }
+.calendar-month:hover:not(:disabled):not(.cursor) { background: var(--surface-2); }
+.calendar-month.today { color: var(--accent); font-weight: 700; }
+.calendar-month.cursor { background: var(--accent); color: #fff; font-weight: 600; }
+.calendar-month:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Rango de fechas: atajos a la izquierda y calendario a la derecha (arriba y abajo en el celular). */
+.popover-range { max-width: calc(100vw - 16px); }
+.range-body { display: flex; gap: 10px; }
+.range-presets { display: flex; flex-direction: column; gap: 2px; padding-right: 10px; border-right: 1px solid var(--line); min-width: 138px; }
+.range-preset { border: 0; background: none; text-align: left; padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: .86rem; white-space: nowrap; color: var(--text); }
+.range-preset:hover { background: var(--surface-2); }
+.range-preset.selected { color: var(--accent); font-weight: 600; background: var(--surface-2); }
+@media (max-width: 600px) {
+  .range-body { flex-direction: column; }
+  .range-presets { flex-direction: row; flex-wrap: wrap; gap: 6px; border-right: 0; border-bottom: 1px solid var(--line); padding: 0 0 10px; min-width: 0; }
+  .range-preset { padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: .8rem; }
+}
+@media (max-width: 760px) { .toolbar-row .dropdown { flex: 1 1 140px; } }
 
 /* ---------- Tables ---------- */
 .table-wrap { overflow-x: auto; }
@@ -506,23 +579,20 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 .table td a { color: var(--text); font-weight: 500; }
 .table td a:hover { color: var(--accent); }
 
-/* Bitácora (components/AuditLog.tsx) */
-/* Filtros en dos filas: búsqueda + exportar arriba; abajo los selectores repartidos a lo ancho y el rango de fechas. */
+/* BitÃ¡cora (components/AuditLog.tsx) */
+/* Filtros en dos filas: bÃºsqueda + exportar arriba; abajo los selectores repartidos a lo ancho y el rango de fechas. */
 .audit-filters { display: grid; gap: 10px; margin-bottom: 16px; }
 .audit-filters-top { display: flex; gap: 10px; align-items: center; }
 .audit-filters-top .search { flex: 1; max-width: none; }
 .audit-export { flex: none; min-height: 38px; }
 .audit-filters-row {
   display: grid; gap: 10px; align-items: center;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(280px, 1.5fr) auto;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
 }
-.audit-filters-row .multi-select { min-width: 0; }
-.audit-filters-row .multi-select-button { width: 100%; max-width: none; }
-.audit-dates { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: .85rem; }
-.audit-dates input { flex: 1; min-width: 0; }
+.audit-filters-row .dropdown { min-width: 0; }
 @media (max-width: 1180px) {
   .audit-filters-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .audit-dates { grid-column: 1 / -1; }
+  .audit-filters-row .date-range { grid-column: 1 / -1; }
   .audit-clear { grid-column: 1 / -1; justify-self: start; }
 }
 .table-wrap.is-loading { opacity: .6; transition: opacity .15s; }
@@ -546,7 +616,7 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
   .audit-filters-top { flex-wrap: wrap; }
   .audit-filters-top .search { flex-basis: 100%; }
   .audit-export { width: 100%; justify-content: center; }
-  /* En el celular cada movimiento es una tarjeta: acción y fecha, registro, quién y módulo, cambios. */
+  /* En el celular cada movimiento es una tarjeta: acciÃ³n y fecha, registro, quiÃ©n y mÃ³dulo, cambios. */
   .audit-table colgroup, .audit-table thead { display: none; }
   .audit-table, .audit-table tbody { display: block; }
   .audit-table tr.audit-row {
@@ -560,7 +630,7 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
   .audit-table .c-sobre { grid-area: sobre; }
   .audit-table .c-usuario { grid-area: usuario; font-size: .8rem; color: var(--muted); }
   .audit-table .c-modulo { grid-area: modulo; font-size: .8rem; }
-  .audit-table .c-modulo::before { content: '· '; }
+  .audit-table .c-modulo::before { content: 'Â· '; }
   .audit-table .c-cambios { grid-area: cambios; padding-top: 2px !important; }
   .audit-table tr.audit-detail, .audit-table tr.audit-detail td { display: block; }
   .table-wrap.card .audit-table tr.audit-detail td { padding: 0 16px 12px; }
@@ -608,7 +678,7 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 .vc-top { display: flex; gap: 12px; align-items: flex-start; }
 .vc-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding-top: 1px; }
 .vc-title strong { font-weight: 600; }
-/* Mosaico con el color del coche: se mezcla con la superficie para que blanco y negro también se vean. */
+/* Mosaico con el color del coche: se mezcla con la superficie para que blanco y negro tambiÃ©n se vean. */
 .vc-swatch {
   position: relative; width: 40px; height: 40px; flex-shrink: 0; border-radius: var(--radius-sm); display: grid; place-items: center;
   background: color-mix(in srgb, var(--c) 22%, var(--surface-2)); color: color-mix(in srgb, var(--c) 70%, var(--text)); box-shadow: inset 0 0 0 1px var(--line);
@@ -818,7 +888,7 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 .doc-placeholder { height: 280px; border: 1.5px dashed var(--dashed); border-radius: var(--radius-sm); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 16px; background: var(--surface-2); }
 .table th.sortable { cursor: pointer; user-select: none; transition: color .15s; }
 .fleet-table { table-layout: fixed; min-width: 1290px; }
-/* Separa una columna de texto de la numérica (alineada a la derecha) que tiene a su izquierda. */
+/* Separa una columna de texto de la numÃ©rica (alineada a la derecha) que tiene a su izquierda. */
 .fleet-table .col-gap { padding-left: 28px; }
 .table th.sortable:hover, .table th.sorted { color: var(--accent); }
 .table td.recovery { min-width: 150px; }
@@ -828,7 +898,6 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 .statement tr.section td { font-weight: 600; padding-top: 16px; color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; }
 .statement tr td:first-child { padding-left: 18px; }
 .statement tr.section td:first-child, .statement tr.total td:first-child { padding-left: 8px; }
-.actions select { width: auto; min-height: 36px; padding-top: 6px; padding-bottom: 6px; }
 .unit { font-weight: 600; color: var(--text); }
 .vc-title .unit { margin-right: 6px; }
 
@@ -879,7 +948,7 @@ button.settings-row:active, a.settings-row:active { background: var(--surface-3)
 .theme-option.active .theme-check { background: var(--accent); color: #fff; box-shadow: none; }
 .theme-check .icon { width: 12px; height: 12px; stroke-width: 3; }
 
-/* ---------- Orión GPS: mapa (Leaflet) ---------- */
+/* ---------- OriÃ³n GPS: mapa (Leaflet) ---------- */
 .gps-map { position: relative; isolation: isolate; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-2); margin-bottom: 16px; }
 .gps-map .leaflet-container { font: inherit; background: var(--surface-2); }
 .gps-dot { stroke: var(--surface); fill-opacity: 1; }

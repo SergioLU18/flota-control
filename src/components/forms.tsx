@@ -6,7 +6,8 @@ import { useStore, type NewTire } from '../data/store'
 import { COLOR_HEX, SHOPS } from '../data/catalogs'
 import type { Charge, Driver, Expense, ExpenseCategory, Incident, PaymentMethod, PhotoRef, Rental, ServiceType, Tire, Vehicle } from '../data/types'
 import { EXPENSE_LABEL } from '../lib/finance'
-import { activeRentalOf, activeRentalOfDriver, depositLeft, driverWarnings, inFleet, rentalBalance, vehicleLabel } from '../lib/calc'
+import { activeRentalOf, activeRentalOfDriver, carName, depositLeft, driverWarnings, inFleet, rentalBalance, vehicleLabel } from '../lib/calc'
+import { DatePicker, Select, type Option } from './pickers'
 import { can } from '../data/permissions'
 import { TODAY, fuelLabel, mxn } from '../lib/format'
 import { Field, Photo } from './ui'
@@ -41,6 +42,9 @@ const NoVehicles = () => <p className="empty">Primero da de alta un coche en Flo
 
 const num = (s: string) => Number(s.replace(/[^\d.]/g, '')) || 0
 
+/** Coches para un Select: "C-14 · Kia K3" con las placas a la derecha (también se buscan por placas). */
+const vehicleOptions = (vs: Vehicle[]): Option[] => vs.map((x) => ({ value: x.id, label: carName(x), hint: x.plates }))
+
 // ---------- Vehículo ----------
 export function VehicleForm({ vehicle, onDone }: { vehicle?: Vehicle; onDone: () => void }) {
   const { data, user, saveVehicle } = useStore()
@@ -67,20 +71,19 @@ export function VehicleForm({ vehicle, onDone }: { vehicle?: Vehicle; onDone: ()
       <Field label="Año"><input type="number" value={v.year} onChange={(e) => set('year', num(e.target.value))} /></Field>
       <Field label="Placas"><input value={v.plates} onChange={(e) => set('plates', e.target.value)} placeholder="YAA-123-A" /></Field>
       <Field label="Color">
-        <select value={v.color} onChange={(e) => set('color', e.target.value)}>{Object.keys(COLOR_HEX).map((c) => <option key={c}>{c}</option>)}</select>
+        <Select label="Color" value={v.color} onChange={(c) => set('color', c)}
+          options={Object.entries(COLOR_HEX).map(([c, hex]) => ({ value: c, label: c, lead: <span className="swatch-dot" style={{ background: hex }} /> }))} />
       </Field>
       <Field label="VIN / número de serie"><input value={v.vin} onChange={(e) => set('vin', e.target.value)} maxLength={17} /></Field>
       <Field label="Kilometraje actual" hint={vehicle ? 'Si lo subes, se guarda como lectura manual de hoy' : undefined}><input inputMode="numeric" value={v.currentKm || ''} onChange={(e) => set('currentKm', num(e.target.value))} /></Field>
       <Field label="Estado">
-        <select value={v.status} onChange={(e) => set('status', e.target.value as Vehicle['status'])} disabled={v.status === 'rentado' || v.status === 'baja'}>
-          <option value="disponible">Disponible</option><option value="taller">En taller / mantenimiento</option>
-          {v.status === 'rentado' && <option value="rentado">Rentado</option>}
-          {v.status === 'baja' && <option value="baja">Dado de baja</option>}
-        </select>
+        <Select<Vehicle['status']> label="Estado" value={v.status} onChange={(st) => set('status', st)} disabled={v.status === 'rentado' || v.status === 'baja'}
+          options={[{ value: 'disponible', label: 'Disponible' }, { value: 'taller', label: 'En taller / mantenimiento' },
+            ...(v.status === 'rentado' ? [{ value: 'rentado' as const, label: 'Rentado' }] : []), ...(v.status === 'baja' ? [{ value: 'baja' as const, label: 'Dado de baja' }] : [])]} />
       </Field>
       {/* Solo con el permiso de finanzas: sin él, la base ni lo envía ni deja cambiarlo. */}
       {seesPrice && <Field label="Precio de compra" hint="Para el cálculo inversión vs. generado"><input inputMode="numeric" value={v.purchasePrice || ''} onChange={(e) => set('purchasePrice', num(e.target.value))} /></Field>}
-      <Field label="Fecha de compra" hint={vehicle && !vehicle.purchaseDate ? <span className="warn">Sin capturar: Finanzas no puede ubicar la inversión</span> : undefined}><input type="date" value={v.purchaseDate} onChange={(e) => set('purchaseDate', e.target.value)} /></Field>
+      <Field label="Fecha de compra" hint={vehicle && !vehicle.purchaseDate ? <span className="warn">Sin capturar: Finanzas no puede ubicar la inversión</span> : undefined}><DatePicker label="Fecha de compra" value={v.purchaseDate} onChange={(d) => set('purchaseDate', d)} max={TODAY} clearable placeholder="Sin capturar" /></Field>
       <Field label="ID de equipo Orión" hint="Opcional"><input value={v.orionDeviceId ?? ''} onChange={(e) => set('orionDeviceId', e.target.value || undefined)} /></Field>
       <Field label="Notas" full><textarea rows={2} value={v.notes} onChange={(e) => set('notes', e.target.value)} /></Field>
     </FormShell>
@@ -127,7 +130,7 @@ export function DriverForm({ driver, onDone }: { driver?: Driver; onDone: (id: s
       </Field>
       <Field label="Domicilio"><input value={d.address} onChange={(e) => set('address', e.target.value)} /></Field>
       <Field label="Núm. de licencia"><input value={d.licenseNumber} onChange={(e) => set('licenseNumber', e.target.value)} /></Field>
-      <Field label="Vigencia de licencia"><input type="date" value={d.licenseExpires} onChange={(e) => set('licenseExpires', e.target.value)} /></Field>
+      <Field label="Vigencia de licencia"><DatePicker label="Vigencia de licencia" value={d.licenseExpires} onChange={(x) => set('licenseExpires', x)} clearable placeholder="Sin capturar" /></Field>
       {d.references.map((r, i) => (
         <Field key={i} label={`Referencia familiar ${i + 1}`} full>
           <div className="inline-3">
@@ -194,18 +197,14 @@ export function StartRentalForm({ vehicleId, driverId, onDone }: { vehicleId?: s
       if (f.inspect) nav(`/inspecciones/nueva?vehiculo=${v.id}&tipo=entrega&renta=${id}`)
     }}>
       <Field label="Coche (solo disponibles)" full>
-        <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value, startKm: 0 })}>
-          {available.map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
-        </select>
+        <Select label="Coche" value={f.vehicleId} onChange={(id) => setF({ ...f, vehicleId: id, startKm: 0 })} options={vehicleOptions(available)} placeholder="No hay coches disponibles" />
       </Field>
       <Field label="Conductor" full hint="Solo conductores sin renta activa">
-        <select value={f.driverId} onChange={(e) => setF({ ...f, driverId: e.target.value })}>
-          <option value="">Selecciona…</option>
-          {eligible.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-        </select>
+        <Select label="Conductor" value={f.driverId} onChange={(id) => setF({ ...f, driverId: id })} placeholder="Elige al conductor…"
+          options={eligible.map((x) => ({ value: x.id, label: x.name, hint: x.phone }))} />
       </Field>
       <DriverWarnings driver={driver} />
-      <Field label="Fecha de inicio"><input type="date" value={f.startDate} onChange={(e) => setF({ ...f, startDate: e.target.value })} /></Field>
+      <Field label="Fecha de inicio"><DatePicker label="Fecha de inicio" value={f.startDate} onChange={(startDate) => setF({ ...f, startDate })} /></Field>
       {v ? <KmInput label="Km de entrega" vehicle={v} value={f.startKm} onChange={(startKm) => setF({ ...f, startKm })} /> : <Field label="Km de entrega"><input disabled /></Field>}
       <Field label="Tarifa semanal (MXN)"><input inputMode="numeric" value={f.weeklyRate} onChange={(e) => setF({ ...f, weeklyRate: num(e.target.value) })} /></Field>
       <Field label="Depósito (MXN)"><input inputMode="numeric" value={f.deposit} onChange={(e) => setF({ ...f, deposit: num(e.target.value) })} /></Field>
@@ -234,17 +233,14 @@ export function EndRentalForm({ rental, onDone }: { rental: Rental; onDone: () =
       if (f.inspect) nav(`/inspecciones/nueva?vehiculo=${v.id}&tipo=recepcion&renta=${rental.id}`)
     }}>
       <p className="field-full muted">{vehicleLabel(v)} · Saldo pendiente: <b className={bal > 0 ? 'neg' : ''}>{mxn(bal)}</b> · Depósito: {mxn(rental.deposit)}</p>
-      <Field label="Fecha de fin"><input type="date" value={f.endDate} onChange={(e) => setF({ ...f, endDate: e.target.value })} /></Field>
+      <Field label="Fecha de fin"><DatePicker label="Fecha de fin" value={f.endDate} onChange={(endDate) => setF({ ...f, endDate })} min={rental.startDate} /></Field>
       <KmInput label="Km de devolución" vehicle={v} value={f.endKm} onChange={(endKm) => setF({ ...f, endKm })} />
       <Field label="Depósito" full hint={
         f.deposit === 'aplicado' ? <>Se registra un pago de "depósito aplicado" por lo que cubra del adeudo (hoy, {mxn(applies)}){left > applies ? <>; los {mxn(left - applies)} restantes se devuelven al conductor</> : ''}. Para daños, agrega antes el cargo en el conductor.</>
           : f.deposit === 'retenido' ? 'Podrás devolverlo o aplicarlo después desde el expediente del conductor.' : undefined
       }>
-        <select value={f.deposit} onChange={(e) => setF({ ...f, deposit: e.target.value as Rental['depositStatus'] })}>
-          <option value="devuelto">Se devuelve al conductor</option>
-          <option value="aplicado">Se aplica a adeudo / daños</option>
-          <option value="retenido">Queda retenido por ahora</option>
-        </select>
+        <Select<Rental['depositStatus']> label="Depósito" value={f.deposit} onChange={(deposit) => setF({ ...f, deposit })}
+          options={[{ value: 'devuelto', label: 'Se devuelve al conductor' }, { value: 'aplicado', label: 'Se aplica a adeudo / daños' }, { value: 'retenido', label: 'Queda retenido por ahora' }]} />
       </Field>
       <label className="check field-full"><input type="checkbox" checked={f.inspect} onChange={(e) => setF({ ...f, inspect: e.target.checked })} /> Hacer inspección de recepción con fotos</label>
     </FormShell>
@@ -274,11 +270,10 @@ export function PaymentForm({ rentalId, driverId, onDone }: { rentalId?: string;
       await addPayment({ rentalId: r.id, date: f.date, amount: f.amount, method: f.method, notes: f.notes || undefined }); onDone()
     }}>
       <Field label="Renta (conductor · coche)" full hint={r && <>Saldo actual: <b className={bal > 0 ? 'neg' : ''}>{mxn(bal)}</b> · Tarifa {mxn(r.weeklyRate)}/sem</>}>
-        <select value={f.rentalId} onChange={(e) => setF({ ...f, rentalId: e.target.value })} disabled={!!rentalId}>
-          {options.map((x) => <option key={x.id} value={x.id}>{label(x)}{x.status === 'finalizada' ? ' (finalizada)' : ''}</option>)}
-        </select>
+        <Select label="Renta" value={f.rentalId} onChange={(id) => setF({ ...f, rentalId: id })} disabled={!!rentalId}
+          options={options.map((x) => ({ value: x.id, label: label(x), hint: x.status === 'finalizada' ? 'finalizada' : undefined }))} />
       </Field>
-      <Field label="Fecha"><input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
+      <Field label="Fecha"><DatePicker value={f.date} onChange={(date) => setF({ ...f, date })} /></Field>
       <Field label="Monto (MXN)">
         <input inputMode="numeric" value={f.amount || ''} onChange={(e) => setF({ ...f, amount: num(e.target.value) })} placeholder={r ? String(r.weeklyRate) : ''} />
       </Field>
@@ -314,11 +309,10 @@ export function MileageForm({ vehicleId, onDone }: { vehicleId?: string; onDone:
       await addMileage(f.vehicleId, f.km, f.date); onDone()
     }}>
       <Field label="Coche" full>
-        <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })} disabled={!!vehicleId}>
-          {data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId).map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
-        </select>
+        <Select label="Coche" value={f.vehicleId} onChange={(id) => setF({ ...f, vehicleId: id })} disabled={!!vehicleId}
+          options={vehicleOptions(data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId))} />
       </Field>
-      <Field label="Fecha"><input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
+      <Field label="Fecha"><DatePicker value={f.date} onChange={(date) => setF({ ...f, date })} /></Field>
       <Field label="Odómetro (km)" hint={`Último: ${v.currentKm.toLocaleString('es-MX')} km`}><input inputMode="numeric" value={f.km || ''} onChange={(e) => setF({ ...f, km: num(e.target.value) })} /></Field>
     </FormShell>
   )
@@ -350,14 +344,14 @@ export function ServiceForm({ vehicleId, onDone }: { vehicleId?: string; onDone:
       await addService({ id, vehicleId: f.vehicleId, date: f.date, km: f.km || v.currentKm, cost: f.cost, shop: f.shop, notes: f.notes || undefined, resetsCounter: t.resetsCounter }, t.id, newTires); onDone()
     }}>
       <Field label="Coche" full>
-        <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })} disabled={!!vehicleId}>
-          {data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId).map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
-        </select>
+        <Select label="Coche" value={f.vehicleId} onChange={(id) => setF({ ...f, vehicleId: id })} disabled={!!vehicleId}
+          options={vehicleOptions(data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId))} />
       </Field>
       <Field label="Tipo (catálogo)" hint={t.resetsCounter ? 'Reinicia el contador de 10,000 km' : t.hint}>
-        <select value={f.typeId} onChange={(e) => setF({ ...f, typeId: e.target.value })}>{types.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+        <Select label="Tipo de servicio" value={f.typeId} onChange={(typeId) => setF({ ...f, typeId })}
+          options={types.map((x) => ({ value: x.id, label: x.name, hint: x.resetsCounter ? 'reinicia 10k' : undefined }))} />
       </Field>
-      <Field label="Fecha"><input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
+      <Field label="Fecha"><DatePicker value={f.date} onChange={(date) => setF({ ...f, date })} /></Field>
       <Field label="Km"><input inputMode="numeric" value={f.km || ''} placeholder={String(v.currentKm)} onChange={(e) => setF({ ...f, km: num(e.target.value) })} /></Field>
       <Field label="Costo (MXN)"><input inputMode="numeric" value={f.cost || ''} onChange={(e) => setF({ ...f, cost: num(e.target.value) })} /></Field>
       <Field label="Taller" full>
@@ -477,26 +471,21 @@ export function IncidentForm({ vehicleId, incident, onDone }: { vehicleId?: stri
       onDone()
     }}>
       <Field label="Coche" full>
-        <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })} disabled={!!vehicleId || !!incident}>
-          {data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId).map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
-        </select>
+        <Select label="Coche" value={f.vehicleId} onChange={(id) => setF({ ...f, vehicleId: id })} disabled={!!vehicleId || !!incident}
+          options={vehicleOptions(data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId))} />
       </Field>
       <Field label="Conductor" hint={active ? 'Se sugiere el conductor con renta activa' : undefined}>
-        <select value={f.driverId ?? (incident ? '' : active?.driverId) ?? ''} onChange={(e) => setF({ ...f, driverId: e.target.value || undefined })}>
-          <option value="">— Ninguno —</option>
-          {data.drivers.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
+        <Select label="Conductor" value={f.driverId ?? (incident ? '' : active?.driverId) ?? ''} onChange={(id) => setF({ ...f, driverId: id || undefined })}
+          options={[{ value: '', label: 'Ninguno' }, ...data.drivers.map((d) => ({ value: d.id, label: d.name, hint: d.id === active?.driverId ? 'tiene el coche' : undefined }))]} />
       </Field>
-      <Field label="Fecha"><input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
+      <Field label="Fecha"><DatePicker value={f.date} onChange={(date) => setF({ ...f, date })} /></Field>
       <Field label="Tipo">
-        <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
-          {[...new Set([...INCIDENT_TYPES, f.type])].map((t) => <option key={t}>{t}</option>)}
-        </select>
+        <Select label="Tipo de incidente" value={f.type} onChange={(type) => setF({ ...f, type })}
+          options={[...new Set([...INCIDENT_TYPES, f.type])].map((t) => ({ value: t, label: t }))} />
       </Field>
       <Field label="Responsable">
-        <select value={f.responsible} onChange={(e) => setF({ ...f, responsible: e.target.value as Incident['responsible'] })}>
-          <option value="conductor">Conductor</option><option value="empresa">Empresa</option><option value="tercero">Tercero</option><option value="seguro">Seguro</option>
-        </select>
+        <Select<Incident['responsible']> label="Responsable" value={f.responsible} onChange={(responsible) => setF({ ...f, responsible })}
+          options={[{ value: 'conductor', label: 'Conductor' }, { value: 'empresa', label: 'Empresa' }, { value: 'tercero', label: 'Tercero' }, { value: 'seguro', label: 'Seguro' }]} />
       </Field>
       <Field label="Costo estimado (MXN)" hint={charged > 0 && f.cost !== charged
         ? <span className="warn">Ya se cargaron {mxn(charged)} al conductor; cambiar el costo no cambia ese cargo (corrígelo en su estado de cuenta).</span> : undefined}>
@@ -545,17 +534,14 @@ export function ExpenseForm({ expense, onDone }: { expense?: Expense; onDone: ()
       }}>
         <Field label="Concepto" full><input value={f.concept} onChange={(e) => setF({ ...f, concept: e.target.value })} placeholder="Ej. seguro anual, verificación, lavado" /></Field>
         <Field label="Categoría">
-          <select value={f.category} onChange={(e) => setF({ ...f, category: e.target.value as ExpenseCategory })}>
-            {(Object.keys(EXPENSE_LABEL) as ExpenseCategory[]).map((c) => <option key={c} value={c}>{EXPENSE_LABEL[c]}</option>)}
-          </select>
+          <Select<ExpenseCategory> label="Categoría" value={f.category} onChange={(category) => setF({ ...f, category })}
+            options={(Object.keys(EXPENSE_LABEL) as ExpenseCategory[]).map((c) => ({ value: c, label: EXPENSE_LABEL[c] }))} />
         </Field>
         <Field label="Coche" hint="Déjalo vacío si es un gasto general del negocio">
-          <select value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })}>
-            <option value="">— General (sin coche) —</option>
-            {data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId).map((x) => <option key={x.id} value={x.id}>{vehicleLabel(x)}</option>)}
-          </select>
+          <Select label="Coche" value={f.vehicleId} onChange={(id) => setF({ ...f, vehicleId: id })}
+            options={[{ value: '', label: 'General (sin coche)' }, ...vehicleOptions(data.vehicles.filter((x) => inFleet(x) || x.id === f.vehicleId))]} />
         </Field>
-        <Field label="Fecha"><input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
+        <Field label="Fecha"><DatePicker value={f.date} onChange={(date) => setF({ ...f, date })} /></Field>
         <Field label="Monto (MXN)"><input inputMode="numeric" value={f.amount || ''} onChange={(e) => setF({ ...f, amount: num(e.target.value) })} /></Field>
         <p className="field-full muted small">Los servicios de mantenimiento y los incidentes se registran en sus propios módulos y ya cuentan como costo.</p>
       </FormShell>
@@ -596,16 +582,15 @@ export function ChargeForm({ rentalId, driverId, incident, onDone }: { rentalId?
       await addCharge({ rentalId: f.rentalId, kind: f.kind, date: f.date, amount: f.amount, concept: f.concept, incidentId: incident?.id }); onDone()
     }}>
       <Field label="Renta (conductor · coche)" full>
-        <select value={f.rentalId} onChange={(e) => setF({ ...f, rentalId: e.target.value })} disabled={!!rentalId}>
-          {options.map((r) => <option key={r.id} value={r.id}>{rentalLabel(data, r)}</option>)}
-        </select>
+        <Select label="Renta" value={f.rentalId} onChange={(id) => setF({ ...f, rentalId: id })} disabled={!!rentalId}
+          options={options.map((r) => ({ value: r.id, label: rentalLabel(data, r) }))} />
       </Field>
       <Field label="Tipo">
         <div className="segmented">
           {([['danio', 'Daños'], ['otro', 'Otro']] as const).map(([k, l]) => <button type="button" key={k} className={f.kind === k ? 'active' : ''} onClick={() => setF({ ...f, kind: k })}>{l}</button>)}
         </div>
       </Field>
-      <Field label="Fecha"><input type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
+      <Field label="Fecha"><DatePicker value={f.date} onChange={(date) => setF({ ...f, date })} /></Field>
       <Field label="Monto (MXN)"><input inputMode="numeric" value={f.amount || ''} onChange={(e) => setF({ ...f, amount: num(e.target.value) })} /></Field>
       <Field label="Concepto" full hint="Aparece en el estado de cuenta del conductor"><input value={f.concept} onChange={(e) => setF({ ...f, concept: e.target.value })} placeholder="Ej. multa de tránsito, limpieza, rayón en puerta" /></Field>
     </FormShell>
@@ -660,10 +645,8 @@ export function DepositForm({ rental, onDone }: { rental: Rental; onDone: (appli
       <Field label="¿Qué se hace con el depósito?" full hint={status === 'aplicado'
         ? <>Se registra un pago de "depósito aplicado" por {mxn(applies)}{left > applies ? <> y los {mxn(left - applies)} restantes se devuelven</> : ''}.</>
         : 'Se marca como devuelto al conductor; el saldo no cambia.'}>
-        <select value={status} onChange={(e) => setStatus(e.target.value as 'devuelto' | 'aplicado')}>
-          <option value="aplicado">Se aplica al adeudo / daños</option>
-          <option value="devuelto">Se devuelve al conductor</option>
-        </select>
+        <Select<'devuelto' | 'aplicado'> label="Depósito" value={status} onChange={setStatus}
+          options={[{ value: 'aplicado', label: 'Se aplica al adeudo / daños' }, { value: 'devuelto', label: 'Se devuelve al conductor' }]} />
       </Field>
     </FormShell>
   )
