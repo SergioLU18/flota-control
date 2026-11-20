@@ -80,7 +80,11 @@ export default function VehicleDetail() {
             {!r && (v.status === 'taller'
               ? <button className="btn" onClick={() => setVehicleStatus(v.id, 'disponible').catch((e: Error) => setError(e.message))}>Marcar disponible</button>
               : <button className="btn" onClick={() => setVehicleStatus(v.id, 'taller').catch((e: Error) => setError(e.message))}>Enviar a taller</button>)}
-            {!r && canRetire && <button className="btn btn-danger" onClick={() => setModal('baja')}>Dar de baja</button>}
+            {/* Con renta activa se muestra deshabilitado para que se sepa dónde está y por qué no se puede.
+                El title va en el span: un botón deshabilitado no recibe el hover. */}
+            {canRetire && (r
+              ? <span title="Finaliza la renta antes de darlo de baja"><button className="btn btn-danger" disabled>Dar de baja</button></span>
+              : <button className="btn btn-danger" onClick={() => setModal('baja')}>Dar de baja</button>)}
           </>}
         </>}
       />
