@@ -1,10 +1,9 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useStore } from '../data/store'
-import { Badge, Field, Modal, PageHeader, StatusBadge, Tabs } from '../components/ui'
+import { Badge, Field, Modal, PageHeader, StatusBadge } from '../components/ui'
 import type { Permission, Role, User } from '../data/types'
 import { ALL_PERMISSIONS, PERMISSIONS, ROLES, ROLE_PRESET, can, canGrant, canManage } from '../data/permissions'
 import { Icon } from '../components/Icon'
-import { AuditLog } from '../components/AuditLog'
 
 const ROLE_ORDER: Record<Role, number> = { superadmin: 0, admin: 1, operador: 2 }
 
@@ -142,57 +141,44 @@ function UserForm({ target, onDone }: { target?: User; onDone: () => void }) {
 
 export default function Users() {
   const { data, user: me } = useStore()
-  const manage = can(me, 'usuarios')
-  const audit = can(me, 'auditoria')
-  const [tab, setTab] = useState<'usuarios' | 'auditoria'>(manage ? 'usuarios' : 'auditoria')
   const [editing, setEditing] = useState<User | 'nuevo' | null>(null)
+  if (!can(me, 'usuarios')) return null
 
   const users = [...data.users].sort((a, b) => Number(a.active) - Number(b.active) || ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || a.name.localeCompare(b.name))
   const pending = users.filter((u) => !u.active).length
-  type Tab = 'usuarios' | 'auditoria'
-  const tabs: [Tab, string][] = []
-  if (manage) tabs.push(['usuarios', `Usuarios (${users.length})`])
-  if (audit) tabs.push(['auditoria', 'Bitácora de cambios'])
 
   return (
     <>
-      <PageHeader module="usuarios" title="Usuarios y auditoría"
-        actions={manage && <button className="btn btn-primary" data-tour="btn-nuevo-usuario" onClick={() => setEditing('nuevo')}><Icon name="plus" />Nuevo usuario</button>} />
-      {tabs.length > 1 && <Tabs value={tab} onChange={setTab} tabs={tabs} />}
+      <PageHeader module="usuarios" title="Usuarios" subtitle={`${users.length} cuentas`}
+        actions={<button className="btn btn-primary" data-tour="btn-nuevo-usuario" onClick={() => setEditing('nuevo')}><Icon name="plus" />Nuevo usuario</button>} />
 
-      {tab === 'usuarios' && manage && (
-        <>
-          <div className="table-wrap card" data-tour="tabla-usuarios">
-            <table className="table">
-              <thead><tr><th>Usuario</th><th>Rol</th><th>Permisos</th><th>Estado</th><th></th></tr></thead>
-              <tbody>{users.map((u) => {
-                const editable = canManage(me, u)
-                return (
-                  <tr key={u.id} className={editable ? 'clickable' : ''} onClick={() => editable && setEditing(u)}>
-                    <td>
-                      <div className="user-cell">
-                        <span className="avatar" aria-hidden>{u.name.charAt(0)}</span>
-                        <span><strong>{u.name}</strong>{u.id === me?.id && <span className="muted"> · tú</span>}<div className="muted small">{u.email}</div></span>
-                      </div>
-                    </td>
-                    <td><StatusBadge value={u.role} /></td>
-                    <td className="small"><PermSummary u={u} /></td>
-                    <td>{u.active ? <Badge tone="green">Activo</Badge> : <Badge tone="amber">Por activar</Badge>}</td>
-                    <td className="row-actions">{editable && <button className="btn btn-sm btn-ghost" onClick={(e) => { e.stopPropagation(); setEditing(u) }}>Editar</button>}</td>
-                  </tr>
-                )
-              })}</tbody>
-            </table>
-          </div>
-          <p className="muted small page-note">
-            {pending > 0 && <><strong>{pending} {pending === 1 ? 'cuenta espera' : 'cuentas esperan'} activación.</strong> </>}
-            El rol es un punto de partida: cada permiso se puede prender o apagar por persona. Solo un superadmin nombra o modifica a otro superadmin,
-            nadie puede otorgar permisos que no tiene y nadie cambia su propio rol ni se desactiva.
-          </p>
-        </>
-      )}
-
-      {tab === 'auditoria' && audit && <AuditLog />}
+      <div className="table-wrap card" data-tour="tabla-usuarios">
+        <table className="table">
+          <thead><tr><th>Usuario</th><th>Rol</th><th>Permisos</th><th>Estado</th><th></th></tr></thead>
+          <tbody>{users.map((u) => {
+            const editable = canManage(me, u)
+            return (
+              <tr key={u.id} className={editable ? 'clickable' : ''} onClick={() => editable && setEditing(u)}>
+                <td>
+                  <div className="user-cell">
+                    <span className="avatar" aria-hidden>{u.name.charAt(0)}</span>
+                    <span><strong>{u.name}</strong>{u.id === me?.id && <span className="muted"> · tú</span>}<div className="muted small">{u.email}</div></span>
+                  </div>
+                </td>
+                <td><StatusBadge value={u.role} /></td>
+                <td className="small"><PermSummary u={u} /></td>
+                <td>{u.active ? <Badge tone="green">Activo</Badge> : <Badge tone="amber">Por activar</Badge>}</td>
+                <td className="row-actions">{editable && <button className="btn btn-sm btn-ghost" onClick={(e) => { e.stopPropagation(); setEditing(u) }}>Editar</button>}</td>
+              </tr>
+            )
+          })}</tbody>
+        </table>
+      </div>
+      <p className="muted small page-note">
+        {pending > 0 && <><strong>{pending} {pending === 1 ? 'cuenta espera' : 'cuentas esperan'} activación.</strong> </>}
+        El rol es un punto de partida: cada permiso se puede prender o apagar por persona. Solo un superadmin nombra o modifica a otro superadmin,
+        nadie puede otorgar permisos que no tiene y nadie cambia su propio rol ni se desactiva.
+      </p>
 
       <Modal open={!!editing} wide title={editing === 'nuevo' ? 'Nuevo usuario' : `Editar · ${editing?.name ?? ''}`} onClose={() => setEditing(null)}>
         {editing && <UserForm key={editing === 'nuevo' ? 'nuevo' : editing.id} target={editing === 'nuevo' ? undefined : editing} onDone={() => setEditing(null)} />}

@@ -220,7 +220,10 @@ export interface AuditEntry {
 
 /** Filtros de la bitácora. Fechas 'YYYY-MM-DD' (día en Mérida), ambas incluidas. */
 export interface AuditFilter {
-  userId?: string // 'sistema' = sin usuario
+  /** Movimientos de estas personas (vacío = de todas). */
+  userIds?: string[]
+  /** Movimientos automáticos (sin usuario): se incluyen (por omisión), se ocultan o se ven solo esos. */
+  system?: 'incluir' | 'ocultar' | 'solo'
   module?: string
   op?: AuditOp
   from?: string

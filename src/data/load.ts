@@ -194,8 +194,12 @@ const quoted = (v: string) => `"${v.replace(/[\\"]/g, '\$&')}"`
 
 function auditQuery(f: AuditFilter, count?: 'exact') {
   let q = supabase.from('auditoria').select(AUDIT_COLS, count && { count })
-  if (f.userId === 'sistema') q = q.is('usuario_id', null)
-  else if (f.userId) q = q.eq('usuario_id', f.userId)
+  // Usuarios y sistema. Varios `or` en la misma consulta (este y el de la búsqueda) PostgREST los combina con AND.
+  const system = f.system ?? 'incluir'
+  if (system === 'solo') q = q.is('usuario_id', null)
+  else if (f.userIds?.length) {
+    q = system === 'incluir' ? q.or(`usuario_id.in.(${f.userIds.join(',')}),usuario_id.is.null`) : q.in('usuario_id', f.userIds)
+  } else if (system === 'ocultar') q = q.not('usuario_id', 'is', null)
   if (f.module) q = q.eq('modulo', f.module)
   if (f.op) q = q.eq('operacion', f.op)
   if (f.from) q = q.gte('en', startOfDay(f.from))

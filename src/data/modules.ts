@@ -36,8 +36,10 @@ export const MODULES: ModuleInfo[] = [
     summary: 'Estado de resultados del negocio (ingresos cobrados contra gastos) y rentabilidad de cada coche: utilidad, ocupación y cuánto de su costo ya se recuperó.' },
   { key: 'orion', path: '/orion', label: 'Orión GPS', icon: 'signal', anchor: '9-integración-con-orión-gps', perms: ['orion'],
     summary: 'Mapa de la flota con la ubicación y el estado de cada coche, actualizado cada minuto desde Orión, y el km del GPS junto al que capturamos nosotros.' },
-  { key: 'usuarios', path: '/usuarios', label: 'Usuarios y auditoría', icon: 'shield', anchor: '1-usuarios-y-acceso', perms: ['usuarios', 'auditoria'],
-    summary: 'Alta de usuarios internos con su rol y permisos, más la bitácora que registra quién hizo cada cambio y cuándo.' },
+  { key: 'usuarios', path: '/usuarios', label: 'Usuarios', icon: 'shield', anchor: '1-usuarios-y-acceso', perms: ['usuarios'],
+    summary: 'Alta de usuarios internos con su rol y sus permisos, cambio de contraseña y activación de cuentas.' },
+  { key: 'bitacora', path: '/bitacora', label: 'Bitácora', icon: 'history', anchor: '12-bitácora-de-cambios', perms: ['auditoria'],
+    summary: 'Quién hizo cada cambio y cuándo, con el valor anterior y el nuevo de cada dato. Se filtra, se busca y se exporta a Excel.' },
   { key: 'docs', path: '/documentacion', label: 'Documentación', icon: 'book', anchor: '',
     summary: 'Qué hace cada módulo y qué reglas sigue.' },
 ]

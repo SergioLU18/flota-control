@@ -12,7 +12,7 @@ Este documento explica qué hace cada módulo y qué reglas sigue. Cada sección
 - Inicio de sesión con correo y contraseña.
 - Tres roles: **superadmin**, **admin** y **operador**, más **permisos por persona**: el rol propone los permisos y cada uno se prende o apaga.
 - Alta de usuarios desde la app (nombre, correo, contraseña inicial, rol y permisos), cambio de contraseña y activar o desactivar cuentas.
-- Bitácora de auditoría: cada alta, edición, pago o cambio de estado guarda quién lo hizo, cuándo y qué cambió.
+- Todo lo que se hace queda en la **bitácora de cambios** (ver el módulo 12).
 
 **Roles**
 
@@ -39,10 +39,6 @@ La **operación diaria** es de todo el personal activo: consultar flota, conduct
 | Usuarios | Dar de alta usuarios y cambiar sus permisos y contraseñas |
 
 Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permisos ni se desactiva, y solo un superadmin toca a otro superadmin.
-
-**Bitácora de cambios:** se filtra por usuario (o "Sistema" para lo automático), módulo, tipo de movimiento (alta, cambio o eliminación) y rango de fechas, y se busca por texto libre. Buscar unas placas, una unidad o un conductor trae también sus rentas, pagos, km y servicios. Cada movimiento se abre para ver los campos con su valor anterior y el nuevo, con nombres en lugar de ids. Lo filtrado se exporta a Excel (hasta 10,000 movimientos).
-
-Los cambios que hacen las tareas automáticas (cargos de cada noche, Orión) aparecen en la bitácora como "Sistema".
 
 ---
 
@@ -247,3 +243,17 @@ Los cambios que hacen las tareas automáticas (cargos de cada noche, Orión) apa
 - Los pagos cancelados no cuentan como ingreso.
 - Un coche sin fecha de compra capturada no suma a "Compra de coches" (no se sabe en qué periodo cayó) y su ocupación se cuenta desde su alta en el sistema o su primera renta, lo que sea antes.
 - **Los números solo son tan buenos como lo que se capture.** Si no se registran el seguro o el GPS, los coches se verán más rentables de lo que son.
+
+---
+
+## 12. Bitácora de cambios
+
+**Para qué sirve:** saber quién hizo cada cambio y cuándo, y qué valor tenía antes. Solo la ven quienes tienen el permiso Bitácora.
+
+**Qué hace**
+- Registra cada alta, edición, eliminación, pago, cancelación o cambio de estado con la persona, la fecha y hora, y los datos antes y después. Nadie la puede editar ni borrar.
+- **Filtros:** una o varias personas, módulo, tipo de movimiento (alta, cambio o eliminación) y rango de fechas.
+- **Cambios del sistema:** lo que hacen las tareas automáticas (cargos de cada noche, Orión, sincronización del concentrado) aparece como "Sistema". Un filtro aparte los **incluye**, los **oculta** o muestra **solo** esos. Al elegir personas se ocultan solos, y se pueden volver a incluir.
+- **Búsqueda libre:** buscar unas placas, una unidad o un conductor trae también sus rentas, pagos, km y servicios.
+- Cada movimiento se abre para ver los campos con su valor anterior y el nuevo, con nombres en lugar de ids.
+- Lo filtrado se exporta a Excel (hasta 10,000 movimientos).

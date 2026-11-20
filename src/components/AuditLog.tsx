@@ -5,7 +5,7 @@ import type { AuditEntry, AuditFilter, AuditOp } from '../data/types'
 import { AUDIT_MODULES, auditAction, auditDetailText, auditFields, auditSubject, auditSummary, moduleLabel, relatedIds } from '../lib/audit'
 import { downloadCsv } from '../lib/files'
 import { TODAY, TZ, fechaHora } from '../lib/format'
-import { Empty } from './ui'
+import { Empty, MultiSelect } from './ui'
 import { Icon } from './Icon'
 
 const PAGE = 50
@@ -54,7 +54,7 @@ export function AuditLog() {
   }, [query, page, loadAudit])
 
   const userName = (id: string) => (id ? L.user(id)?.name ?? 'Usuario' : 'Sistema')
-  const hasFilters = !!(text || filter.userId || filter.module || filter.op || filter.from || filter.to)
+  const hasFilters = !!(text || filter.userIds?.length || filter.system || filter.module || filter.op || filter.from || filter.to)
   const users = [...data.users].sort((a, b) => a.name.localeCompare(b.name))
 
   const exportCsv = async () => {
@@ -78,32 +78,46 @@ export function AuditLog() {
 
   return (
     <>
-      <div className="toolbar toolbar-row audit-toolbar">
-        <input className="search" placeholder="Buscar placas, unidad, conductor, monto, concepto…" value={text} onChange={(e) => setText(e.target.value)} />
-        <select className="filter-select" aria-label="Usuario" value={filter.userId ?? ''} onChange={(e) => set({ userId: e.target.value || undefined })}>
-          <option value="">Usuario: todos</option>
-          {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-          <option value="sistema">Sistema (automático)</option>
-        </select>
-        <select className="filter-select" aria-label="Módulo" value={filter.module ?? ''} onChange={(e) => set({ module: e.target.value || undefined })}>
-          <option value="">Módulo: todos</option>
-          {AUDIT_MODULES.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
-        </select>
-        <select className="filter-select" aria-label="Tipo de movimiento" value={filter.op ?? ''} onChange={(e) => set({ op: (e.target.value || undefined) as AuditOp | undefined })}>
-          <option value="">Tipo: todos</option>
-          {OPS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-        </select>
-        <label className="filter-date"><span>Desde</span>
-          <input type="date" value={filter.from ?? ''} max={filter.to || TODAY} onChange={(e) => set({ from: e.target.value || undefined })} />
-        </label>
-        <label className="filter-date"><span>Hasta</span>
-          <input type="date" value={filter.to ?? ''} min={filter.from} max={TODAY} onChange={(e) => set({ to: e.target.value || undefined })} />
-        </label>
-        {hasFilters && <button className="btn btn-sm" onClick={() => { setText(''); setFilter({}); setPage(0); setOpen(null) }}>Limpiar</button>}
-        <button className="btn btn-sm audit-export" disabled={exporting || !total} onClick={exportCsv}
-          title={total > EXPORT_MAX ? `Se exportan los ${EXPORT_MAX.toLocaleString('es-MX')} más recientes` : undefined}>
-          <Icon name="download" />{exporting ? 'Exportando…' : 'Exportar a Excel (CSV)'}
-        </button>
+      {/* Dos filas: búsqueda y exportar arriba; filtros abajo, repartidos a lo ancho. */}
+      <div className="audit-filters" data-tour="filtros-bitacora">
+        <div className="audit-filters-top">
+          <input className="search" placeholder="Buscar placas, unidad, conductor, monto, concepto…" value={text} onChange={(e) => setText(e.target.value)} />
+          <button className="btn audit-export" disabled={exporting || !total} onClick={exportCsv}
+            title={total > EXPORT_MAX ? `Se exportan los ${EXPORT_MAX.toLocaleString('es-MX')} más recientes` : undefined}>
+            <Icon name="download" />{exporting ? 'Exportando…' : 'Exportar a Excel (CSV)'}
+          </button>
+        </div>
+        <div className="audit-filters-row">
+          <MultiSelect label="Usuarios" allLabel="Usuarios: todos" disabled={filter.system === 'solo'}
+            options={users.map((u) => ({ value: u.id, label: u.name }))} value={filter.userIds ?? []}
+            onChange={(ids) => set({
+              userIds: ids.length ? ids : undefined,
+              // Al elegir personas se oculta lo automático (es lo que se suele querer ver); se puede volver a incluir.
+              ...(!filter.userIds?.length && ids.length && (filter.system ?? 'incluir') === 'incluir' ? { system: 'ocultar' as const } : {}),
+            })} />
+          <select aria-label="Cambios del sistema" value={filter.system ?? 'incluir'}
+            title="Movimientos automáticos: cargos semanales, Orión, sincronización del concentrado…"
+            onChange={(e) => set({ system: e.target.value === 'incluir' ? undefined : (e.target.value as 'ocultar' | 'solo') })}>
+            <option value="incluir">Sistema: incluido</option>
+            <option value="ocultar">Sistema: oculto</option>
+            <option value="solo">Solo sistema</option>
+          </select>
+          <select aria-label="Módulo" value={filter.module ?? ''} onChange={(e) => set({ module: e.target.value || undefined })}>
+            <option value="">Módulo: todos</option>
+            {AUDIT_MODULES.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+          </select>
+          <select aria-label="Tipo de movimiento" value={filter.op ?? ''} onChange={(e) => set({ op: (e.target.value || undefined) as AuditOp | undefined })}>
+            <option value="">Tipo: todos</option>
+            {OPS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+          </select>
+          <div className="audit-dates" role="group" aria-label="Rango de fechas">
+            <span className="muted" aria-hidden>Del</span>
+            <input type="date" aria-label="Desde" title="Desde" value={filter.from ?? ''} max={filter.to || TODAY} onChange={(e) => set({ from: e.target.value || undefined })} />
+            <span className="muted" aria-hidden>al</span>
+            <input type="date" aria-label="Hasta" title="Hasta" value={filter.to ?? ''} min={filter.from} max={TODAY} onChange={(e) => set({ to: e.target.value || undefined })} />
+          </div>
+          {hasFilters && <button className="btn btn-ghost audit-clear" onClick={() => { setText(''); setFilter({}); setPage(0); setOpen(null) }}>Limpiar</button>}
+        </div>
       </div>
 
       {error && <p className="form-error">{error}</p>}
@@ -111,7 +125,7 @@ export function AuditLog() {
       {result && !result.rows.length ? (
         <Empty>{hasFilters ? 'No hay movimientos con esos filtros.' : 'Todavía no hay movimientos en la bitácora.'}</Empty>
       ) : (
-        <div className={`table-wrap card ${loading ? 'is-loading' : ''}`}>
+        <div className={`table-wrap card ${loading ? 'is-loading' : ''}`} data-tour="tabla-bitacora">
           <table className="table audit-table">
             <colgroup><col style={{ width: 128 }} /><col style={{ width: 140 }} /><col style={{ width: 124 }} /><col style={{ width: 170 }} /><col style={{ width: 260 }} /><col /></colgroup>
             <thead><tr><th>Fecha</th><th>Usuario</th><th>Módulo</th><th>Acción</th><th>Sobre</th><th>Cambios</th></tr></thead>

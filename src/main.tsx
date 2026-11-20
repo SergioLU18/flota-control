@@ -18,6 +18,7 @@ import Incidents from './pages/Incidents'
 import Inspections, { NewInspection } from './pages/Inspections'
 import Orion from './pages/Orion'
 import Users from './pages/Users'
+import AuditPage from './pages/AuditPage'
 import Docs from './pages/Docs'
 import Finance from './pages/Finance'
 import Settings from './pages/Settings'
@@ -56,7 +57,8 @@ function App() {
         <Route path="inspecciones/nueva" element={<NewInspection />} />
         {can(user, 'finanzas') && <Route path="finanzas" element={<Finance />} />}
         {can(user, 'orion') && <Route path="orion" element={<Orion />} />}
-        {(can(user, 'usuarios') || can(user, 'auditoria')) && <Route path="usuarios" element={<Users />} />}
+        {can(user, 'usuarios') && <Route path="usuarios" element={<Users />} />}
+        {can(user, 'auditoria') && <Route path="bitacora" element={<AuditPage />} />}
         <Route path="documentacion" element={<Docs />} />
         <Route path="ajustes" element={<Settings />} />
         <Route path="*" element={<Dashboard />} />

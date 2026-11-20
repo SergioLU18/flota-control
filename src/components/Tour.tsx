@@ -7,7 +7,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { modulesFor } from '../data/modules'
-import { can } from '../data/permissions'
 import { useStore } from '../data/store'
 import type { User } from '../data/types'
 import { Icon, type IconName } from './Icon'
@@ -180,12 +179,16 @@ const GUIAS: Record<string, Paso[]> = {
     { ruta: '/orion', t: 'filtro-gps', titulo: 'Filtra por estado', texto: 'Por ejemplo, solo los que están sin señal.' },
   ],
   usuarios: [
-    { ruta: '/usuarios', t: 'btn-nuevo-usuario', titulo: 'Dar acceso a alguien', si: (u) => can(u, 'usuarios'),
+    { ruta: '/usuarios', t: 'btn-nuevo-usuario', titulo: 'Dar acceso a alguien',
       texto: 'Crea la cuenta con su correo y su rol. El rol es un punto de partida: cada permiso se prende o se apaga por persona.' },
-    { ruta: '/usuarios', t: 'tabla-usuarios', titulo: 'El equipo', si: (u) => can(u, 'usuarios'),
+    { ruta: '/usuarios', t: 'tabla-usuarios', titulo: 'El equipo',
       texto: 'Pulsa un usuario para cambiar su rol, sus permisos o su contraseña, o para activar o desactivar su cuenta.' },
-    { ruta: '/usuarios', t: 'tab-auditoria', titulo: 'Bitácora de cambios', si: (u) => can(u, 'usuarios') && can(u, 'auditoria'),
-      texto: <>Pulsa <b>Bitácora de cambios</b>: quién hizo cada alta, pago, cancelación o corrección, y cuándo.</>, avance: 'click' },
+  ],
+  bitacora: [
+    { ruta: '/bitacora', t: 'filtros-bitacora', titulo: 'Encuentra un cambio',
+      texto: <>Busca por placas, unidad, conductor, monto o concepto, y filtra por una o varias personas, módulo, tipo y fechas. Con <b>Sistema</b> incluyes, ocultas o ves solo lo automático (cargos de cada noche, Orión). Lo filtrado se exporta a Excel.</> },
+    { ruta: '/bitacora', t: 'tabla-bitacora', titulo: 'Qué cambió',
+      texto: 'Quién, cuándo, en qué módulo y sobre qué registro. Pulsa un renglón para ver cada dato con su valor anterior y el nuevo.' },
   ],
   docs: [
     { ruta: '/documentacion', t: 'documentacion', titulo: 'Documentación',
