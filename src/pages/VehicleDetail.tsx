@@ -93,7 +93,7 @@ export default function VehicleDetail() {
       <Tabs value={tab} onChange={setTab} tabs={tabs} />
 
       {tab === 'resumen' && (
-        <div className="grid-2">
+        <div className="grid-2 even">
           <Card title="Renta actual">
             {r && driver ? (
               <dl className="dl">

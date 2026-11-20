@@ -390,6 +390,8 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 /* Las tarjetas del dashboard traen tablas: necesitan más ancho mínimo para que no se aprieten. */
 .dash { grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
 .span-2 { grid-column: 1 / -1; }
+/* Tarjetas de resumen: todas las de una fila miden lo mismo, sin huecos debajo de las cortas. */
+.grid-2.even { align-items: stretch; }
 .stack { display: flex; flex-direction: column; gap: 16px; }
 
 .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
