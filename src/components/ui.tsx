@@ -45,7 +45,7 @@ export function ShowMore({ shown, total, step = 50, onMore }: { shown: number; t
 }
 
 /** Texto de búsqueda sin acentos ni mayúsculas. */
-export const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+export const norm = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 
 export function PageHeader({ module, title, subtitle, actions }: { module?: string; title: string; subtitle?: ReactNode; actions?: ReactNode }) {
   // `data-tour` marca lo que resalta el tour guiado (components/Tour.tsx).

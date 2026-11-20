@@ -263,19 +263,13 @@ export function PaymentForm({ rentalId, driverId, onDone }: { rentalId?: string;
   const r = data.rentals.find((x) => x.id === f.rentalId)
   const bal = r ? rentalBalance(data, r.id).balance : 0
   const [error, setError] = useState('')
-  // Un pago igual (misma renta, fecha y monto) ya registrado suele ser una captura doble: se pide confirmar.
+  // Un pago igual (misma renta, fecha y monto) ya registrado suele ser una captura doble: se avisa y el botón lo dice.
   const duplicate = r && data.payments.find((p) => !p.voided && p.rentalId === r.id && p.date === f.date && p.amount === f.amount)
-  const [confirmed, setConfirmed] = useState('')
-  const dupKey = `${f.rentalId}|${f.date}|${f.amount}`
   const label = (x: Rental) => `${data.drivers.find((d) => d.id === x.driverId)?.name} · ${data.vehicles.find((v) => v.id === x.vehicleId)?.plates}`
   if (!options.length) return <p className="empty">No hay rentas activas ni con saldo pendiente.</p>
   return (
-    <FormShell submit={duplicate && confirmed !== dupKey ? 'Revisar pago' : 'Registrar pago'} error={error} onSubmit={async () => {
+    <FormShell submit={duplicate ? 'Registrar de todos modos' : 'Registrar pago'} error={error} onSubmit={async () => {
       if (!r || f.amount <= 0) return setError('Elige la renta y un monto mayor a cero.')
-      if (duplicate && confirmed !== dupKey) {
-        setConfirmed(dupKey)
-        return setError(`Ya hay un pago de ${mxn(duplicate.amount)} de esta renta con esa fecha (${duplicate.method}${duplicate.notes ? ` · ${duplicate.notes}` : ''}). Si es otro pago, presiona de nuevo "Registrar pago".`)
-      }
       setError('')
       await addPayment({ rentalId: r.id, date: f.date, amount: f.amount, method: f.method, notes: f.notes || undefined }); onDone()
     }}>
@@ -296,6 +290,11 @@ export function PaymentForm({ rentalId, driverId, onDone }: { rentalId?: string;
         </div>
       </Field>
       <Field label="Notas" full hint="Ej. folio de transferencia, quién recibió el efectivo"><input value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
+      {duplicate && (
+        <div className="banner banner-amber field-full" style={{ margin: 0 }}>
+          <span><b>¿Captura doble?</b> Ya hay un pago de {mxn(duplicate.amount)} de esta renta con esa fecha ({PAYMENT_LABEL[duplicate.method as keyof typeof PAYMENT_LABEL] ?? 'depósito aplicado'}{duplicate.notes ? ` · ${duplicate.notes}` : ''}). Regístralo solo si es otro pago.</span>
+        </div>
+      )}
       <p className="field-full muted small">El depósito en garantía se aplica al adeudo al finalizar la renta, o después con "Resolver" en el expediente del conductor.</p>
     </FormShell>
   )
