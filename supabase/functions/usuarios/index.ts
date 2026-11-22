@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     if (body.accion === 'crear') {
       const correo = String(body.correo ?? '').trim().toLowerCase()
       const nombre = String(body.nombre ?? '').trim()
-      const rol = String(body.rol ?? 'operador')
+      const rol = String(body.rol ?? 'admin')
       const permisos: string[] = Array.isArray(body.permisos) ? body.permisos.map(String) : []
       if (!nombre || !/^\S+@\S+\.\S+$/.test(correo)) throw new Rechazo('Escribe el nombre y un correo válido.')
 

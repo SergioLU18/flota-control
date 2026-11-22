@@ -4,12 +4,12 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore, type NewTire } from '../data/store'
 import { COLOR_HEX, SHOPS } from '../data/catalogs'
-import type { Charge, Driver, Expense, ExpenseCategory, Incident, PaymentMethod, PhotoRef, Rental, ServiceType, Tire, Vehicle } from '../data/types'
+import type { Charge, Driver, Expense, ExpenseCategory, Incident, MileageRecord, PaymentMethod, PhotoRef, Rental, ServiceType, Tire, Vehicle } from '../data/types'
 import { EXPENSE_LABEL } from '../lib/finance'
 import { activeRentalOf, activeRentalOfDriver, carName, depositLeft, driverWarnings, inFleet, rentalBalance, vehicleLabel } from '../lib/calc'
 import { DatePicker, Select, type Option } from './pickers'
 import { can } from '../data/permissions'
-import { TODAY, fuelLabel, mxn } from '../lib/format'
+import { TODAY, fecha, fuelLabel, km, mxn } from '../lib/format'
 import { Field, Photo } from './ui'
 import { compressImage } from '../lib/files'
 import { Icon } from './Icon'
@@ -48,7 +48,7 @@ const vehicleOptions = (vs: Vehicle[]): Option[] => vs.map((x) => ({ value: x.id
 // ---------- Vehículo ----------
 export function VehicleForm({ vehicle, onDone }: { vehicle?: Vehicle; onDone: () => void }) {
   const { data, user, saveVehicle } = useStore()
-  const seesPrice = can(user, 'finanzas')
+  const seesPrice = can(user, 'finanzas.editar')
   const [v, setV] = useState<Vehicle>(vehicle ?? {
     id: '', brand: '', model: '', year: new Date().getFullYear(), plates: '', color: 'Blanco', vin: '', currentKm: 0, status: 'disponible',
     notes: '', purchasePrice: 0, purchaseDate: TODAY, tires: [],
@@ -175,11 +175,12 @@ function DriverWarnings({ driver }: { driver?: Driver }) {
 }
 
 export function StartRentalForm({ vehicleId, driverId, onDone }: { vehicleId?: string; driverId?: string; onDone: () => void }) {
-  const { data, startRental } = useStore()
+  const { data, user, startRental } = useStore()
   const nav = useNavigate()
   const available = data.vehicles.filter((v) => v.status === 'disponible')
   const eligible = data.drivers.filter((d) => !activeRentalOfDriver(data, d.id))
-  const [f, setF] = useState({ vehicleId: vehicleId ?? available[0]?.id ?? '', driverId: driverId ?? '', startDate: TODAY, weeklyRate: 3000, deposit: 5000, startKm: 0, inspect: true })
+  const canInspect = can(user, 'inspecciones.editar')
+  const [f, setF] = useState({ vehicleId: vehicleId ?? available[0]?.id ?? '', driverId: driverId ?? '', startDate: TODAY, weeklyRate: 3000, deposit: 5000, startKm: 0, inspect: canInspect })
   const [error, setError] = useState('')
   const v = data.vehicles.find((x) => x.id === f.vehicleId)
   const driver = data.drivers.find((x) => x.id === f.driverId)
@@ -208,18 +209,19 @@ export function StartRentalForm({ vehicleId, driverId, onDone }: { vehicleId?: s
       {v ? <KmInput label="Km de entrega" vehicle={v} value={f.startKm} onChange={(startKm) => setF({ ...f, startKm })} /> : <Field label="Km de entrega"><input disabled /></Field>}
       <Field label="Tarifa semanal (MXN)"><input inputMode="numeric" value={f.weeklyRate} onChange={(e) => setF({ ...f, weeklyRate: num(e.target.value) })} /></Field>
       <Field label="Depósito (MXN)"><input inputMode="numeric" value={f.deposit} onChange={(e) => setF({ ...f, deposit: num(e.target.value) })} /></Field>
-      <label className="check field-full"><input type="checkbox" checked={f.inspect} onChange={(e) => setF({ ...f, inspect: e.target.checked })} /> Hacer inspección de entrega con fotos al terminar</label>
+      {canInspect && <label className="check field-full"><input type="checkbox" checked={f.inspect} onChange={(e) => setF({ ...f, inspect: e.target.checked })} /> Hacer inspección de entrega con fotos al terminar</label>}
     </FormShell>
   )
 }
 
 export function EndRentalForm({ rental, onDone }: { rental: Rental; onDone: () => void }) {
-  const { data, endRental } = useStore()
+  const { data, user, endRental } = useStore()
   const nav = useNavigate()
   const v = data.vehicles.find((x) => x.id === rental.vehicleId)!
   const bal = rentalBalance(data, rental.id).balance
   const left = depositLeft(data, rental)
-  const [f, setF] = useState({ endDate: TODAY, endKm: 0, deposit: (bal > 0 && left > 0 ? 'aplicado' : 'devuelto') as Rental['depositStatus'], inspect: true })
+  const canInspect = can(user, 'inspecciones.editar')
+  const [f, setF] = useState({ endDate: TODAY, endKm: 0, deposit: (bal > 0 && left > 0 ? 'aplicado' : 'devuelto') as Rental['depositStatus'], inspect: canInspect })
   const [error, setError] = useState('')
   // Aproximado: al finalizar, la base todavía cobra las semanas que hayan empezado antes de la fecha de fin.
   const applies = Math.min(left, Math.max(0, bal))
@@ -242,7 +244,7 @@ export function EndRentalForm({ rental, onDone }: { rental: Rental; onDone: () =
         <Select<Rental['depositStatus']> label="Depósito" value={f.deposit} onChange={(deposit) => setF({ ...f, deposit })}
           options={[{ value: 'devuelto', label: 'Se devuelve al conductor' }, { value: 'aplicado', label: 'Se aplica a adeudo / daños' }, { value: 'retenido', label: 'Queda retenido por ahora' }]} />
       </Field>
-      <label className="check field-full"><input type="checkbox" checked={f.inspect} onChange={(e) => setF({ ...f, inspect: e.target.checked })} /> Hacer inspección de recepción con fotos</label>
+      {canInspect && <label className="check field-full"><input type="checkbox" checked={f.inspect} onChange={(e) => setF({ ...f, inspect: e.target.checked })} /> Hacer inspección de recepción con fotos</label>}
     </FormShell>
   )
 }
@@ -497,7 +499,7 @@ export function IncidentForm({ vehicleId, incident, onDone }: { vehicleId?: stri
   )
 }
 
-// ---------- Editar renta (permiso "editar_rentas") ----------
+// ---------- Editar renta (permiso "rentas.tarifa") ----------
 export function EditRentalForm({ rental, onDone }: { rental: Rental; onDone: () => void }) {
   const { updateRental } = useStore()
   const [f, setF] = useState({ weeklyRate: rental.weeklyRate, deposit: rental.deposit })
@@ -515,16 +517,21 @@ export function EditRentalForm({ rental, onDone }: { rental: Rental; onDone: () 
   )
 }
 
-// ---------- Gastos (permiso "finanzas") ----------
-/** Alta, o edición si recibe `expense` (con botón para eliminarlo). */
+// ---------- Gastos (permiso "finanzas.editar") ----------
+/** Alta, o edición si recibe `expense` (con opción de cancelarlo con motivo: los gastos no se borran). */
 export function ExpenseForm({ expense, onDone }: { expense?: Expense; onDone: () => void }) {
-  const { data, saveExpense, deleteExpense } = useStore()
+  const { data, saveExpense, voidExpense } = useStore()
   const [f, setF] = useState({
     date: expense?.date ?? TODAY, category: expense?.category ?? ('otro' as ExpenseCategory), vehicleId: expense?.vehicleId ?? '',
     amount: expense?.amount ?? 0, concept: expense?.concept ?? '',
   })
   const [error, setError] = useState('')
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [voiding, setVoiding] = useState(false)
+  const [reason, setReason] = useState('')
+  const voidIt = () => {
+    if (!reason.trim()) return setError('Escribe el motivo de la cancelación.')
+    voidExpense(expense!.id, reason.trim()).then(onDone, (e: Error) => setError(e.message))
+  }
   return (
     <>
       <FormShell submit={expense ? 'Guardar cambios' : 'Guardar gasto'} error={error} onSubmit={async () => {
@@ -547,14 +554,33 @@ export function ExpenseForm({ expense, onDone }: { expense?: Expense; onDone: ()
       </FormShell>
       {expense && (
         <div className="form-danger-zone">
-          {confirmDelete ? <>
-            <span className="small">¿Eliminar este gasto? Queda registrado en la bitácora.</span>
-            <button className="btn btn-sm" onClick={() => setConfirmDelete(false)}>No</button>
-            <button className="btn btn-sm btn-danger" onClick={() => deleteExpense(expense.id).then(onDone, (e: Error) => setError(e.message))}>Sí, eliminar</button>
-          </> : <button className="btn btn-sm btn-ghost" onClick={() => setConfirmDelete(true)}>Eliminar gasto</button>}
+          {voiding ? <>
+            <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Motivo (obligatorio): se capturó dos veces, era de otro coche…" autoFocus />
+            <button className="btn btn-sm" onClick={() => setVoiding(false)}>No</button>
+            <button className="btn btn-sm btn-danger" onClick={voidIt}>Cancelar gasto</button>
+          </> : <button className="btn btn-sm btn-ghost" onClick={() => setVoiding(true)}>Cancelar gasto</button>}
         </div>
       )}
     </>
+  )
+}
+
+// ---------- Corrección de una lectura de km (permiso "mantenimiento.corregir_km") ----------
+export function CorrectMileageForm({ record, onDone }: { record: MileageRecord; onDone: () => void }) {
+  const { correctMileage } = useStore()
+  const [f, setF] = useState({ km: record.km, reason: '' })
+  const [error, setError] = useState('')
+  return (
+    <FormShell submit="Guardar corrección" error={error} onSubmit={async () => {
+      if (!f.reason.trim()) return setError('Escribe el motivo.')
+      if (f.km === record.km) return setError('El km es el mismo que ya tiene la lectura.')
+      setError('')
+      await correctMileage(record.id, f.km, f.reason.trim()); onDone()
+    }}>
+      <Field label="Km correcto" hint={`Capturado: ${km(record.km)} el ${fecha(record.date)}`}><input inputMode="numeric" value={f.km || ''} onChange={(e) => setF({ ...f, km: num(e.target.value) })} /></Field>
+      <Field label="Motivo (obligatorio)" full><input value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} placeholder="Ej. se tecleó un dígito de más" /></Field>
+      <p className="field-full muted small">La lectura no se borra: se corrige y el cambio queda en la bitácora. El km del coche se recalcula con la lectura más alta.</p>
+    </FormShell>
   )
 }
 
@@ -597,7 +623,7 @@ export function ChargeForm({ rentalId, driverId, incident, onDone }: { rentalId?
   )
 }
 
-/** Permiso "corregir_registros": corrige monto y concepto de un cargo, o lo cancela. El motivo queda en la bitácora. */
+/** Permiso "cobranza.corregir": corrige monto y concepto de un cargo, o lo cancela. El motivo queda en la bitácora. */
 export function CorrectChargeForm({ charge, onDone }: { charge: Charge; onDone: () => void }) {
   const { correctCharge, voidCharge } = useStore()
   const [mode, setMode] = useState<'corregir' | 'cancelar'>('corregir')

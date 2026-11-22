@@ -5,7 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { Session } from '@supabase/supabase-js'
 import { BUCKET, must, supabase } from '../lib/supabase'
 import { EMPTY, loadAudit, loadAuditAll, loadData, loadGps, loadProfile } from './load'
-import type { Charge, Data, DocType, Driver, Expense, Incident, Inspection, Payment, PhotoRef, Rental, Service, ServiceType, Tire, User, Vehicle } from './types'
+import type { Charge, Data, DocType, Driver, Expense, Incident, Inspection, Payment, PermissionTemplate, PhotoRef, Rental, Service, ServiceType, Tire, User, Vehicle } from './types'
 import { TODAY, nowIso, todayInMerida } from '../lib/format'
 import type { Json } from '../lib/database.types'
 
@@ -196,7 +196,7 @@ function useStoreValue() {
       must(await supabase.from('pagos').insert({ renta_id: p.rentalId, fecha: p.date, monto: p.amount, metodo: p.method, notas: p.notes ?? '' }))
     }),
 
-    /** Permiso "cancelar_pagos". No borra el pago: lo marca como cancelado con su motivo. */
+    /** Permiso "cobranza.cancelar_pago". No borra el pago: lo marca como cancelado con su motivo. */
     voidPayment: (id: string, reason: string) => write(async () => {
       must(await supabase.rpc('cancelar_pago', { p_pago_id: id, p_motivo: reason }))
     }),
@@ -208,37 +208,39 @@ function useStoreValue() {
       }))
     }),
 
-    /** Permiso "corregir_registros". El motivo queda en la bitácora. */
+    /** Permiso "cobranza.corregir". El motivo queda en la bitácora. */
     correctCharge: (id: string, amount: number, concept: string, reason: string) => write(async () => {
       must(await supabase.rpc('corregir_cargo', { p_cargo_id: id, p_monto: amount, p_concepto: concept, p_motivo: reason }))
     }),
 
-    /** Permiso "corregir_registros". No lo borra: deja de contar para el saldo y una semana cancelada no se vuelve a generar. */
+    /** Permiso "cobranza.corregir". No lo borra: deja de contar para el saldo y una semana cancelada no se vuelve a generar. */
     voidCharge: (id: string, reason: string) => write(async () => {
       must(await supabase.rpc('cancelar_cargo', { p_cargo_id: id, p_motivo: reason }))
     }),
 
-    /** Permiso "editar_rentas". La nueva tarifa aplica a los cargos que se generen después; los ya generados no cambian. */
+    /** Permiso "rentas.tarifa". La nueva tarifa aplica a los cargos que se generen después; los ya generados no cambian. */
     updateRental: (id: string, weeklyRate: number, deposit: number) => write(async () => {
       must(await supabase.rpc('editar_renta', { p_renta_id: id, p_tarifa_semanal: weeklyRate, p_deposito: deposit }))
     }),
 
-    /** Alta o edición de un gasto (permiso "finanzas"). */
+    /** Alta o edición de un gasto (permiso "finanzas.editar"). */
     saveExpense: (e: Omit<Expense, 'id' | 'userId'> & { id?: string }) => write(async () => {
       const row = { fecha: e.date, categoria: e.category, vehiculo_id: e.vehicleId ?? null, monto: e.amount, concepto: e.concept }
       must(e.id ? await supabase.from('gastos').update(row).eq('id', e.id) : await supabase.from('gastos').insert(row))
     }),
 
-    deleteExpense: (id: string) => write(async () => { must(await supabase.from('gastos').delete().eq('id', id)) }),
+    /** Permiso "finanzas.editar". No lo borra: queda cancelado con su motivo y deja de contar. */
+    voidExpense: (id: string, reason: string) => write(async () => {
+      must(await supabase.rpc('cancelar_gasto', { p_gasto_id: id, p_motivo: reason }))
+    }),
 
     addMileage: (vehicleId: string, km: number, date: string) => write(async () => {
       must(await supabase.from('registros_km').insert({ vehiculo_id: vehicleId, fecha: date, km, origen: 'manual' }))
     }),
 
-    /** Permiso "corregir_registros". El km del coche se recalcula solo con la lectura más alta que quede. */
-    deleteMileage: (id: string) => write(async () => {
-      const rows = must(await supabase.from('registros_km').delete().eq('id', id).select('id'))
-      if (!rows.length) throw new Error('No tienes permiso para borrar lecturas de km.')
+    /** Permiso "mantenimiento.corregir_km". No se borra: se corrige el valor con motivo y el km del coche se recalcula. */
+    correctMileage: (id: string, km: number, reason: string) => write(async () => {
+      must(await supabase.rpc('corregir_km', { p_registro_id: id, p_km: km, p_motivo: reason }))
     }),
 
     /**
@@ -291,7 +293,7 @@ function useStoreValue() {
       }))
     }),
 
-    /** Catálogo de tipos de servicio (permiso "catalogos"). Un tipo no se borra: se desactiva. */
+    /** Catálogo de tipos de servicio (permiso "mantenimiento.catalogos"). Un tipo no se borra: se desactiva. */
     saveServiceType: (t: Omit<ServiceType, 'id'> & { id?: string }) => write(async () => {
       const row = { nombre: t.name.trim(), reinicia_contador: t.resetsCounter, descripcion: t.hint.trim(), activo: t.active, orden: t.order }
       must(t.id ? await supabase.from('tipos_servicio').update(row).eq('id', t.id) : await supabase.from('tipos_servicio').insert(row))
@@ -300,6 +302,13 @@ function useStoreValue() {
     /** Nombre, rol, permisos y si la cuenta está activa. La base decide quién puede cambiar qué (guardar_usuario). */
     saveUser: (u: User) => write(async () => {
       must(await supabase.rpc('guardar_usuario', { p_id: u.id, p_nombre: u.name.trim(), p_rol: u.role, p_permisos: u.permissions, p_activo: u.active }))
+    }),
+
+    /** Plantilla de permisos (permiso "usuarios.editar"). No se borra: se desactiva. */
+    saveTemplate: (t: Omit<PermissionTemplate, 'id'> & { id?: string }) => write(async () => {
+      must(await supabase.rpc('guardar_plantilla', {
+        p_id: t.id || null, p_nombre: t.name.trim(), p_descripcion: t.description.trim(), p_permisos: t.permissions, p_activa: t.active,
+      }))
     }),
 
     /** Crea la cuenta ya activa, con su rol y permisos, y la contraseña con la que entrará. */

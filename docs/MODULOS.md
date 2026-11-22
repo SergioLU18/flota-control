@@ -10,35 +10,35 @@ Este documento explica qué hace cada módulo y qué reglas sigue. Cada sección
 
 **Qué hace**
 - Inicio de sesión con correo y contraseña.
-- Tres roles: **superadmin**, **admin** y **operador**, más **permisos por persona**: el rol propone los permisos y cada uno se prende o apaga.
-- Alta de usuarios desde la app (nombre, correo, contraseña inicial, rol y permisos), cambio de contraseña y activar o desactivar cuentas.
+- Dos roles: **superadmin** (todo, siempre) y **admin**, que tiene solo los permisos que se le marquen.
+- **Permisos por módulo**: cada módulo se da *sin acceso*, para *ver* o para *editar*, y algunos tienen acciones especiales.
+- **Plantillas de permisos** (Operador, Consulta, Contabilidad, Administrador y las que se creen): al dar de alta o editar a alguien se elige una y luego se ajusta módulo por módulo. La plantilla se copia: cambiarla después no cambia a quienes ya la usaron.
+- Alta de usuarios desde la app (nombre, correo, contraseña inicial y permisos), cambio de contraseña y activar o desactivar cuentas.
 - Todo lo que se hace queda en la **bitácora de cambios** (ver el módulo 12).
-
-**Roles**
-
-| Rol | Permisos |
-|---|---|
-| Superadmin | Todos, siempre. Solo otro superadmin lo nombra o lo modifica. |
-| Admin | Empieza con todos; se le pueden quitar. |
-| Operador | Empieza sin ninguno: solo la operación diaria. Se le pueden sumar permisos sueltos. |
-
-La **operación diaria** es de todo el personal activo: consultar flota, conductores, rentas y cobranza; registrar pagos, km, servicios, incidentes e inspecciones; iniciar y finalizar rentas.
 
 **Permisos**
 
-| Permiso | Qué abre |
-|---|---|
-| Finanzas | Estado de resultados, rentabilidad por coche, gastos y precio de compra |
-| Editar rentas | Cambiar tarifa semanal y depósito de una renta activa |
-| Cancelar pagos | Cancelar un pago registrado, con motivo |
-| Bajas de coches | Dar de baja un coche o reactivarlo |
-| Corregir registros | Borrar lecturas de km erróneas y corregir cargos |
-| Catálogos | Tipos de servicio de mantenimiento |
-| Orión GPS | Mapa de la flota, estado de cada equipo y km que reporta el GPS |
-| Bitácora | Ver quién hizo cada cambio y cuándo |
-| Usuarios | Dar de alta usuarios y cambiar sus permisos y contraseñas |
+| Módulo | Ver | Editar | Acciones especiales |
+|---|---|---|---|
+| Flota | Lista de coches y su expediente | Alta, edición y mandar a taller | Dar de baja o reactivar |
+| Conductores | Expediente, documentos y referencias | Alta, edición y documentos | |
+| Rentas | Rentas con tarifa y depósito | Iniciar y finalizar rentas, resolver el depósito | Cambiar tarifa y depósito de una renta activa |
+| Cobranza | Cargos, pagos y saldos | Registrar pagos, cargos extra y generar las semanas | Cancelar pagos · Corregir o cancelar cargos |
+| Mantenimiento | Servicios, llantas, km y alertas | Registrar servicios, llantas y lecturas de km | Catálogo de tipos de servicio · Corregir una lectura de km |
+| Incidentes | Incidentes con costo y fotos | Registrar, editar, cerrar y reabrir | |
+| Inspecciones | Inspecciones y galería | Registrar inspecciones con fotos | |
+| Finanzas | Estado de resultados, rentabilidad, gastos y precio de compra | Capturar, editar y cancelar gastos, y el precio de compra | |
+| Orión GPS | Mapa y estado de cada equipo | | |
+| Bitácora | Quién hizo cada cambio (con los valores de todos los módulos) | | |
+| Usuarios | Usuarios y plantillas | Alta, permisos, contraseñas y plantillas | |
 
-Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permisos ni se desactiva, y solo un superadmin toca a otro superadmin.
+Editar incluye ver, y cada acción especial incluye editar: al marcar una, la app (y la base) agrega lo que requiere.
+
+**Lo que ve todo el personal activo**, sin permisos: el dashboard (con las tarjetas de los módulos que tiene), la documentación y los datos básicos que usan todos los módulos: coches (sin precio de compra), conductores, kilometraje, catálogos y qué coche tiene cada conductor (sin tarifa ni depósito). Las tarifas, los saldos, los pagos y las finanzas solo los ve quien tiene el permiso de ese módulo.
+
+**Nada se borra:** lo capturado mal se corrige o se cancela con motivo (pagos, cargos, gastos y lecturas de km), y lo que ya no se usa se desactiva (usuarios, plantillas y tipos de servicio). Todo queda en la bitácora.
+
+Reglas: nadie otorga un permiso que no tiene (ni lo pone en una plantilla), nadie cambia sus propios permisos ni se desactiva, y solo un superadmin nombra o toca a otro superadmin.
 
 ---
 
@@ -56,7 +56,7 @@ Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permi
   - *Historial*: la historia del vehículo en una sola línea de tiempo (rentas, devoluciones, servicios, incidentes e inspecciones).
   - *Kilometraje*, *Mantenimiento y llantas*, *Incidentes* e *Inspecciones*.
 - **Precio de compra**: solo lo ve y lo captura quien tiene el permiso de Finanzas.
-- **Rentabilidad** (solo admin): ingresos, costos, utilidad acumulada, ocupación y qué porcentaje de su precio de compra ya recuperó. Ver el módulo 11.
+- **Rentabilidad** (permiso Finanzas · ver): ingresos, costos, utilidad acumulada, ocupación y qué porcentaje de su precio de compra ya recuperó. Ver el módulo 11.
 - Llantas actuales por posición, con marca, año DOT y km de instalación. Se registran con un servicio de "Cambio de llantas"; las que se quitan quedan en el historial como retiradas.
 
 ---
@@ -95,7 +95,7 @@ Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permi
   - *Se aplica al adeudo*: se registra un pago de método "depósito aplicado" por lo que cubra del saldo, nunca más que el saldo ni más que el depósito. Si sobra, se devuelve al conductor.
   - *Queda retenido*: después se resuelve desde el expediente del conductor (Coches rentados → Resolver), devolviéndolo o aplicándolo.
   - Cobranza muestra cuánto suman los depósitos retenidos. No son ingreso.
-- **Editar tarifa y depósito** de una renta activa (solo admin). La nueva tarifa aplica a los cargos siguientes; los ya generados no cambian.
+- **Editar tarifa y depósito** de una renta activa (permiso Rentas · cambiar tarifa). La nueva tarifa aplica a los cargos siguientes; los ya generados no cambian.
 
 **Reglas**
 1. Un coche solo puede tener **una renta activa** a la vez. Tampoco se aceptan rentas del mismo coche con fechas que se enciman.
@@ -120,8 +120,8 @@ Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permi
 - **Saldos:** por conductor, por coche y total global (cargado − pagado). El adeudo total suma solo a los conductores que deben; los saldos a favor (pagos adelantados) se muestran aparte y no reducen la deuda de otros.
 - **Pagos y cargos** se buscan por conductor, placas, unidad, notas o concepto y por rango de fechas. Los cargos muestran por omisión la semana actual y la anterior.
 - Pagos parciales: el saldo simplemente queda pendiente.
-- **Cancelar un pago** mal capturado (solo admin, con motivo obligatorio). El pago no se borra: queda tachado, deja de contar para el saldo y la cancelación queda en la auditoría. Si el monto estaba mal, se registra el pago correcto.
-- **Corregir o cancelar un cargo** (permiso Corregir registros, con motivo obligatorio). Un cargo cancelado queda tachado y deja de contar; una semana de renta cancelada no se vuelve a generar. El motivo queda en la bitácora.
+- **Cancelar un pago** mal capturado (permiso Cobranza · cancelar pagos, con motivo obligatorio). El pago no se borra: queda tachado, deja de contar para el saldo y la cancelación queda en la auditoría. Si el monto estaba mal, se registra el pago correcto.
+- **Corregir o cancelar un cargo** (permiso Cobranza · corregir cargos, con motivo obligatorio). Un cargo cancelado queda tachado y deja de contar; una semana de renta cancelada no se vuelve a generar. El motivo queda en la bitácora.
 - **Histórico en Excel:** exportación de todos los pagos.
 
 **Reglas**
@@ -140,9 +140,9 @@ Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permi
   - Orígenes: *manual*, *entrega*, *recepción* u *Orión* (este último está apagado por ahora; ver el módulo 9).
   - Junto al km de cada coche se muestra hace cuántos días fue la última lectura capturada; con más de 2 semanas se marca en ámbar.
   - El km del coche es el del último registro, y no se acepta un km menor que el anterior.
-  - Una lectura capturada mal se borra con el permiso Corregir registros y el km del coche se recalcula. Las de entrega y recepción son parte de la renta y no se borran.
+  - Una lectura capturada mal no se borra: se corrige su valor con motivo (permiso Mantenimiento · corregir km) y el km del coche se recalcula. Las de entrega y recepción son parte de la renta y no se tocan.
 - **Servicios:** fecha, km, tipo, costo, taller y notas.
-- **Catálogo de tipos de servicio** (servicio de 10,000 km, frenos y balatas, llantas, alineación, carrocería, suspensión y otro). Con el permiso Catálogos se agregan, se editan y se desactivan desde la app; un tipo desactivado ya no se ofrece, pero su historial se conserva.
+- **Catálogo de tipos de servicio** (servicio de 10,000 km, frenos y balatas, llantas, alineación, carrocería, suspensión y otro). Con el permiso Mantenimiento · catálogos se agregan, se editan y se desactivan desde la app; un tipo desactivado ya no se ofrece, pero su historial se conserva.
 - **Cambio de llantas** con marca y año DOT.
 - **Alerta cada 10,000 km**, contados desde el último servicio que reinicia el contador.
   - Pasa a **Próximo** a los 9,000 km y a **Vencido** a los 10,000 km.
@@ -219,7 +219,7 @@ Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permi
 
 ## 11. Finanzas
 
-**Para qué sirve:** saber si el negocio está ganando dinero y qué coches convienen y cuáles no. Solo lo ve el admin.
+**Para qué sirve:** saber si el negocio está ganando dinero y qué coches convienen y cuáles no. Lo ve quien tiene el permiso Finanzas.
 
 > Son números **operativos** para decidir, no contabilidad fiscal: no hay IVA, CFDI ni depreciación. Eso lo sigue llevando su contador.
 
@@ -235,7 +235,7 @@ Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permi
   - Utilidad promedio por mes y ocupación (porcentaje de días rentado desde que está en la flota).
   - Cuánto de su precio de compra ya recuperó con la utilidad acumulada y en cuántos meses terminaría de recuperarlo a ese ritmo.
   - El coche más y el menos rentable por mes. Así se ven los coches parados que solo generan gasto.
-- **Gastos:** captura de los costos que no son servicios ni incidentes (seguro, refrendo, GPS, renta del patio…), ligados a un coche o generales del negocio.
+- **Gastos:** captura de los costos que no son servicios ni incidentes (seguro, refrendo, GPS, renta del patio…), ligados a un coche o generales del negocio. Un gasto mal capturado se cancela con motivo (no se borra) y deja de contar.
 
 **Reglas**
 - Los costos de un coche son su mantenimiento, sus incidentes a cargo de la empresa y sus gastos propios. Los gastos generales cuentan en el estado de resultados, pero no se reparten entre coches.
@@ -248,7 +248,7 @@ Reglas: nadie otorga un permiso que no tiene, nadie cambia su propio rol o permi
 
 ## 12. Bitácora de cambios
 
-**Para qué sirve:** saber quién hizo cada cambio y cuándo, y qué valor tenía antes. Solo la ven quienes tienen el permiso Bitácora.
+**Para qué sirve:** saber quién hizo cada cambio y cuándo, y qué valor tenía antes. Solo la ven quienes tienen el permiso Bitácora · ver.
 
 **Qué hace**
 - Registra cada alta, edición, eliminación, pago, cancelación o cambio de estado con la persona, la fecha y hora, y los datos antes y después. Nadie la puede editar ni borrar.

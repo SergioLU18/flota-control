@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { Badge, Card, Modal, PageHeader, Progress, ShowMore, StatusBadge, Tabs, norm, useShowMore } from '../components/ui'
 import { Icon } from '../components/Icon'
-import { MileageForm, ServiceForm, ServiceTypeForm } from '../components/forms'
+import { CorrectMileageForm, MileageForm, ServiceForm, ServiceTypeForm } from '../components/forms'
 import { can } from '../data/permissions'
 import type { MileageRecord, ServiceType } from '../data/types'
 import { carName, inFleet, maintenanceStatus, MAINTENANCE_INTERVAL } from '../lib/calc'
@@ -12,12 +12,11 @@ import { fecha, km, mxn } from '../lib/format'
 type Tab = 'alertas' | 'servicios' | 'km' | 'catalogo'
 
 export default function Maintenance() {
-  const { data, user, deleteMileage } = useStore()
-  const canCatalog = can(user, 'catalogos')
-  const canCorrect = can(user, 'corregir_registros')
+  const { data, user } = useStore()
+  const canEdit = can(user, 'mantenimiento.editar')
+  const canCatalog = can(user, 'mantenimiento.catalogos')
+  const canCorrect = can(user, 'mantenimiento.corregir_km')
   const [type, setType] = useState<ServiceType | 'nuevo' | null>(null)
-  const [error, setError] = useState('')
-  const removeKm = (x: MileageRecord) => deleteMileage(x.id).catch((e: Error) => setError(e.message))
   const L = useLookup()
   const [tab, setTab] = useState<Tab>('alertas')
   const [modal, setModal] = useState<'km' | 'service' | null>(null)
@@ -37,8 +36,7 @@ export default function Maintenance() {
   return (
     <>
       <PageHeader module="mantenimiento" title="Kilometraje y mantenimiento" subtitle={`${due} coches requieren servicio pronto`}
-        actions={<><button className="btn" data-tour="btn-registrar-km" onClick={() => setModal('km')}><Icon name="plus" />Registrar km</button><button className="btn btn-primary" data-tour="btn-registrar-servicio" onClick={() => setModal('service')}><Icon name="plus" />Registrar servicio</button></>} />
-      {error && <div className="banner banner-red" onClick={() => setError('')}>{error}</div>}
+        actions={canEdit && <><button className="btn" data-tour="btn-registrar-km" onClick={() => setModal('km')}><Icon name="plus" />Registrar km</button><button className="btn btn-primary" data-tour="btn-registrar-servicio" onClick={() => setModal('service')}><Icon name="plus" />Registrar servicio</button></>} />
       <Tabs value={tab} onChange={setTab} tabs={[['alertas', 'Alertas de 10,000 km'], ['servicios', 'Servicios'], ['km', 'Registros de km'], ['catalogo', 'Catálogo']]} />
 
       {tab === 'alertas' && (
@@ -77,7 +75,7 @@ export default function Maintenance() {
           <tbody>{mileage.slice(0, more.n).map((x) => {
             const v = L.vehicle(x.vehicleId)
             return <tr key={x.id}><td>{fecha(x.date)}</td><td><Link to={`/flota/${v.id}`}>{v.model} {v.plates}</Link></td><td className="num">{km(x.km)}</td><td><StatusBadge value={x.source} /></td>
-              {canCorrect && <td className="row-actions"><DeleteKm record={x} onDelete={removeKm} /></td>}</tr>
+              {canCorrect && <td className="row-actions"><CorrectKm record={x} /></td>}</tr>
           })}</tbody>
         </table></div><ShowMore shown={Math.min(more.n, mileage.length)} total={mileage.length} onMore={more.more} /></Card>
       )}
@@ -92,7 +90,7 @@ export default function Maintenance() {
               </tr>
             ))}</tbody>
           </table>
-          <p className="muted small">Un cambio de llantas pide las posiciones, la marca y el año DOT, y deja el historial de llantas de cada coche.{!canCatalog && ' Para editar el catálogo se necesita el permiso de catálogos.'}</p>
+          <p className="muted small">Un cambio de llantas pide las posiciones, la marca y el año DOT, y deja el historial de llantas de cada coche.{!canCatalog && ' Para editarlo se necesita el permiso Mantenimiento · Catálogos.'}</p>
         </Card>
       )}
 
@@ -106,13 +104,14 @@ export default function Maintenance() {
 }
 
 /**
- * Permiso "corregir_registros": borrar una lectura de km capturada mal. Las de entrega y recepción son parte
- * de la renta y no se borran. Pide confirmar en el mismo renglón.
+ * Permiso "mantenimiento.corregir_km": una lectura capturada mal no se borra, se corrige su valor con motivo
+ * (queda en la bitácora). Las de entrega y recepción son parte de la renta y no se tocan.
  */
-export function DeleteKm({ record, onDelete }: { record: MileageRecord; onDelete: (x: MileageRecord) => void }) {
-  const [confirm, setConfirm] = useState(false)
+export function CorrectKm({ record }: { record: MileageRecord }) {
+  const [open, setOpen] = useState(false)
   if (record.source === 'entrega' || record.source === 'recepcion') return null
-  return confirm
-    ? <><button className="btn btn-sm" onClick={() => setConfirm(false)}>No</button><button className="btn btn-sm btn-danger" onClick={() => onDelete(record)}>Borrar</button></>
-    : <button className="btn btn-sm btn-ghost" onClick={() => setConfirm(true)}>Borrar</button>
+  return <>
+    <button className="btn btn-sm btn-ghost" onClick={() => setOpen(true)}>Corregir</button>
+    <Modal open={open} title="Corregir lectura de km" onClose={() => setOpen(false)}>{open && <CorrectMileageForm record={record} onDone={() => setOpen(false)} />}</Modal>
+  </>
 }

@@ -26,8 +26,9 @@ export default function Billing() {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const canVoid = can(user, 'cancelar_pagos')
-  const canCorrect = can(user, 'corregir_registros')
+  const canEdit = can(user, 'cobranza.editar')
+  const canVoid = can(user, 'cobranza.cancelar_pago')
+  const canCorrect = can(user, 'cobranza.corregir')
   const [correcting, setCorrecting] = useState<Charge | null>(null)
   const g = globalBalance(data)
 
@@ -70,7 +71,7 @@ export default function Billing() {
   return (
     <>
       <PageHeader module="cobranza" title="Cobranza" subtitle="Solo se registra lo que ya se pagó; no hay cobro en línea."
-        actions={<>
+        actions={canEdit && <>
           <button className="btn" data-tour="btn-generar-cargos" disabled={busy} onClick={async () => {
             setBusy(true); setError('')
             try {

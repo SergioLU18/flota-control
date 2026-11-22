@@ -3,9 +3,9 @@
 // nunca en el frontend.
 //
 //   POST { accion: 'sincronizar' }   → guarda posiciones (y km) con orion_guardar(). La llama pg_cron cada minuto
-//                                      con el encabezado x-orion-cron; también un usuario con permiso 'orion'.
-//   POST { accion: 'dispositivos' }  → { dispositivos: Dispositivo[] } normalizado   (usuario con permiso 'orion')
-//   POST { accion: 'crudo' }         → respuesta tal cual de get_devices             (usuario con permiso 'orion')
+//                                      con el encabezado x-orion-cron; también un usuario con permiso 'orion.ver'.
+//   POST { accion: 'dispositivos' }  → { dispositivos: Dispositivo[] } normalizado   (usuario con permiso 'orion.ver')
+//   POST { accion: 'crudo' }         → respuesta tal cual de get_devices             (usuario con permiso 'orion.ver')
 //
 // Secretos:  npx supabase secrets set 'ORION_API_HASH=<hash>'          (comillas simples en PowerShell: lleva $)
 //            npx supabase secrets set ORION_CRON_SECRET=<texto al azar>  (el mismo que va en Vault, ver migración)
@@ -109,13 +109,13 @@ Deno.serve(async (req) => {
   const admin = createClient(url, service, { auth: { persistSession: false } })
   const body = await req.json().catch(() => ({}))
 
-  // Quién llama: la tarea programada (secreto) o un usuario con permiso 'orion'.
+  // Quién llama: la tarea programada (secreto) o un usuario con permiso 'orion.ver'.
   const esCron = iguales(req.headers.get('x-orion-cron') ?? '', cronSecret)
   if (!esCron) {
     const comoYo = createClient(url, anon, { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } })
     const { data: { user } } = await comoYo.auth.getUser()
     if (!user) return responde({ error: 'Sesión requerida' }, 401)
-    const { data: puede } = await comoYo.rpc('tiene_permiso', { p_permiso: 'orion' })
+    const { data: puede } = await comoYo.rpc('tiene_permiso', { p_permiso: 'orion.ver' })
     if (!puede) return responde({ error: 'Sin permiso para Orión GPS' }, 403)
   }
 

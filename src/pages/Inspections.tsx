@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
+import { can } from '../data/permissions'
 import { BackLink, Card, Empty, Field, Lightbox, PageHeader, Photo, StatusBadge } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { FuelGauge, PhotoInput } from '../components/forms'
@@ -12,7 +13,7 @@ import type { Inspection, PhotoRef } from '../data/types'
 export const ANGLES = ['Frente', 'Trasera', 'Lateral izq.', 'Lateral der.', 'Interior', 'Tablero']
 
 export default function Inspections() {
-  const { data } = useStore()
+  const { data, user } = useStore()
   const L = useLookup()
   const [vehicleId, setVehicleId] = useState(data.vehicles.find((v) => data.inspections.some((i) => i.vehicleId === v.id && i.kind === 'recepcion'))?.id ?? data.vehicles[0]?.id ?? '')
   const [photo, setPhoto] = useState<PhotoRef | null>(null)
@@ -20,7 +21,7 @@ export default function Inspections() {
 
   return (
     <>
-      <PageHeader module="inspecciones" title="Inspecciones con fotos" actions={<Link className="btn btn-primary" data-tour="btn-nueva-inspeccion" to="/inspecciones/nueva"><Icon name="plus" />Nueva inspección</Link>} />
+      <PageHeader module="inspecciones" title="Inspecciones con fotos" actions={can(user, 'inspecciones.editar') && <Link className="btn btn-primary" data-tour="btn-nueva-inspeccion" to="/inspecciones/nueva"><Icon name="plus" />Nueva inspección</Link>} />
       <div className="grid-2">
         <Card tour="recientes" title="Recientes" className="span-2">
           <div className="table-wrap"><table className="table compact">
@@ -87,6 +88,12 @@ export function InspectionCompare({ vehicleId, onPhoto }: { vehicleId: string; o
 }
 
 export function NewInspection() {
+  const { user } = useStore()
+  if (!can(user, 'inspecciones.editar')) return <Empty>No tienes permiso para registrar inspecciones. <Link to="/inspecciones">Volver</Link></Empty>
+  return <NewInspectionForm />
+}
+
+function NewInspectionForm() {
   const { data, addInspection } = useStore()
   const [params] = useSearchParams()
   const nav = useNavigate()

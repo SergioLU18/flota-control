@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { BackLink, Badge, Card, Empty, Lightbox, Modal, PageHeader, Photo, Progress, Stat, StatusBadge, Tabs } from '../components/ui'
 import { EndRentalForm, IncidentForm, MileageForm, RetireVehicleForm, ServiceForm, StartRentalForm, TIRE_LABEL, VehicleForm } from '../components/forms'
-import { DeleteKm } from './Maintenance'
+import { CorrectKm } from './Maintenance'
 import { activeRentalOf, maintenanceStatus, rentalBalance, vehicleBalance, MAINTENANCE_INTERVAL } from '../lib/calc'
 import { fleetSince, vehicleRecovery } from '../lib/finance'
 import { fecha, fuelLabel, km, mxn } from '../lib/format'
@@ -20,7 +20,7 @@ type ModalKind = 'edit' | 'baja' | 'rent' | 'end' | 'km' | 'service' | 'incident
 
 export default function VehicleDetail() {
   const { id } = useParams()
-  const { data, user, setVehicleStatus, deleteMileage } = useStore()
+  const { data, user, setVehicleStatus } = useStore()
   const L = useLookup()
   const v = data.vehicles.find((x) => x.id === id)
   const [tab, setTab] = useState<Tab>('resumen')
@@ -39,15 +39,21 @@ export default function VehicleDetail() {
   const incidents = data.incidents.filter((x) => x.vehicleId === v.id)
   const inspections = data.inspections.filter((x) => x.vehicleId === v.id).sort((a, b) => (a.date < b.date ? 1 : -1))
   const bal = vehicleBalance(data, v.id)
-  const seesFinance = can(user, 'finanzas')
-  const canRetire = can(user, 'bajas')
-  const canCorrect = can(user, 'corregir_registros')
+  const canEdit = can(user, 'flota.editar')
+  const canRetire = can(user, 'flota.baja')
+  const seesRentals = can(user, 'rentas.ver') // tarifa y depósito
+  const canRent = can(user, 'rentas.editar')
+  const seesMoney = can(user, 'cobranza.ver') // saldos
+  const seesFinance = can(user, 'finanzas.ver')
+  const canMaintain = can(user, 'mantenimiento.editar')
+  const canCorrect = can(user, 'mantenimiento.corregir_km')
+  const canIncident = can(user, 'incidentes.editar')
 
   // Línea de vida del vehículo: todo lo que le ha pasado, en orden.
   const timeline: { date: string; icon: IconName; text: ReactNode }[] = [
     ...rentals.flatMap((x) => {
       const dn = L.driver(x.driverId)?.name
-      const items: { date: string; icon: IconName; text: ReactNode }[] = [{ date: x.startDate, icon: 'key', text: <>Se rentó a <Link to={`/conductores/${x.driverId}`}>{dn}</Link> · {mxn(x.weeklyRate)}/sem · {km(x.startKm)}</> }]
+      const items: { date: string; icon: IconName; text: ReactNode }[] = [{ date: x.startDate, icon: 'key', text: <>Se rentó a <Link to={`/conductores/${x.driverId}`}>{dn}</Link>{seesRentals && <> · {mxn(x.weeklyRate)}/sem</>} · {km(x.startKm)}</> }]
       if (x.endDate) items.push({ date: x.endDate, icon: 'return', text: <>Devuelto por {dn} · {km(x.endKm!)}</> })
       return items
     }),
@@ -71,13 +77,13 @@ export default function VehicleDetail() {
         title={`${v.unit ? `${v.unit} · ` : ''}${v.brand} ${v.model} ${v.year}`}
         subtitle={<><span className="plate">{v.plates}</span> · {v.color}{v.vin && <> · VIN {v.vin}</>} · <StatusBadge value={v.status} /></>}
         actions={<>
-          <button className="btn" onClick={() => setModal('edit')}>Editar</button>
+          {canEdit && <button className="btn" onClick={() => setModal('edit')}>Editar</button>}
           {v.status === 'baja' ? (
             canRetire && <button className="btn" onClick={() => setVehicleStatus(v.id, 'disponible').catch((e: Error) => setError(e.message))}>Reactivar</button>
           ) : <>
-            {r ? <button className="btn" onClick={() => setModal('end')}>Finalizar renta</button>
-              : v.status === 'disponible' ? <button className="btn btn-primary" onClick={() => setModal('rent')}>Rentar</button> : null}
-            {!r && (v.status === 'taller'
+            {canRent && (r ? <button className="btn" onClick={() => setModal('end')}>Finalizar renta</button>
+              : v.status === 'disponible' ? <button className="btn btn-primary" onClick={() => setModal('rent')}>Rentar</button> : null)}
+            {canEdit && !r && (v.status === 'taller'
               ? <button className="btn" onClick={() => setVehicleStatus(v.id, 'disponible').catch((e: Error) => setError(e.message))}>Marcar disponible</button>
               : <button className="btn" onClick={() => setVehicleStatus(v.id, 'taller').catch((e: Error) => setError(e.message))}>Enviar a taller</button>)}
             {/* Con renta activa se muestra deshabilitado para que se sepa dónde está y por qué no se puede.
@@ -99,9 +105,9 @@ export default function VehicleDetail() {
               <dl className="dl">
                 <dt>Conductor</dt><dd><Link to={`/conductores/${driver.id}`}>{driver.name}</Link></dd>
                 <dt>Desde</dt><dd>{fecha(r.startDate)}</dd>
-                <dt>Tarifa</dt><dd>{mxn(r.weeklyRate)} / semana</dd>
-                <dt>Depósito</dt><dd>{mxn(r.deposit)} <StatusBadge value={r.depositStatus} /></dd>
-                <dt>Saldo</dt><dd className={rentalBalance(data, r.id).balance > 0 ? 'neg' : 'pos'}>{mxn(rentalBalance(data, r.id).balance)}</dd>
+                {seesRentals && <><dt>Tarifa</dt><dd>{mxn(r.weeklyRate)} / semana</dd></>}
+                {seesRentals && <><dt>Depósito</dt><dd>{mxn(r.deposit)} <StatusBadge value={r.depositStatus} /></dd></>}
+                {seesMoney && <><dt>Saldo</dt><dd className={rentalBalance(data, r.id).balance > 0 ? 'neg' : 'pos'}>{mxn(rentalBalance(data, r.id).balance)}</dd></>}
               </dl>
             ) : <Empty>Sin renta activa.</Empty>}
           </Card>
@@ -135,13 +141,13 @@ export default function VehicleDetail() {
           </Card>
           <Card title="Rentas de este coche">
             <table className="table compact">
-              <thead><tr><th>Conductor</th><th>Periodo</th><th className="num">Saldo</th></tr></thead>
+              <thead><tr><th>Conductor</th><th>Periodo</th>{seesMoney && <th className="num">Saldo</th>}</tr></thead>
               <tbody>
                 {rentals.map((x) => (
                   <tr key={x.id}>
                     <td><Link to={`/conductores/${x.driverId}`}>{L.driver(x.driverId)?.name}</Link></td>
                     <td className="small">{fecha(x.startDate)} – {x.endDate ? fecha(x.endDate) : <StatusBadge value="activa" />}</td>
-                    <td className="num">{mxn(rentalBalance(data, x.id).balance)}</td>
+                    {seesMoney && <td className="num">{mxn(rentalBalance(data, x.id).balance)}</td>}
                   </tr>
                 ))}
               </tbody>
@@ -161,18 +167,18 @@ export default function VehicleDetail() {
       )}
 
       {tab === 'km' && (
-        <Card title="Registros de kilometraje" actions={<button className="btn btn-sm" onClick={() => setModal('km')}><Icon name="plus" />Registrar km</button>}>
+        <Card title="Registros de kilometraje" actions={canMaintain && <button className="btn btn-sm" onClick={() => setModal('km')}><Icon name="plus" />Registrar km</button>}>
           <table className="table">
             <thead><tr><th>Fecha</th><th className="num">Odómetro</th><th>Origen</th>{canCorrect && <th></th>}</tr></thead>
             <tbody>{mileage.map((x) => <tr key={x.id}><td>{fecha(x.date)}</td><td className="num">{km(x.km)}</td><td><StatusBadge value={x.source} /></td>
-              {canCorrect && <td className="row-actions"><DeleteKm record={x} onDelete={(r) => deleteMileage(r.id).catch((e: Error) => setError(e.message))} /></td>}</tr>)}</tbody>
+              {canCorrect && <td className="row-actions"><CorrectKm record={x} /></td>}</tr>)}</tbody>
           </table>
         </Card>
       )}
 
       {tab === 'mantenimiento' && (
         <div className="grid-2">
-          <Card title="Servicios" actions={<button className="btn btn-sm" onClick={() => setModal('service')}><Icon name="plus" />Registrar servicio</button>} className="span-2">
+          <Card title="Servicios" actions={canMaintain && <button className="btn btn-sm" onClick={() => setModal('service')}><Icon name="plus" />Registrar servicio</button>} className="span-2">
             <div className="table-wrap">
               <table className="table">
                 <thead><tr><th>Fecha</th><th>Tipo</th><th className="num">Km</th><th>Taller</th><th className="num">Costo</th><th>Notas</th></tr></thead>
@@ -198,7 +204,7 @@ export default function VehicleDetail() {
       )}
 
       {tab === 'incidentes' && (
-        <Card title="Incidentes" actions={<button className="btn btn-sm" onClick={() => setModal('incident')}><Icon name="plus" />Registrar incidente</button>}>
+        <Card title="Incidentes" actions={canIncident && <button className="btn btn-sm" onClick={() => setModal('incident')}><Icon name="plus" />Registrar incidente</button>}>
           {incidents.length === 0 ? <Empty>Sin incidentes registrados.</Empty> : incidents.map((i) => (
             <div key={i.id} className="incident">
               <div className="incident-head"><strong>{i.type}</strong> <StatusBadge value={i.status} /> <span className="muted small">{fecha(i.date)} · {mxn(i.cost)} · responsable: {i.responsible}</span></div>
@@ -222,7 +228,7 @@ export default function VehicleDetail() {
               <Stat label="Recuperado del costo" value={v.purchasePrice ? `${Math.round(f.recovered * 100)}%` : '—'} icon="clock"
                 hint={!v.purchasePrice ? 'Captura el precio de compra para calcularlo' : <><Progress value={f.recovered} tone="green" />{f.monthsToRecover === 0 ? 'Ya recuperó su precio de compra' : f.monthsToRecover === Infinity ? 'Sin utilidad suficiente para estimar' : `Precio ${mxn(v.purchasePrice)} · faltan ${mxn(f.remaining)} (~${Math.ceil(f.monthsToRecover)} meses)`}</>} />
             </div>
-            <p className="muted small">Adeudo pendiente del coche: <b className={bal.balance > 0 ? 'neg' : ''}>{mxn(bal.balance)}</b> (no cuenta como ingreso hasta que se cobra). <Link to="/finanzas">Comparar con el resto de la flota →</Link></p>
+            {seesMoney && <p className="muted small">Adeudo pendiente del coche: <b className={bal.balance > 0 ? 'neg' : ''}>{mxn(bal.balance)}</b> (no cuenta como ingreso hasta que se cobra). <Link to="/finanzas">Comparar con el resto de la flota →</Link></p>}
           </>
         )
       })()}

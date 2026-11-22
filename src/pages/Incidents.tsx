@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
+import { can } from '../data/permissions'
 import { Card, Lightbox, Modal, PageHeader, Photo, StatusBadge, Tabs } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { ChargeForm, IncidentForm } from '../components/forms'
@@ -9,7 +10,10 @@ import type { Incident, PhotoRef } from '../data/types'
 import { carName } from '../lib/calc'
 
 export default function Incidents() {
-  const { data, closeIncident, reopenIncident } = useStore()
+  const { data, user, closeIncident, reopenIncident } = useStore()
+  const canEdit = can(user, 'incidentes.editar')
+  const canCharge = can(user, 'cobranza.editar') // cobrar el incidente al conductor
+  const seesMoney = can(user, 'cobranza.ver')
   const [editing, setEditing] = useState<Incident | null>(null)
   const [charging, setCharging] = useState<Incident | null>(null)
   const [error, setError] = useState('')
@@ -21,7 +25,7 @@ export default function Incidents() {
 
   return (
     <>
-      <PageHeader module="incidentes" title="Incidentes y accidentes" actions={<button className="btn btn-primary" data-tour="btn-registrar-incidente" onClick={() => setAdding(true)}><Icon name="plus" />Registrar incidente</button>} />
+      <PageHeader module="incidentes" title="Incidentes y accidentes" actions={canEdit && <button className="btn btn-primary" data-tour="btn-registrar-incidente" onClick={() => setAdding(true)}><Icon name="plus" />Registrar incidente</button>} />
       <Tabs value={tab} onChange={setTab} tabs={[['abierto', 'Abiertos'], ['cerrado', 'Cerrados'], ['todos', 'Todos']]} />
       {error && <div className="banner banner-red" onClick={() => setError('')}>{error}</div>}
       <div className="stack">
@@ -32,14 +36,15 @@ export default function Incidents() {
             <Card key={i.id} tour={n === 0 ? 'incidente-0' : undefined} title={<>{i.type} <StatusBadge value={i.status} /></>} actions={<>
               {(() => {
                 const charged = data.charges.filter((c) => c.incidentId === i.id && !c.voided).reduce((a, c) => a + c.amount, 0)
+                if (!seesMoney) return null
                 return charged > 0 ? <span className={`small ${charged !== i.cost ? 'warn' : 'muted'}`} title={charged !== i.cost ? 'El costo del incidente cambió después de cargarlo; corrige el cargo si hace falta' : undefined}>
                   Cargado al conductor: {mxn(charged)}{charged !== i.cost && ` (costo ${mxn(i.cost)})`}</span>
-                  : i.responsible === 'conductor' && i.cost > 0 && <button className="btn btn-sm" onClick={() => setCharging(i)}>Cobrar al conductor</button>
+                  : canCharge && i.responsible === 'conductor' && i.cost > 0 && <button className="btn btn-sm" onClick={() => setCharging(i)}>Cobrar al conductor</button>
               })()}
-              <button className="btn btn-sm btn-ghost" onClick={() => setEditing(i)}>Editar</button>
-              {i.status === 'abierto'
+              {canEdit && <button className="btn btn-sm btn-ghost" onClick={() => setEditing(i)}>Editar</button>}
+              {canEdit && (i.status === 'abierto'
                 ? <button className="btn btn-sm" onClick={() => closeIncident(i.id).catch((e: Error) => setError(e.message))}>Cerrar</button>
-                : <button className="btn btn-sm btn-ghost" onClick={() => reopenIncident(i.id).catch((e: Error) => setError(e.message))}>Reabrir</button>}
+                : <button className="btn btn-sm btn-ghost" onClick={() => reopenIncident(i.id).catch((e: Error) => setError(e.message))}>Reabrir</button>)}
             </>}>
               <p className="muted small">
                 {fecha(i.date)} · <Link to={`/flota/${v.id}`}>{carName(v)} {v.plates}</Link>

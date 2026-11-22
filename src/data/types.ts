@@ -1,17 +1,25 @@
 // Modelo de datos de la app. src/data/load.ts lo arma a partir de las tablas de Supabase.
 
-export type Role = 'superadmin' | 'admin' | 'operador'
+import type { Permission } from './permissions'
+export type { Permission } from './permissions'
 
-/** Ver src/data/permissions.ts. Un superadmin los tiene todos sin necesidad de lista. */
-export type Permission =
-  | 'finanzas' | 'orion' | 'auditoria' | 'editar_rentas' | 'cancelar_pagos'
-  | 'bajas' | 'corregir_registros' | 'catalogos' | 'usuarios'
+/** Un superadmin tiene todos los permisos sin lista; un admin, solo los que se le marquen. */
+export type Role = 'superadmin' | 'admin'
 
 export interface User {
   id: string
   name: string
   email: string
   role: Role
+  permissions: Permission[]
+  active: boolean
+}
+
+/** Conjunto de permisos con nombre (Operador, Consulta…). Se copia al usuario al aplicarla. */
+export interface PermissionTemplate {
+  id: string
+  name: string
+  description: string
   permissions: Permission[]
   active: boolean
 }
@@ -98,6 +106,8 @@ export interface Rental {
   endKm?: number
   status: 'activa' | 'finalizada'
   notes?: string
+  /** Sin permiso para ver rentas, cobranza ni finanzas: solo llega qué coche tiene quién (tarifa y depósito en 0). */
+  restricted?: boolean
 }
 
 /** 'renta' = semana de renta (la genera la base); 'danio' y 'otro' = cargos extra al conductor. */
@@ -200,6 +210,8 @@ export interface Expense {
   amount: number
   concept: string
   userId: string
+  /** Los gastos no se borran: se cancelan con motivo y dejan de contar. */
+  voided?: { reason: string; userId: string; at: string }
 }
 
 export type AuditOp = 'alta' | 'cambio' | 'baja'
@@ -287,4 +299,5 @@ export interface Data {
   orion: OrionState
   gps: GpsPosition[]
   serviceTypes: ServiceType[]
+  templates: PermissionTemplate[]
 }

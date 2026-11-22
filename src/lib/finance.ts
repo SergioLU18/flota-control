@@ -56,7 +56,7 @@ export function incomeStatement(d: Data, p: Period) {
   const maintenance = sum(d.services.filter((s) => inP(s.date)).map((s) => s.cost))
   const incidents = sum(d.incidents.filter((i) => i.responsible === 'empresa' && inP(i.date)).map((i) => i.cost))
   const byCategory = (Object.keys(EXPENSE_LABEL) as ExpenseCategory[]).map((cat) => ({
-    cat, label: EXPENSE_LABEL[cat], amount: sum(d.expenses.filter((e) => e.category === cat && inP(e.date)).map((e) => e.amount)),
+    cat, label: EXPENSE_LABEL[cat], amount: sum(d.expenses.filter((e) => !e.voided && e.category === cat && inP(e.date)).map((e) => e.amount)),
   }))
   const expenses = maintenance + incidents + sum(byCategory.map((c) => c.amount))
   const profit = income - expenses
@@ -74,7 +74,7 @@ export function vehicleProfit(d: Data, v: Vehicle, p: Period) {
   const income = sum(validPayments(d).filter((x) => ids.has(x.rentalId) && inP(x.date)).map((x) => x.amount))
   const maintenance = sum(d.services.filter((s) => s.vehicleId === v.id && inP(s.date)).map((s) => s.cost))
   const incidents = sum(d.incidents.filter((i) => i.vehicleId === v.id && i.responsible === 'empresa' && inP(i.date)).map((i) => i.cost))
-  const other = sum(d.expenses.filter((e) => e.vehicleId === v.id && inP(e.date)).map((e) => e.amount))
+  const other = sum(d.expenses.filter((e) => !e.voided && e.vehicleId === v.id && inP(e.date)).map((e) => e.amount))
   const costs = maintenance + incidents + other
   const profit = income - costs
 

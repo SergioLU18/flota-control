@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../data/store'
+import { can } from '../data/permissions'
 import { Badge, Modal, PageHeader, Tabs } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { DriverForm } from '../components/forms'
@@ -10,7 +11,9 @@ import { fecha, mxn } from '../lib/format'
 type Filter = 'todos' | 'activos' | 'adeudo' | 'licencia'
 
 export default function Drivers() {
-  const { data } = useStore()
+  const { data, user } = useStore()
+  const canAdd = can(user, 'conductores.editar')
+  const seesMoney = can(user, 'cobranza.ver') // saldos
   const nav = useNavigate()
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState<Filter>('todos')
@@ -23,14 +26,14 @@ export default function Drivers() {
 
   return (
     <>
-      <PageHeader module="conductores" title="Conductores" subtitle={`${data.drivers.length} registrados`} actions={<button className="btn btn-primary" data-tour="btn-nuevo-conductor" onClick={() => setAdding(true)}><Icon name="plus" />Nuevo conductor</button>} />
+      <PageHeader module="conductores" title="Conductores" subtitle={`${data.drivers.length} registrados`} actions={canAdd && <button className="btn btn-primary" data-tour="btn-nuevo-conductor" onClick={() => setAdding(true)}><Icon name="plus" />Nuevo conductor</button>} />
       <div className="toolbar" data-tour="filtros">
-        <Tabs<Filter> value={filter} onChange={setFilter} tabs={[['todos', 'Todos'], ['activos', 'Con coche'], ['adeudo', 'Con adeudo'], ['licencia', 'Licencia por revisar']]} />
+        <Tabs<Filter> value={filter} onChange={setFilter} tabs={[['todos', 'Todos'], ['activos', 'Con coche'], ...(seesMoney ? [['adeudo', 'Con adeudo'] as [Filter, string]] : []), ['licencia', 'Licencia por revisar']]} />
         <input className="search" placeholder="Buscar por nombre, CURP o teléfono…" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
       <div className="table-wrap card">
         <table className="table">
-          <thead><tr><th>Conductor</th><th>Teléfono</th><th>Coche actual</th><th>Licencia</th><th>Documentos</th><th className="num">Saldo</th></tr></thead>
+          <thead><tr><th>Conductor</th><th>Teléfono</th><th>Coche actual</th><th>Licencia</th><th>Documentos</th>{seesMoney && <th className="num">Saldo</th>}</tr></thead>
           <tbody>
             {list.map(({ d, rental, bal, lic, missing }, i) => {
               const v = rental && data.vehicles.find((x) => x.id === rental.vehicleId)
@@ -43,7 +46,7 @@ export default function Drivers() {
                     : lic === 'sin_fecha' ? <Badge tone="gray">Sin fecha</Badge>
                     : <Badge tone={lic === 'vencida' ? 'red' : 'amber'}>{lic === 'vencida' ? 'Vencida' : 'Por vencer'}</Badge>}</td>
                   <td>{missing ? <Badge tone="amber">Faltan {missing}</Badge> : <Badge tone="green">Completos</Badge>}</td>
-                  <td className={`num ${bal > 0 ? 'neg' : ''}`}>{mxn(bal)}</td>
+                  {seesMoney && <td className={`num ${bal > 0 ? 'neg' : ''}`}>{mxn(bal)}</td>}
                 </tr>
               )
             })}

@@ -769,20 +769,38 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 }
 .input-with-action { display: flex; gap: 8px; }
 .input-with-action input { flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-.perm-list { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
-.perm-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); cursor: pointer; }
-.perm-row:last-child { border-bottom: 0; }
-.perm-row > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.perm-row strong { font-size: .875rem; font-weight: 500; color: var(--text); }
-.perm-row small { font-size: .76rem; color: var(--muted); }
-.perm-row.locked { cursor: default; }
-.perm-row.locked input { opacity: .6; cursor: default; }
+/* Permisos por módulo (Usuarios): nivel por módulo + acciones especiales */
+.perm-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.perm-matrix { border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.perm-mod { padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.perm-mod:last-child { border-bottom: 0; }
+.perm-mod-head { display: flex; align-items: center; gap: 12px; }
+.perm-mod-head > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.perm-mod-head strong { font-size: .875rem; font-weight: 600; color: var(--text); }
+.perm-mod-head small { font-size: .76rem; color: var(--muted); }
+.perm-mod.off .perm-mod-head strong { color: var(--muted); font-weight: 500; }
+.perm-mod-head .segmented { flex: none; flex-wrap: nowrap; }
+.perm-mod-head .segmented button:disabled { opacity: .45; cursor: default; }
+.perm-extras { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.perm-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; font: inherit; font-size: .78rem; color: var(--secondary);
+  background: var(--surface); border: 1px dashed var(--line); border-radius: 999px; cursor: pointer;
+}
+.perm-chip svg { width: 13px; height: 13px; }
+.perm-chip.on { color: var(--accent); background: var(--accent-soft); border: 1px solid transparent; font-weight: 500; }
+.perm-chip:disabled { opacity: .45; cursor: default; }
+.perm-chip:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 1px; }
+@media (max-width: 600px) {
+  .perm-mod-head { flex-direction: column; align-items: stretch; gap: 8px; }
+  .perm-mod-head .segmented { align-self: flex-start; }
+}
 .pw-section { padding-top: 14px; border-top: 1px solid var(--line); }
 .user-cell { display: flex; align-items: center; gap: 10px; }
 .user-cell .avatar { flex-shrink: 0; }
 .page-note { margin: 12px 4px 0; line-height: 1.5; }
 .form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 .form-danger-zone { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.form-danger-zone input { flex: 1; min-width: 220px; }
 .form .form-actions .btn-primary { min-width: 150px; min-height: 40px; }
 .form-error { display: flex; align-items: center; gap: 8px; color: var(--red); background: var(--red-soft); border: 1px solid color-mix(in srgb, var(--sys-red) 25%, transparent); padding: 9px 12px; border-radius: var(--radius-sm); margin: 14px 0 0; font-size: .85rem; font-weight: 500; }
 .form-error::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }

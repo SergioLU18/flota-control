@@ -7,7 +7,8 @@ import { btree_gist } from '@electric-sql/pglite/contrib/btree_gist'
 
 const here = (p) => fileURLToPath(new URL(p, import.meta.url))
 
-export async function baseDePrueba() {
+/** Con `hasta`, solo las migraciones anteriores a esa versión (para probar una migración de datos). */
+export async function baseDePrueba({ hasta } = {}) {
   const db = new PGlite({ extensions: { btree_gist } })
   await db.exec(`
     create role anon nologin;
@@ -24,7 +25,13 @@ export async function baseDePrueba() {
     alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
     alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
   `)
-  const migrations = (await readdir(here('./migrations'))).filter((f) => f.endsWith('.sql')).sort()
-  for (const f of migrations) await db.exec(await readFile(here(`./migrations/${f}`), 'utf8'))
+  await aplicarMigraciones(db, { hasta })
   return db
+}
+
+/** Aplica las migraciones en orden, opcionalmente desde una versión (incluida) o hasta una (excluida). */
+export async function aplicarMigraciones(db, { desde, hasta } = {}) {
+  const migrations = (await readdir(here('./migrations'))).filter((f) => f.endsWith('.sql')).sort()
+    .filter((f) => (!desde || f >= desde) && (!hasta || f < hasta))
+  for (const f of migrations) await db.exec(await readFile(here(`./migrations/${f}`), 'utf8'))
 }

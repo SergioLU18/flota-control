@@ -8,7 +8,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { useLocation, useNavigate } from 'react-router-dom'
 import { modulesFor } from '../data/modules'
 import { useStore } from '../data/store'
-import type { User } from '../data/types'
+import type { Permission, User } from '../data/types'
+import { can } from '../data/permissions'
 import { Icon, type IconName } from './Icon'
 
 // ── Definición de pasos ────────────────────────────────────────────────
@@ -70,7 +71,7 @@ const CONDUCTOR = /^\/conductores\/[^/]+$/
 const INICIO: Capitulo = {
   key: 'inicio', titulo: 'Cómo moverte', icon: 'compass', pasos: [
     { t: ['menu', 'menu-movil'], titulo: 'El menú',
-      texto: <>Aquí están los módulos que tu rol tiene habilitados. En el teléfono, los principales van en la barra de abajo y el resto en <b>Más</b>.</> },
+      texto: <>Aquí están los módulos que tienes habilitados. En el teléfono, los principales van en la barra de abajo y el resto en <b>Más</b>.</> },
     { t: 'perfil', titulo: 'Tu cuenta', texto: 'Tu nombre abre Ajustes: apariencia, preferencias y cerrar sesión.' },
     { t: 'start', titulo: 'Este tour', texto: 'Ábrelo cuando quieras desde aquí. Puedes recorrer todo o elegir un solo módulo.' },
   ],
@@ -180,9 +181,9 @@ const GUIAS: Record<string, Paso[]> = {
   ],
   usuarios: [
     { ruta: '/usuarios', t: 'btn-nuevo-usuario', titulo: 'Dar acceso a alguien',
-      texto: 'Crea la cuenta con su correo y su rol. El rol es un punto de partida: cada permiso se prende o se apaga por persona.' },
+      texto: 'Crea la cuenta con su correo, elige una plantilla (Operador, Consulta…) y ajusta cada módulo: sin acceso, ver o editar.' },
     { ruta: '/usuarios', t: 'tabla-usuarios', titulo: 'El equipo',
-      texto: 'Pulsa un usuario para cambiar su rol, sus permisos o su contraseña, o para activar o desactivar su cuenta.' },
+      texto: 'Pulsa un usuario para cambiar sus permisos o su contraseña, o para activar o desactivar su cuenta. Las plantillas se editan en su pestaña.' },
   ],
   bitacora: [
     { ruta: '/bitacora', t: 'filtros-bitacora', titulo: 'Encuentra un cambio',
@@ -194,6 +195,28 @@ const GUIAS: Record<string, Paso[]> = {
     { ruta: '/documentacion', t: 'documentacion', titulo: 'Documentación',
       texto: 'Las reglas completas de cada módulo: cómo se calculan saldos y alertas y qué permite cada permiso. Consúltala cuando tengas una duda puntual.' },
   ],
+}
+
+/**
+ * Pasos que señalan algo que solo existe con un permiso (botones de captura, tarjetas de dinero). Sin él, el paso
+ * no se muestra, y tampoco el paso de formulario que lo sigue.
+ */
+const REQUIERE: Record<string, Permission> = {
+  'btn-nuevo-coche': 'flota.editar', 'btn-nuevo-conductor': 'conductores.editar', 'btn-nueva-renta': 'rentas.editar',
+  'btn-generar-cargos': 'cobranza.editar', 'btn-registrar-pago': 'cobranza.editar', 'btn-registrar-km': 'mantenimiento.editar',
+  'btn-registrar-servicio': 'mantenimiento.editar', 'btn-registrar-incidente': 'incidentes.editar', 'btn-nueva-inspeccion': 'inspecciones.editar',
+  'form-inspeccion': 'inspecciones.editar', 'btn-registrar-gasto': 'finanzas.editar', 'btn-nuevo-usuario': 'usuarios.editar',
+  adeudos: 'cobranza.ver', 'proximos-mant': 'mantenimiento.ver',
+}
+function permitidos(pasos: Paso[], u: User | null) {
+  let anterior = true
+  return pasos.filter((p) => {
+    const t = typeof p.t === 'string' ? p.t : undefined
+    const ok = (!p.si || (!!u && p.si(u))) && (!t || !REQUIERE[t] || can(u, REQUIERE[t]))
+      && (!!(p.t || p.ruta || p.en) || anterior) // un paso de formulario va con el botón que lo abre
+    anterior = ok
+    return ok
+  })
 }
 
 // ── Overlay ────────────────────────────────────────────────────────────
@@ -208,7 +231,7 @@ export function Tour({ onClose }: { onClose: () => void }) {
 
   const caps = useMemo<Capitulo[]>(() =>
     [INICIO, ...modulesFor(user).map((m) => ({ key: m.key, titulo: m.label, icon: m.icon, pasos: GUIAS[m.key] ?? [] }))]
-      .map((c) => ({ ...c, pasos: c.pasos.filter((p) => !p.si || (user && p.si(user))) }))
+      .map((c) => ({ ...c, pasos: permitidos(c.pasos, user) }))
       .filter((c) => c.pasos.length), [user])
   const pasos = useMemo(() => caps.flatMap((c, cap) => c.pasos.map((p) => ({ ...p, cap }))), [caps])
   const inicioDe = (cap: number) => pasos.findIndex((p) => p.cap === cap)

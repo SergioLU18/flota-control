@@ -1,8 +1,8 @@
-import { StrictMode } from 'react'
+import { StrictMode, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { HashRouter, Route, Routes } from 'react-router-dom'
 import { StoreProvider, useStore } from './data/store'
-import { can } from './data/permissions'
+import { MODULES, canSee } from './data/modules'
 import Layout from './components/Layout'
 import { PageSkeleton } from './components/ui'
 import Login, { Pending, Splash } from './pages/Login'
@@ -25,6 +25,24 @@ import Settings from './pages/Settings'
 import './styles.css'
 import './lib/theme'
 
+// Páginas de cada módulo (la llave es la de MODULES en data/modules.ts). Quien no tiene el "ver" del módulo
+// no tiene la ruta: entrar por URL lo regresa al dashboard.
+const PAGES: Record<string, { path: string; element: ReactNode }[]> = {
+  dashboard: [{ path: '', element: <Dashboard /> }],
+  flota: [{ path: 'flota', element: <Vehicles /> }, { path: 'flota/:id', element: <VehicleDetail /> }],
+  conductores: [{ path: 'conductores', element: <Drivers /> }, { path: 'conductores/:id', element: <DriverDetail /> }],
+  rentas: [{ path: 'rentas', element: <Rentals /> }],
+  cobranza: [{ path: 'cobranza', element: <Billing /> }],
+  mantenimiento: [{ path: 'mantenimiento', element: <Maintenance /> }],
+  incidentes: [{ path: 'incidentes', element: <Incidents /> }],
+  inspecciones: [{ path: 'inspecciones', element: <Inspections /> }, { path: 'inspecciones/nueva', element: <NewInspection /> }],
+  finanzas: [{ path: 'finanzas', element: <Finance /> }],
+  orion: [{ path: 'orion', element: <Orion /> }],
+  usuarios: [{ path: 'usuarios', element: <Users /> }],
+  bitacora: [{ path: 'bitacora', element: <AuditPage /> }],
+  docs: [{ path: 'documentacion', element: <Docs /> }],
+}
+
 function App() {
   const { user, status, loadError, hasSession } = useStore()
   if (status === 'sin-sesion') return <Login />
@@ -44,22 +62,8 @@ function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index element={<Dashboard />} />
-        <Route path="flota" element={<Vehicles />} />
-        <Route path="flota/:id" element={<VehicleDetail />} />
-        <Route path="conductores" element={<Drivers />} />
-        <Route path="conductores/:id" element={<DriverDetail />} />
-        <Route path="rentas" element={<Rentals />} />
-        <Route path="cobranza" element={<Billing />} />
-        <Route path="mantenimiento" element={<Maintenance />} />
-        <Route path="incidentes" element={<Incidents />} />
-        <Route path="inspecciones" element={<Inspections />} />
-        <Route path="inspecciones/nueva" element={<NewInspection />} />
-        {can(user, 'finanzas') && <Route path="finanzas" element={<Finance />} />}
-        {can(user, 'orion') && <Route path="orion" element={<Orion />} />}
-        {can(user, 'usuarios') && <Route path="usuarios" element={<Users />} />}
-        {can(user, 'auditoria') && <Route path="bitacora" element={<AuditPage />} />}
-        <Route path="documentacion" element={<Docs />} />
+        {MODULES.filter((m) => canSee(user, m)).flatMap((m) => (PAGES[m.key] ?? []).map((p) =>
+          p.path ? <Route key={p.path} path={p.path} element={p.element} /> : <Route key="index" index element={p.element} />))}
         <Route path="ajustes" element={<Settings />} />
         <Route path="*" element={<Dashboard />} />
       </Route>

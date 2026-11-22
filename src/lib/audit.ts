@@ -18,6 +18,7 @@ const NOUN: Record<string, string> = {
   vehiculos: 'coche', llantas: 'llanta', conductores: 'conductor', referencias_conductor: 'referencia', documentos_conductor: 'documento',
   rentas: 'renta', cargos: 'cargo', pagos: 'pago', registros_km: 'lectura de km', tipos_servicio: 'tipo de servicio', servicios: 'servicio',
   incidentes: 'incidente', inspecciones: 'inspección', fotos: 'foto', gastos: 'gasto', usuarios: 'usuario',
+  plantillas_permisos: 'plantilla de permisos',
 }
 const ALTA: Record<string, string> = {
   vehiculos: 'Dio de alta', conductores: 'Dio de alta', usuarios: 'Dio de alta', fotos: 'Agregó', documentos_conductor: 'Subió', cargos: 'Generó',
@@ -108,6 +109,7 @@ export function auditSubject(e: AuditEntry, d: Data): string {
     }
     case 'gastos': return d.expenses.find((x) => x.id === id)?.concept ?? str(r.concepto) ?? ''
     case 'usuarios': return L.user(id) ?? str(r.nombre) ?? ''
+    case 'plantillas_permisos': return d.templates.find((t) => t.id === id)?.name ?? str(r.nombre) ?? ''
     default: return ''
   }
 }

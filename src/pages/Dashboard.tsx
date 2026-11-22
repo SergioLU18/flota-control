@@ -4,13 +4,18 @@ import { Badge, Card, PageHeader, Progress, Stat, StatusBadge } from '../compone
 import { Icon } from '../components/Icon'
 import { carName, inFleet, activeRentalOfDriver, alerts, driverBalance, globalBalance, maintenanceStatus, monthIncome, rentalBalance, weekIncome, MAINTENANCE_INTERVAL } from '../lib/calc'
 import { CURRENT_MONDAY, TODAY, addDays, km, mes, mxn, rangoFechas } from '../lib/format'
+import { can } from '../data/permissions'
+import { canOpen } from '../data/modules'
 
 export default function Dashboard() {
   const { data, user } = useStore()
   const fleet = data.vehicles.filter(inFleet)
   const count = (s: string) => fleet.filter((v) => v.status === s).length
   const total = fleet.length
-  const avisos = alerts(data)
+  // Cada tarjeta y cada aviso es de un módulo: sin su permiso no se muestra (y sus datos ni siquiera llegan).
+  const seesMoney = can(user, 'cobranza.ver')
+  const seesMaint = can(user, 'mantenimiento.ver')
+  const avisos = alerts(data).filter((a) => canOpen(user, a.to) && (!a.perm || can(user, a.perm)))
 
   const debtors = data.drivers
     .map((dr) => ({ dr, ...driverBalance(data, dr.id) }))
@@ -31,9 +36,11 @@ export default function Dashboard() {
       <PageHeader module="dashboard" title={`Hola, ${user?.name.split(' ')[0]}`} subtitle={`Semana del ${rangoFechas(CURRENT_MONDAY, addDays(CURRENT_MONDAY, 6))}`} />
 
       <div className="stats" data-tour="indicadores">
-        <Stat label="Ingresos de la semana" value={mxn(weekIncome(data))} hint={`${weekPending} rentas activas con saldo pendiente`} icon="trend" tone="green" />
-        <Stat label={`Ingresos de ${mes(TODAY.slice(0, 7))}`} value={mxn(monthIncome(data))} icon="calendar" />
-        <Stat label="Adeudo total" value={mxn(g.debt)} hint={`${debtors.length} conductores con saldo${g.credit ? ` · ${mxn(g.credit)} a favor` : ''}`} tone="red" icon="wallet" />
+        {seesMoney && <>
+          <Stat label="Ingresos de la semana" value={mxn(weekIncome(data))} hint={`${weekPending} rentas activas con saldo pendiente`} icon="trend" tone="green" />
+          <Stat label={`Ingresos de ${mes(TODAY.slice(0, 7))}`} value={mxn(monthIncome(data))} icon="calendar" />
+          <Stat label="Adeudo total" value={mxn(g.debt)} hint={`${debtors.length} conductores con saldo${g.credit ? ` · ${mxn(g.credit)} a favor` : ''}`} tone="red" icon="wallet" />
+        </>}
         <Stat label="Avisos" value={avisos.length} hint={`${avisos.filter((a) => a.level === 'alta').length} urgentes`} tone="amber" icon="alert" />
         <div className="stat stat-wide stat-blue" data-tour="dash-flota">
           <div className="stat-head">
@@ -48,7 +55,7 @@ export default function Dashboard() {
           </div>
           <ul className="legend">
             {(['rentado', 'disponible', 'taller'] as const).map((s) => (
-              <li key={s}><Link to={`/flota?estado=${s}`}><StatusBadge value={s} /> <b>{count(s)}</b></Link></li>
+              <li key={s}>{canOpen(user, '/flota') ? <Link to={`/flota?estado=${s}`}><StatusBadge value={s} /> <b>{count(s)}</b></Link> : <><StatusBadge value={s} /> <b>{count(s)}</b></>}</li>
             ))}
           </ul>
         </div>
@@ -63,7 +70,7 @@ export default function Dashboard() {
           </ul>
         </Card>
 
-        <Card tour="adeudos" title="Adeudos por conductor" actions={<Link to="/cobranza" className="link">Ver cobranza<Icon name="forward" /></Link>}>
+        {seesMoney && <Card tour="adeudos" title="Adeudos por conductor" actions={<Link to="/cobranza" className="link">Ver cobranza<Icon name="forward" /></Link>}>
           <table className="table compact">
             <thead><tr><th>Conductor</th><th>Coche</th><th className="num">Adeudo</th></tr></thead>
             <tbody>
@@ -80,9 +87,9 @@ export default function Dashboard() {
               })}
             </tbody>
           </table>
-        </Card>
+        </Card>}
 
-        <Card tour="proximos-mant" title="Próximos mantenimientos" actions={<Link to="/mantenimiento" className="link">Ver todos<Icon name="forward" /></Link>}>
+        {seesMaint && <Card tour="proximos-mant" title="Próximos mantenimientos" actions={<Link to="/mantenimiento" className="link">Ver todos<Icon name="forward" /></Link>}>
           <table className="table compact">
             <thead><tr><th>Coche</th><th>Desde último servicio</th><th></th></tr></thead>
             <tbody>
@@ -98,7 +105,7 @@ export default function Dashboard() {
               ))}
             </tbody>
           </table>
-        </Card>
+        </Card>}
       </div>
     </>
   )

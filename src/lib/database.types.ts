@@ -191,6 +191,33 @@ export type Database = {
           },
         ]
       }
+      catalogo_permisos: {
+        Row: {
+          clave: string
+          descripcion: string
+          modulo: string
+          nombre: string
+          orden: number
+          requiere: string[]
+        }
+        Insert: {
+          clave: string
+          descripcion?: string
+          modulo: string
+          nombre: string
+          orden: number
+          requiere?: string[]
+        }
+        Update: {
+          clave?: string
+          descripcion?: string
+          modulo?: string
+          nombre?: string
+          orden?: number
+          requiere?: string[]
+        }
+        Relationships: []
+      }
       conductores: {
         Row: {
           actualizado_en: string
@@ -353,34 +380,43 @@ export type Database = {
       gastos: {
         Row: {
           actualizado_en: string
+          cancelado_en: string | null
+          cancelado_por: string | null
           categoria: string
           concepto: string
           creado_en: string
           fecha: string
           id: string
           monto: number
+          motivo_cancelacion: string | null
           registrado_por: string | null
           vehiculo_id: string | null
         }
         Insert: {
           actualizado_en?: string
+          cancelado_en?: string | null
+          cancelado_por?: string | null
           categoria: string
           concepto: string
           creado_en?: string
           fecha: string
           id?: string
           monto: number
+          motivo_cancelacion?: string | null
           registrado_por?: string | null
           vehiculo_id?: string | null
         }
         Update: {
           actualizado_en?: string
+          cancelado_en?: string | null
+          cancelado_por?: string | null
           categoria?: string
           concepto?: string
           creado_en?: string
           fecha?: string
           id?: string
           monto?: number
+          motivo_cancelacion?: string | null
           registrado_por?: string | null
           vehiculo_id?: string | null
         }
@@ -831,6 +867,39 @@ export type Database = {
             referencedColumns: ["renta_id"]
           },
         ]
+      }
+      plantillas_permisos: {
+        Row: {
+          activa: boolean
+          actualizado_en: string
+          creado_en: string
+          descripcion: string
+          id: string
+          nombre: string
+          orden: number
+          permisos: string[]
+        }
+        Insert: {
+          activa?: boolean
+          actualizado_en?: string
+          creado_en?: string
+          descripcion?: string
+          id?: string
+          nombre: string
+          orden?: number
+          permisos?: string[]
+        }
+        Update: {
+          activa?: boolean
+          actualizado_en?: string
+          creado_en?: string
+          descripcion?: string
+          id?: string
+          nombre?: string
+          orden?: number
+          permisos?: string[]
+        }
+        Relationships: []
       }
       referencias_conductor: {
         Row: {
@@ -1448,12 +1517,20 @@ export type Database = {
         Args: { p_cargo_id: string; p_motivo: string }
         Returns: undefined
       }
+      cancelar_gasto: {
+        Args: { p_gasto_id: string; p_motivo: string }
+        Returns: undefined
+      }
       cancelar_pago: {
         Args: { p_motivo: string; p_pago_id: string }
         Returns: undefined
       }
       corregir_cargo: {
         Args: { p_cargo_id: string; p_concepto: string; p_monto: number; p_motivo: string }
+        Returns: undefined
+      }
+      corregir_km: {
+        Args: { p_km: number; p_motivo: string; p_registro_id: string }
         Returns: undefined
       }
       editar_renta: {
@@ -1481,6 +1558,10 @@ export type Database = {
       }
       guardar_conductor: {
         Args: { p_datos: Json; p_id: string | null; p_referencias: Json }
+        Returns: string
+      }
+      guardar_plantilla: {
+        Args: { p_activa: boolean; p_descripcion: string; p_id: string | null; p_nombre: string; p_permisos: string[] }
         Returns: string
       }
       guardar_usuario: {
@@ -1526,11 +1607,26 @@ export type Database = {
         Args: { p_datos: Json; p_id: string; p_llantas?: Json }
         Returns: string
       }
+      rentas_basicas: {
+        Args: never
+        Returns: {
+          conductor_id: string
+          estado: string
+          fecha_fin: string | null
+          fecha_inicio: string
+          id: string
+          km_devolucion: number | null
+          km_entrega: number
+          vehiculo_id: string
+        }[]
+      }
       resolver_deposito: {
         Args: { p_estado: string; p_renta_id: string }
         Returns: number
       }
+      normalizar_permisos: { Args: { p_permisos: string[] }; Returns: string[] }
       rol_actual: { Args: never; Returns: string }
+      tiene_alguno: { Args: { p_permisos: string[] }; Returns: boolean }
       tiene_permiso: { Args: { p_permiso: string }; Returns: boolean }
       validar_usuario: {
         Args: { p_id: string; p_permisos: string[]; p_rol: string }

@@ -2,9 +2,9 @@
 // La app ya no los usa: solo los carga supabase/pruebas.mjs para probar el esquema.
 import { DEMO_TODAY as TODAY, addDays, mondayOf } from '../lib/format'
 import { COLOR_HEX, SHOPS } from './catalogs'
-import { ALL_PERMISSIONS } from './permissions'
+import { ALL_PERMISSIONS, withRequired, type Permission } from './permissions'
 import type {
-  AuditEntry, Charge, Data, Driver, Expense, GpsPosition, Incident, Inspection, MileageRecord, Payment, PhotoRef, Rental, Service, Tire, User, Vehicle,
+  PermissionTemplate, AuditEntry, Charge, Data, Driver, Expense, GpsPosition, Incident, Inspection, MileageRecord, Payment, PhotoRef, Rental, Service, Tire, User, Vehicle,
 } from './types'
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -35,12 +35,23 @@ const daysForKm = (k: number) => Math.round((k / KM_PER_WEEK) * 7)
 // km recorridos desde el último servicio; algunos forzados para mostrar alertas
 const KM_SINCE: Record<number, number> = { 1: 10450, 4: 11200, 6: 9300, 11: 9650, 18: 9100 }
 
+// Las mismas plantillas que siembra la migración 20261122000100_permisos_por_modulo.sql.
+const OPERADOR: Permission[] = withRequired(['flota.editar', 'conductores.editar', 'rentas.editar', 'cobranza.editar', 'mantenimiento.editar', 'incidentes.editar', 'inspecciones.editar'])
+export const templates: PermissionTemplate[] = [
+  { id: 't1', name: 'Operador', description: 'Operación diaria: flota, conductores, rentas, cobranza, taller, incidentes e inspecciones.', permissions: OPERADOR, active: true },
+  { id: 't2', name: 'Consulta', description: 'Ve la operación diaria sin poder cambiar nada. Sin rentas, cobranza ni finanzas.',
+    permissions: withRequired(['flota.ver', 'conductores.ver', 'mantenimiento.ver', 'incidentes.ver', 'inspecciones.ver']), active: true },
+  { id: 't3', name: 'Contabilidad', description: 'Finanzas, cobranza y rentas, y la bitácora para revisar movimientos.',
+    permissions: withRequired(['finanzas.editar', 'cobranza.cancelar_pago', 'cobranza.corregir', 'rentas.ver', 'flota.ver', 'bitacora.ver']), active: true },
+  { id: 't4', name: 'Administrador', description: 'Todos los permisos.', permissions: ALL_PERMISSIONS, active: true },
+]
+
 export const users: User[] = [
   { id: 'u1', name: 'Ana Canul', email: 'ana@empresa.mx', role: 'superadmin', permissions: [], active: true },
   { id: 'u2', name: 'Jorge Pech', email: 'jorge@empresa.mx', role: 'admin', permissions: ALL_PERMISSIONS, active: true },
-  { id: 'u3', name: 'Lupita May', email: 'lupita@empresa.mx', role: 'operador', permissions: [], active: true },
-  { id: 'u4', name: 'Carlos Dzib', email: 'carlos@empresa.mx', role: 'operador', permissions: [], active: true },
-  { id: 'u5', name: 'Mariana Poot', email: 'mariana@empresa.mx', role: 'operador', permissions: ['finanzas'], active: true },
+  { id: 'u3', name: 'Lupita May', email: 'lupita@empresa.mx', role: 'admin', permissions: OPERADOR, active: true },
+  { id: 'u4', name: 'Carlos Dzib', email: 'carlos@empresa.mx', role: 'admin', permissions: OPERADOR, active: true },
+  { id: 'u5', name: 'Mariana Poot', email: 'mariana@empresa.mx', role: 'admin', permissions: withRequired([...OPERADOR, 'finanzas.editar']), active: true },
 ]
 
 const vehicles: Vehicle[] = Array.from({ length: 30 }, (_, i) => {
@@ -305,7 +316,7 @@ export const audit: AuditEntry[] = auditRaw
   .map(({ t, ...a }, i, all) => ({ ...a, id: String(all.length - i), at: new Date(t).toISOString() }))
 
 export const seed: Data = {
-  users, vehicles, drivers, rentals, charges, payments, mileage, services, incidents, inspections, expenses,
+  users, vehicles, drivers, rentals, charges, payments, mileage, services, incidents, inspections, expenses, templates,
   orion: { status: 'conectado', lastSync: `${TODAY}T11:56:00-06:00`, syncs: [] },
   // Posiciones de ejemplo: el odómetro de Orión va adelante del km capturado (o atrás, en los que se instaló tarde).
   gps: [

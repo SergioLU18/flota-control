@@ -26,7 +26,12 @@ export default function DriverDetail() {
   const [deposit, setDeposit] = useState<Rental | null>(null)
   const [correcting, setCorrecting] = useState<Charge | null>(null)
   const [notice, setNotice] = useState('')
-  const canCorrect = can(user, 'corregir_registros')
+  const canEdit = can(user, 'conductores.editar')
+  const seesRentals = can(user, 'rentas.ver') // tarifa y depósito
+  const canRent = can(user, 'rentas.editar')
+  const seesMoney = can(user, 'cobranza.ver') // saldos, cargos y pagos
+  const canCharge = can(user, 'cobranza.editar')
+  const canCorrect = can(user, 'cobranza.corregir')
   const [month, setMonth] = useState(TODAY.slice(0, 7))
   const [preview, setPreview] = useState<(DriverDocument & { url?: string }) | null>(null)
   const [docError, setDocError] = useState('')
@@ -72,23 +77,24 @@ export default function DriverDetail() {
       <PageHeader module="conductores" title={d.name}
         subtitle={<>{d.phone}{d.curp && <> · CURP {d.curp}</>}</>}
         actions={<>
-          <button className="btn" onClick={() => setModal('edit')}>Editar</button>
-          {rentals.length > 0 && <button className="btn" onClick={() => setModal('charge')}>Agregar cargo</button>}
+          {canEdit && <button className="btn" onClick={() => setModal('edit')}>Editar</button>}
+          {canCharge && rentals.length > 0 && <button className="btn" onClick={() => setModal('charge')}>Agregar cargo</button>}
           {/* Sin coche pero con adeudo de una renta anterior: también se le cobra desde aquí. */}
-          {(active || bal.balance > 0) && <button className={`btn ${active ? 'btn-primary' : ''}`} onClick={() => setModal('pay')}>Registrar pago</button>}
-          {!active && <button className="btn btn-primary" onClick={() => setModal('rent')}>Asignar coche</button>}
+          {canCharge && (active || bal.balance > 0) && <button className={`btn ${active ? 'btn-primary' : ''}`} onClick={() => setModal('pay')}>Registrar pago</button>}
+          {canRent && !active && <button className="btn btn-primary" onClick={() => setModal('rent')}>Asignar coche</button>}
         </>} />
 
       {notice && <div className="banner banner-green" onClick={() => setNotice('')}>{notice}</div>}
       <div className="stats" data-tour="indicadores">
-        <Stat label="Saldo / adeudo" value={mxn(bal.balance)} tone={bal.balance > 0 ? 'red' : 'green'} icon="wallet" />
-        <Stat label="Total pagado" value={mxn(bal.paid)} icon="cash" />
+        {seesMoney && <Stat label="Saldo / adeudo" value={mxn(bal.balance)} tone={bal.balance > 0 ? 'red' : 'green'} icon="wallet" />}
+        {seesMoney && <Stat label="Total pagado" value={mxn(bal.paid)} icon="cash" />}
         <Stat label="Coche actual" value={active ? L.vehicle(active.vehicleId).plates : '—'} hint={active && <Link to={`/flota/${active.vehicleId}`}>{L.vehicle(active.vehicleId).brand} {L.vehicle(active.vehicleId).model}</Link>} icon="car" />
         <Stat label="Licencia" value={fecha(d.licenseExpires)} tone={lic === 'vencida' ? 'red' : lic === 'por_vencer' || lic === 'sin_fecha' ? 'amber' : undefined}
           hint={lic === 'vencida' ? 'Vencida' : lic === 'por_vencer' ? 'Vence en menos de 30 días' : lic === 'sin_fecha' ? 'Sin vigencia capturada: edita al conductor' : 'Vigente'} icon="id" />
       </div>
 
-      <Tabs value={tab} onChange={setTab} tabs={[['expediente', 'Expediente'], ['rentas', `Coches rentados (${rentals.length})`], ['cuenta', 'Movimientos'], ['estado', 'Estado de cuenta mensual']]} />
+      <Tabs value={tab} onChange={setTab} tabs={[['expediente', 'Expediente'], ['rentas', `Coches rentados (${rentals.length})`],
+        ...(seesMoney ? [['cuenta', 'Movimientos'], ['estado', 'Estado de cuenta mensual']] as [Tab, string][] : [])]} />
 
       {tab === 'expediente' && (
         <div className="grid-2">
@@ -111,12 +117,12 @@ export default function DriverDetail() {
                   <span className="muted small">{doc.expires && `vence ${fecha(doc.expires)}`}</span>
                   <span className="row-actions">
                     {doc.uploaded && <button className="btn btn-sm btn-ghost" onClick={() => open(doc)}>Ver</button>}
-                    <label className="btn btn-sm">{uploading === doc.type ? 'Subiendo…' : doc.uploaded ? 'Reemplazar' : 'Subir'}
+                    {canEdit && <label className="btn btn-sm">{uploading === doc.type ? 'Subiendo…' : doc.uploaded ? 'Reemplazar' : 'Subir'}
                       <input type="file" hidden disabled={!!uploading} accept="image/jpeg,image/png,image/webp,image/heic,application/pdf" onChange={(e) => {
                         const f = e.target.files?.[0]; e.target.value = ''
                         if (f) upload(doc, f)
                       }} />
-                    </label>
+                    </label>}
                   </span>
                 </li>
               ))}
@@ -134,18 +140,18 @@ export default function DriverDetail() {
       {tab === 'rentas' && (
         <Card title="Historial de coches rentados">
           <div className="table-wrap"><table className="table">
-            <thead><tr><th>Coche</th><th>Inicio</th><th>Fin</th><th className="num">Tarifa</th><th className="num">Km recorridos</th><th>Depósito</th><th className="num">Saldo</th></tr></thead>
+            <thead><tr><th>Coche</th><th>Inicio</th><th>Fin</th>{seesRentals && <th className="num">Tarifa</th>}<th className="num">Km recorridos</th>{seesRentals && <th>Depósito</th>}{seesMoney && <th className="num">Saldo</th>}</tr></thead>
             <tbody>{rentals.map((r) => {
               const v = L.vehicle(r.vehicleId)
               return (
                 <tr key={r.id}>
                   <td><Link to={`/flota/${v.id}`}>{carName(v)}</Link> <span className="muted small">{v.plates}</span></td>
                   <td>{fecha(r.startDate)}</td><td>{r.endDate ? fecha(r.endDate) : <StatusBadge value="activa" />}</td>
-                  <td className="num">{mxn(r.weeklyRate)}</td>
+                  {seesRentals && <td className="num">{mxn(r.weeklyRate)}</td>}
                   <td className="num">{((r.endKm ?? v.currentKm) - r.startKm).toLocaleString('es-MX')}</td>
-                  <td><StatusBadge value={r.depositStatus} /> <span className="muted small">{mxn(r.deposit)}</span>
-                    {r.status === 'finalizada' && r.depositStatus === 'retenido' && <button className="btn btn-sm btn-ghost" onClick={() => setDeposit(r)}>Resolver</button>}</td>
-                  <td className="num">{mxn(rentalBalance(data, r.id).balance)}</td>
+                  {seesRentals && <td><StatusBadge value={r.depositStatus} /> <span className="muted small">{mxn(r.deposit)}</span>
+                    {canRent && r.status === 'finalizada' && r.depositStatus === 'retenido' && <button className="btn btn-sm btn-ghost" onClick={() => setDeposit(r)}>Resolver</button>}</td>}
+                  {seesMoney && <td className="num">{mxn(rentalBalance(data, r.id).balance)}</td>}
                 </tr>
               )
             })}</tbody>
@@ -153,7 +159,7 @@ export default function DriverDetail() {
         </Card>
       )}
 
-      {tab === 'cuenta' && (
+      {seesMoney && tab === 'cuenta' && (
         <Card title="Cargos y pagos" actions={<button className="btn btn-sm" onClick={exportCsv}><Icon name="download" />Exportar a Excel (CSV)</button>}>
           <div className="table-wrap"><table className="table compact">
             <thead><tr><th>Fecha</th><th>Concepto</th><th className="num">Cargo</th><th className="num">Pago</th><th className="num">Saldo</th>{canCorrect && <th></th>}</tr></thead>
@@ -166,7 +172,7 @@ export default function DriverDetail() {
         </Card>
       )}
 
-      {tab === 'estado' && (
+      {seesMoney && tab === 'estado' && (
         <Card title={`Estado de cuenta · ${mes(month)}`} className="printable" actions={<>
           <Select label="Mes" value={month} onChange={setMonth} options={months.map((m) => ({ value: m, label: mes(m) }))} />
           <button className="btn btn-sm" onClick={() => window.print()}>Imprimir / PDF</button>

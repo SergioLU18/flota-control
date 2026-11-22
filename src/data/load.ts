@@ -1,12 +1,12 @@
 // Lee las tablas de Supabase y las convierte al modelo de la app (src/data/types.ts).
-// Lo que el RLS no deja ver (gastos, auditoría y Orión para un operador) llega vacío.
+// Lo que el RLS no deja ver (lo de un módulo sin su permiso "ver") llega vacío: la app no falla, solo no lo muestra.
 import { all, BUCKET, friendly, must, supabase } from '../lib/supabase'
 import type { Json } from '../lib/database.types'
-import type { AuditEntry, AuditFilter, AuditOp, Data, DocType, Driver, GpsPosition, GpsStatus, PhotoRef, Tire, User } from './types'
+import type { AuditEntry, AuditFilter, AuditOp, Data, DocType, Driver, GpsPosition, GpsStatus, PhotoRef, Rental, Tire, User } from './types'
 
 export const EMPTY: Data = {
   users: [], vehicles: [], drivers: [], rentals: [], charges: [], payments: [], mileage: [], services: [],
-  incidents: [], inspections: [], expenses: [], orion: { status: 'pendiente', syncs: [] }, gps: [], serviceTypes: [],
+  incidents: [], inspections: [], expenses: [], orion: { status: 'pendiente', syncs: [] }, gps: [], serviceTypes: [], templates: [],
 }
 
 const DOC_TYPES: DocType[] = ['ine', 'licencia', 'no_penales', 'domicilio', 'referencias']
@@ -60,8 +60,8 @@ const VEHICULO_COLS = 'id, unidad, marca, modelo, anio, placas, color, vin, km_a
 export async function loadData(): Promise<Data> {
   const fotos = 'fotos(id, etiqueta, con_danio, orden, archivos(clave))'
   const [
-    usuarios, vehiculos, llantas, conductores, rentas, cargos, pagos, km, servicios,
-    incidentes, inspecciones, gastos, orion, tipos, precios, gps,
+    usuarios, vehiculos, llantas, conductores, rentasBasicas, rentas, cargos, pagos, km, servicios,
+    incidentes, inspecciones, gastos, orion, tipos, precios, gps, plantillas,
   ] = await Promise.all([
     all((a, b) => supabase.from('usuarios').select('id, nombre, correo, rol, permisos, activo').order('nombre').range(a, b)),
     // Sin precio_compra: solo lo lee quien tiene el permiso de finanzas, con precios_compra().
@@ -70,6 +70,8 @@ export async function loadData(): Promise<Data> {
     all((a, b) => supabase.from('conductores')
       .select('*, referencias_conductor(nombre, parentesco, telefono, orden), documentos_conductor(tipo, vence, archivos(clave))')
       .order('nombre').range(a, b)),
+    // Qué coche tiene quién lo ve todo el personal; la tarifa y el depósito, solo con rentas, cobranza o finanzas.
+    all((a, b) => supabase.rpc('rentas_basicas').order('id').range(a, b)),
     all((a, b) => supabase.from('rentas').select('*').order('id').range(a, b)),
     all((a, b) => supabase.from('cargos').select('*').order('id').range(a, b)),
     all((a, b) => supabase.from('pagos').select('*').order('id').range(a, b)),
@@ -82,6 +84,7 @@ export async function loadData(): Promise<Data> {
     supabase.from('tipos_servicio').select('*').order('orden').then(must),
     supabase.rpc('precios_compra').then(must),
     loadGps(),
+    supabase.from('plantillas_permisos').select('*').order('orden').then(must),
   ])
   const precio = new Map(precios.map((p) => [p.vehiculo_id, p.precio_compra ?? 0]))
 
@@ -105,8 +108,9 @@ export async function loadData(): Promise<Data> {
     }])
   })
 
+  const completa = new Map(rentas.map((r) => [r.id, r]))
   const firstRental = new Map<string, string>()
-  rentas.forEach((r) => {
+  rentasBasicas.forEach((r) => {
     const cur = firstRental.get(r.vehiculo_id)
     if (!cur || r.fecha_inicio < cur) firstRental.set(r.vehiculo_id, r.fecha_inicio)
   })
@@ -135,11 +139,16 @@ export async function loadData(): Promise<Data> {
         return { type, uploaded: !!doc, expires: doc?.vence ?? undefined, fileKey: key, fileName: key?.split('/').pop() }
       }),
     })),
-    rentals: rentas.map((r) => ({
-      id: r.id, vehicleId: r.vehiculo_id, driverId: r.conductor_id, startDate: r.fecha_inicio, endDate: r.fecha_fin ?? undefined,
-      weeklyRate: r.tarifa_semanal, deposit: r.deposito, depositStatus: r.deposito_estado as Data['rentals'][number]['depositStatus'],
-      startKm: r.km_entrega, endKm: r.km_devolucion ?? undefined, status: r.estado as 'activa' | 'finalizada', notes: r.notas,
-    })),
+    rentals: rentasBasicas.map((r): Rental => {
+      const c = completa.get(r.id)
+      return {
+        id: r.id, vehicleId: r.vehiculo_id, driverId: r.conductor_id, startDate: r.fecha_inicio, endDate: r.fecha_fin ?? undefined,
+        startKm: r.km_entrega, endKm: r.km_devolucion ?? undefined, status: r.estado as Rental['status'],
+        // Sin permiso para verlas: en 0 (las pantallas que las muestran piden rentas, cobranza o finanzas).
+        weeklyRate: c?.tarifa_semanal ?? 0, deposit: c?.deposito ?? 0, depositStatus: (c?.deposito_estado ?? 'retenido') as Rental['depositStatus'],
+        notes: c?.notas, restricted: !c,
+      }
+    }),
     charges: cargos.map((c) => ({
       id: c.id, rentalId: c.renta_id, kind: c.tipo as Data['charges'][number]['kind'], date: c.fecha,
       periodStart: c.periodo_inicio ?? c.fecha, periodEnd: c.periodo_fin ?? c.fecha, amount: c.monto, concept: c.concepto,
@@ -168,10 +177,14 @@ export async function loadData(): Promise<Data> {
     expenses: gastos.map((e) => ({
       id: e.id, date: e.fecha, category: e.categoria as Data['expenses'][number]['category'], vehicleId: e.vehiculo_id ?? undefined,
       amount: e.monto, concept: e.concepto, userId: e.registrado_por ?? '',
+      voided: e.cancelado_en ? { reason: e.motivo_cancelacion ?? '', userId: e.cancelado_por ?? '', at: e.cancelado_en } : undefined,
     })),
     orion: orionState(orion, gps),
     gps,
     serviceTypes: tipos.map((t) => ({ id: t.id, name: t.nombre, resetsCounter: t.reinicia_contador, hint: t.descripcion, active: t.activo, order: t.orden })),
+    templates: plantillas.map((t) => ({
+      id: t.id, name: t.nombre, description: t.descripcion, permissions: t.permisos as User['permissions'], active: t.activa,
+    })),
   }
 }
 

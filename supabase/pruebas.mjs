@@ -7,17 +7,17 @@
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
-import { baseDePrueba } from './pglite.mjs'
+import { aplicarMigraciones, baseDePrueba } from './pglite.mjs'
 
 const here = (p) => fileURLToPath(new URL(p, import.meta.url))
 
 // ---- Datos y reglas de la demo (TypeScript empaquetado al vuelo) ----
 const bundle = await build({
-  stdin: { contents: "export { seed } from './data/mock'; export * from './lib/calc'", resolveDir: here('../src'), loader: 'ts' },
+  stdin: { contents: "export { seed } from './data/mock'; export * from './lib/calc'; export { PERMISSIONS, withRequired } from './data/permissions'", resolveDir: here('../src'), loader: 'ts' },
   bundle: true, format: 'esm', platform: 'neutral', write: false,
 })
 const demo = await import('data:text/javascript;base64,' + Buffer.from(bundle.outputFiles[0].text).toString('base64'))
-const { seed } = demo
+const { seed, PERMISSIONS, withRequired } = demo
 
 // ---- Base en memoria + migraciones ----
 const db = await baseDePrueba()
@@ -330,7 +330,7 @@ ok(/permission denied/.test((await como(null, () => intenta(() => q('select * fr
 ok(/permission denied/.test((await como(null, () => intenta(() => q('select * from v_saldos_rentas'))))?.message), 'ni las vistas')
 ok(/permission denied/.test((await como(null, () => intenta(() => q("select generar_cargos()"))))?.message), 'ni llama funciones')
 
-console.log('\nPermisos · operador')
+console.log('\nPermisos · plantilla Operador')
 await como(OPERADOR, async () => {
   const vistas = { vehiculos: await cuenta('vehiculos'), rentas: await cuenta('rentas'), pagos: await cuenta('pagos'), usuarios: await cuenta('usuarios') }
   ok(vistas.vehiculos === 30 && vistas.rentas === 27 && vistas.pagos > 600 && vistas.usuarios === 5, 'consulta flota, rentas, cobranza y personal', JSON.stringify(vistas))
@@ -345,11 +345,11 @@ ok(/Sin permiso/.test((await como(OPERADOR, () => intenta(() => q('select editar
 ok(/No tienes permiso para dar de baja/.test((await como(OPERADOR, () => intenta(() => q("update vehiculos set estado = 'baja' where id = $1", [id('v23')]))))?.message), 'no da de baja coches')
 await como(OPERADOR, async () => {
   const r = await db.query('update rentas set tarifa_semanal = 1 where id = $1', [id('r01')])
-  const k = await db.query('delete from registros_km where vehiculo_id = $1', [id('v01')])
-  ok(r.affectedRows === 0 && k.affectedRows === 0, 'no toca rentas directo ni borra kilometraje')
+  ok(r.affectedRows === 0, 'no toca rentas directo')
 })
+ok(/permission denied/.test(await como(OPERADOR, () => intenta(() => q('delete from registros_km where vehiculo_id = $1', [id('v01')]))).then((e) => e?.message)), 'ni borra kilometraje')
 ok(/permission denied/.test((await como(OPERADOR, () => intenta(() => q("update usuarios set rol = 'admin' where id = $1", [id(OPERADOR)]))))?.message), 'no edita usuarios directo')
-ok(/Sin permiso/.test((await como(OPERADOR, () => intenta(() => q("select guardar_usuario($1, 'Lupita May', 'admin', '{usuarios}', true)", [id(OPERADOR)]))))?.message), 'ni se sube de rol por RPC')
+ok(/Sin permiso/.test((await como(OPERADOR, () => intenta(() => q("select guardar_usuario($1, 'Lupita May', 'admin', '{usuarios.editar}', true)", [id(OPERADOR)]))))?.message), 'ni se sube de rol por RPC')
 await como(OPERADOR, async () => {
   await insert('pagos', { id: id('p-op'), renta_id: id('r01'), fecha: '2026-10-14', monto: 500, metodo: 'efectivo' })
   await insert('cargos', { renta_id: id('r01'), tipo: 'danio', fecha: '2026-10-14', monto: 1200, concepto: 'Rayón en puerta' })
@@ -388,7 +388,7 @@ await como(ADMIN, async () => {
   const r = await one('select tarifa_semanal, deposito from rentas where id = $1', [id('r10')])
   const c = await one('select cancelado_por from pagos where id = $1', [id(pago.id)])
   ok(c.cancelado_por === id(ADMIN) && num(r.tarifa_semanal) === 2750 && num(r.deposito) === 6000, 'cancela pagos y edita tarifas')
-  await q("select guardar_usuario($1, 'Mariana Poot', 'operador', '{finanzas}', false)", [id('u5')])
+  await q("select guardar_usuario($1, 'Mariana Poot', 'admin', '{finanzas.editar}', false)", [id('u5')])
   ok((await one('select activo from usuarios where id = $1', [id('u5')])).activo === false, 'administra usuarios')
 })
 
@@ -398,15 +398,15 @@ const rechazaComo = (u, sql, params = []) => como(u, () => intenta(() => q(sql, 
 const guardar = "select guardar_usuario($1, $2, $3, $4, $5)"
 
 await como(CON_FINANZAS, async () => {
-  ok((await cuenta('gastos')) === seed.expenses.length && (await cuenta('auditoria')) === 0, 'un operador con permiso de finanzas ve gastos, pero no la bitácora')
+  ok((await cuenta('gastos')) === seed.expenses.length && (await cuenta('auditoria')) === 0, 'un operador con finanzas ve gastos, pero no la bitácora')
 })
 ok(/Sin permiso/.test(await rechazaComo(CON_FINANZAS, 'select editar_renta($1, 1, 1)', [id('r01')])), 'y sigue sin editar tarifas')
 await como(SUPER, async () => {
   ok((await cuenta('gastos')) === seed.expenses.length && (await cuenta('auditoria')) > 0, 'el superadmin lo ve todo sin lista de permisos')
-  await q(guardar, [id(OPERADOR), 'Lupita May', 'operador', ['finanzas', 'cancelar_pagos', 'finanzas'], true])
+  await q(guardar, [id(OPERADOR), 'Lupita May', 'admin', ['finanzas.ver', 'cobranza.cancelar_pago', 'finanzas.ver'], true])
   const u = await one('select permisos from usuarios where id = $1', [id(OPERADOR)])
-  ok(u.permisos.join() === 'cancelar_pagos,finanzas', 'otorga permisos sueltos (ordenados y sin repetir)', u.permisos.join())
-  await q(guardar, [id(ADMIN), 'Jorge Pech', 'superadmin', ['finanzas'], true])
+  ok(u.permisos.join() === 'cobranza.ver,cobranza.editar,cobranza.cancelar_pago,finanzas.ver', 'otorga permisos sueltos con lo que requieren (en el orden del catálogo y sin repetir)', u.permisos.join())
+  await q(guardar, [id(ADMIN), 'Jorge Pech', 'superadmin', ['finanzas.ver'], true])
   const j = await one('select rol, permisos from usuarios where id = $1', [id(ADMIN)])
   ok(j.rol === 'superadmin' && j.permisos.length === 0, 'nombra a otro superadmin (sin lista)')
 })
@@ -420,26 +420,27 @@ await como(ADMIN, async () => {
   ok((await one('select nombre from usuarios where id = $1', [id(ADMIN)])).nombre === 'Jorge Pech Canché', 'pero sí cambia su nombre')
 })
 
-// Un admin al que le quitaron todo salvo "usuarios", frente a Mariana (finanzas y orion) y Lupita (nada)
+// Un admin al que le quitaron todo salvo "usuarios", frente a Mariana (finanzas y orion) y Lupita (plantilla Operador)
 const conAdminLimitado = (fn) => como(SUPER, async () => {
-  await q(guardar, [id(ADMIN), 'Jorge Pech', 'admin', ['usuarios'], true])
-  await q(guardar, [id('u5'), 'Mariana Poot', 'operador', ['finanzas', 'orion'], true])
+  await q(guardar, [id(ADMIN), 'Jorge Pech', 'admin', ['usuarios.editar'], true])
+  await q(guardar, [id('u5'), 'Mariana Poot', 'admin', ['finanzas.ver', 'orion.ver'], true])
   await q("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: id(ADMIN), role: 'authenticated' })])
   return fn()
 })
 const msg = (e) => e?.message ?? 'la base lo aceptó'
-ok(/que tú no tienes/.test(msg(await conAdminLimitado(() => intenta(() => q(guardar, [id(OPERADOR), 'Lupita May', 'operador', ['finanzas'], true]))))), 'nadie otorga permisos que no tiene')
-ok(/que tú no tienes/.test(msg(await conAdminLimitado(() => intenta(() => q("select validar_usuario(null, 'admin', '{finanzas}')"))))), 'tampoco al crear una cuenta')
+ok(/que tú no tienes/.test(msg(await conAdminLimitado(() => intenta(() => q(guardar, [id(OPERADOR), 'Lupita May', 'admin', ['finanzas.ver'], true]))))), 'nadie otorga permisos que no tiene')
+ok(/que tú no tienes/.test(msg(await conAdminLimitado(() => intenta(() => q("select validar_usuario(null, 'admin', '{finanzas.ver}')"))))), 'tampoco al crear una cuenta')
 await conAdminLimitado(async () => {
-  await q(guardar, [id('u5'), 'Mariana Poot', 'operador', ['finanzas'], true])
-  ok((await one('select permisos from usuarios where id = $1', [id('u5')])).permisos.join() === 'finanzas', 'pero sí conserva o quita los que el otro ya tenía')
+  await q(guardar, [id('u5'), 'Mariana Poot', 'admin', ['finanzas.ver'], true])
+  ok((await one('select permisos from usuarios where id = $1', [id('u5')])).permisos.join() === 'finanzas.ver', 'pero sí conserva o quita los que el otro ya tenía')
 })
 
 console.log('\nPermisos · usuario nuevo')
 {
   await insert('auth.users', { id: id('nuevo'), email: 'Nuevo@Empresa.mx', raw_user_meta_data: { nombre: 'Persona Nueva' } })
-  const perfil = await one('select nombre, correo, rol, activo from usuarios where id = $1', [id('nuevo')])
-  ok(perfil.rol === 'operador' && perfil.activo === false && perfil.correo === 'nuevo@empresa.mx' && perfil.nombre === 'Persona Nueva', 'al crear la cuenta nace un perfil de operador inactivo')
+  const perfil = await one('select nombre, correo, rol, permisos, activo from usuarios where id = $1', [id('nuevo')])
+  ok(perfil.rol === 'admin' && perfil.permisos.length === 0 && perfil.activo === false && perfil.correo === 'nuevo@empresa.mx' && perfil.nombre === 'Persona Nueva',
+    'al crear la cuenta nace un perfil inactivo y sin permisos')
   await como('nuevo', async () => {
     ok((await cuenta('vehiculos')) === 0 && (await cuenta('usuarios')) === 1, 'inactivo no ve nada salvo su propio perfil')
     ok(/Sin permiso/.test((await intenta(() => q('select generar_cargos()')))?.message), 'ni genera cargos')
@@ -497,7 +498,7 @@ console.log('\nCorrección de cargos')
 {
   const cargo = id(seed.charges.find((c) => c.rentalId === 'r01').id)
   const renta = id('r01')
-  ok(/Sin permiso/.test(await rechazaComo(OPERADOR, "select cancelar_cargo($1, 'x')", [cargo])), 'un operador no cancela cargos')
+  ok(/Sin permiso/.test(await rechazaComo(OPERADOR, "select cancelar_cargo($1, 'x')", [cargo])), 'la plantilla Operador no cancela cargos')
   await como(ADMIN, async () => {
     const r = await db.query('update cargos set monto = 1 where id = $1', [cargo])
     ok(r.affectedRows === 0, 'nadie edita un cargo directo, solo por RPC')
@@ -521,7 +522,7 @@ console.log('\nCorrección de cargos')
 
 console.log('\nPrecio de compra')
 await como(OPERADOR, async () => {
-  ok(/permission denied/.test((await intenta(() => q('select precio_compra from vehiculos limit 1')))?.message), 'un operador no lee el precio de compra')
+  ok(/permission denied/.test((await intenta(() => q('select precio_compra from vehiculos limit 1')))?.message), 'sin finanzas no se lee el precio de compra')
 })
 await como(OPERADOR, async () => {
   const filas = await q('select id, placas, km_actual, fecha_compra from vehiculos')
@@ -642,6 +643,186 @@ console.log('\nOrión GPS')
   ok(await como(OPERADOR, async () => num((await one('select count(*) n from gps_posiciones')).n)) === 3, 'el personal ve las posiciones')
   ok(/denied|permiso/.test(await rechazaComo(OPERADOR, "select orion_guardar('[]'::jsonb, true)")), 'el personal no puede llamar orion_guardar')
   ok(/denied|policy|permiso/.test(await rechazaComo(OPERADOR, "update gps_posiciones set lat = 0")), 'ni escribir posiciones directo')
+}
+
+// ============================================================
+// Permisos por módulo (migración 20261122000100). Lo que se puede, se recorre desde el catálogo:
+// un permiso nuevo queda probado sin escribir pruebas nuevas.
+// ============================================================
+
+console.log('\nPermisos por módulo · catálogo')
+{
+  const db_ = await q('select clave, modulo, nombre, descripcion, requiere from catalogo_permisos order by orden')
+  const app = PERMISSIONS.map((p) => ({ clave: p.key, modulo: p.module, nombre: p.label, descripcion: p.hint, requiere: [...p.requires] }))
+  ok(JSON.stringify(db_) === JSON.stringify(app), 'el catálogo de la app (permissions.ts) es igual al de la base, en el mismo orden',
+    JSON.stringify(db_.filter((x, i) => JSON.stringify(x) !== JSON.stringify(app[i])).map((x) => x.clave)))
+  const plantillas = await q('select nombre, permisos from plantillas_permisos order by orden')
+  ok(JSON.stringify(plantillas) === JSON.stringify(seed.templates.map((t) => ({ nombre: t.name, permisos: t.permissions }))),
+    'las plantillas de la demo (mock.ts) son las que siembra la migración')
+  const norm = (await one("select normalizar_permisos('{cobranza.cancelar_pago,flota.ver,flota.ver}') p")).p
+  ok(norm.join() === withRequired(['cobranza.cancelar_pago', 'flota.ver']).join(), 'normalizar_permisos agrega lo que requiere, igual que la app', norm.join())
+  await rechaza('un permiso que no está en el catálogo no se guarda', () => db.query("update usuarios set permisos = '{finanzas}' where id = $1", [id('u4')]), /desconocido/)
+  await rechaza('ni en una plantilla', () => db.query("update plantillas_permisos set permisos = '{flota.borrar}'"), /desconocido/)
+  await rechaza('ya no existe el rol operador', () => db.query("update usuarios set rol = 'operador' where id = $1", [id('u4')]), /usuarios_rol_check/)
+}
+
+console.log('\nPermisos por módulo · tablas')
+{
+  const tablas = (await q("select c.relname t, c.relrowsecurity rls from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r'"))
+  const conLeer = new Set((await q("select tablename from pg_policies where schemaname = 'public' and policyname = 'leer'")).map((x) => x.tablename))
+  const sinRegla = tablas.filter((x) => !x.rls || !conLeer.has(x.t)).map((x) => x.t)
+  ok(sinRegla.length === 0, 'toda tabla tiene RLS y su política de lectura (definir_acceso)', sinRegla.join())
+  const borrables = (await q(`select table_name from information_schema.role_table_grants
+    where table_schema = 'public' and privilege_type = 'DELETE' and grantee in ('anon', 'authenticated')`)).map((x) => x.table_name)
+  ok(borrables.length === 0, 'ninguna tabla se puede borrar desde la app', borrables.join())
+}
+
+// Corre fn como un admin con exactamente esos permisos (más lo que requieren), y revierte.
+const PRUEBA = 'u4'
+const comoCon = async (perms, fn) => {
+  await db.exec('begin')
+  try {
+    await db.query("update usuarios set rol = 'admin', permisos = $2 where id = $1", [id(PRUEBA), perms])
+    await db.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: id(PRUEBA), role: 'authenticated' })])
+    await db.exec('set local role authenticated')
+    return await fn()
+  } finally {
+    await db.exec('rollback')
+  }
+}
+const intentaCon = (perms, sql, params = []) => comoCon(perms, () => intenta(() => q(sql, params))).then((e) => e?.message ?? '')
+
+console.log('\nPermisos por módulo · lectura')
+{
+  const ve = (perms, tablas) => comoCon(perms, async () => Object.fromEntries(await Promise.all(tablas.map(async (t) => [t, await cuenta(t)]))))
+  const sinNada = await ve([], ['vehiculos', 'conductores', 'registros_km', 'tipos_servicio', 'rentas', 'cargos', 'pagos', 'servicios', 'incidentes', 'inspecciones', 'gastos', 'auditoria'])
+  ok(sinNada.vehiculos === 30 && sinNada.conductores === 24 && sinNada.registros_km > 0 && sinNada.tipos_servicio > 0,
+    'sin permisos, un usuario activo ve los datos básicos (coches, conductores, km y catálogos)', JSON.stringify(sinNada))
+  ok(['rentas', 'cargos', 'pagos', 'servicios', 'incidentes', 'inspecciones', 'gastos', 'auditoria'].every((t) => sinNada[t] === 0),
+    'pero nada de rentas, cobranza, taller, incidentes, inspecciones, finanzas ni bitácora')
+  const basicas = await comoCon([], async () => num((await one('select count(*) n from rentas_basicas()')).n))
+  ok(basicas === 27, 'qué coche tiene quién (rentas_basicas, sin tarifa ni depósito) sí lo ve todo el personal', String(basicas))
+
+  const consulta = seed.templates.find((t) => t.name === 'Consulta').permissions
+  const c = await ve(consulta, ['servicios', 'incidentes', 'inspecciones', 'rentas', 'cargos', 'pagos', 'gastos'])
+  ok(c.servicios > 0 && c.incidentes > 0 && c.inspecciones > 0 && c.rentas === 0 && c.cargos === 0 && c.pagos === 0 && c.gastos === 0,
+    'la plantilla Consulta ve taller, incidentes e inspecciones, pero no rentas, cobranza ni finanzas', JSON.stringify(c))
+  const r = await ve(['rentas.ver'], ['rentas', 'cargos', 'pagos', 'gastos'])
+  ok(r.rentas === 27 && r.cargos === 0 && r.pagos === 0 && r.gastos === 0, 'rentas.ver ve las rentas con tarifa, pero no los pagos', JSON.stringify(r))
+  const f = await ve(['finanzas.ver'], ['rentas', 'cargos', 'pagos', 'gastos', 'servicios', 'incidentes', 'auditoria'])
+  ok(f.rentas > 0 && f.cargos > 0 && f.pagos > 0 && f.gastos > 0 && f.servicios > 0 && f.incidentes > 0 && f.auditoria === 0,
+    'finanzas.ver lee lo que necesita para el estado de resultados', JSON.stringify(f))
+}
+
+console.log('\nPermisos por módulo · escritura')
+{
+  // Cada acción con el permiso que la abre. Sin él: "Sin permiso". Con él (y nada más), la base sí la intenta
+  // (falla después por los datos de prueba, que son ids que no existen).
+  const u = () => randomUUID()
+  const ACCIONES = [
+    ['flota.editar', 'select guardar_vehiculo(null, $1)', [{}]],
+    ['conductores.editar', "select guardar_conductor(null, $1, '[]'::jsonb)", [{}]],
+    ['rentas.editar', 'select iniciar_renta($1, $2, 3000)', [u(), u()]],
+    ['rentas.editar', "select finalizar_renta($1, 1, 'devuelto')", [u()]],
+    ['rentas.editar', "select resolver_deposito($1, 'devuelto')", [u()]],
+    ['rentas.tarifa', 'select editar_renta($1, 1, 1)', [u()]],
+    ['cobranza.cancelar_pago', "select cancelar_pago($1, 'x')", [u()]],
+    ['cobranza.corregir', "select corregir_cargo($1, 1, 'x', 'y')", [u()]],
+    ['cobranza.corregir', "select cancelar_cargo($1, 'x')", [u()]],
+    ['mantenimiento.editar', 'select registrar_servicio($1, $2)', [u(), {}]],
+    ['mantenimiento.corregir_km', "select corregir_km($1, 1, 'x')", [u()]],
+    ['incidentes.editar', 'select registrar_incidente($1, $2)', [u(), {}]],
+    ['incidentes.editar', "select agregar_fotos_incidente($1, '[]'::jsonb)", [u()]],
+    ['inspecciones.editar', 'select registrar_inspeccion($1, $2)', [u(), {}]],
+    ['finanzas.editar', "select cancelar_gasto($1, 'x')", [u()]],
+    ['usuarios.editar', "select guardar_usuario($1, 'x', 'admin', '{}', true)", [u()]],
+    ['usuarios.editar', "select guardar_plantilla(null, 'Prueba', '', '{}', true)", []],
+  ]
+  const todos = PERMISSIONS.map((p) => p.key)
+  const fallan = []
+  for (const [perm, sql, params] of ACCIONES) {
+    // Todo menos ese permiso (y lo que depende de él): sigue sin poder.
+    const sin = todos.filter((p) => !withRequired([p]).includes(perm))
+    const sinEl = await intentaCon(sin, sql, params)
+    const conEl = await intentaCon([perm], sql, params)
+    if (!/Sin permiso/.test(sinEl) || /Sin permiso/.test(conEl)) fallan.push(`${sql} (${perm}): sin → "${sinEl}", con → "${conEl}"`)
+  }
+  ok(fallan.length === 0, `cada una de las ${ACCIONES.length} acciones exige exactamente su permiso`, fallan.join(' | '))
+
+  const tabla = async (perms, sql, params) => comoCon(perms, async () => (await db.query(sql, params)).affectedRows)
+  const cambia = "update vehiculos set notas = 'x' where id = $1"
+  ok(await tabla(['flota.ver'], cambia, [id('v01')]) === 0 && await tabla(['flota.editar'], cambia, [id('v01')]) === 1,
+    'ver no edita; editar sí (las políticas de escritura van por permiso)')
+  ok(/row-level security/.test(await intentaCon(['cobranza.ver'], "insert into pagos (renta_id, fecha, monto, metodo) values ($1, '2026-10-14', 1, 'efectivo')", [id('r01')])),
+    'cobranza.ver no registra pagos')
+  ok(/row-level security/.test(await intentaCon(['flota.editar'], "insert into registros_km (vehiculo_id, fecha, km, origen) values ($1, '2026-11-20', 999999, 'manual')", [id('v01')])),
+    'capturar km es de mantenimiento.editar')
+  ok(/No tienes permiso para dar de baja/.test(await intentaCon(['flota.editar'], "update vehiculos set estado = 'baja' where id = $1", [id('v23')])),
+    'dar de baja pide flota.baja aunque se pueda editar')
+}
+
+console.log('\nPermisos por módulo · nada se borra')
+{
+  const gasto = (await one('select id from gastos order by fecha limit 1')).id
+  await comoCon(['finanzas.editar'], async () => {
+    const antes = num((await one('select count(*) n from gastos where cancelado_en is null')).n)
+    await q("select cancelar_gasto($1, 'Se capturó dos veces')", [gasto])
+    const g = await one('select cancelado_por, motivo_cancelacion from gastos where id = $1', [gasto])
+    const despues = num((await one('select count(*) n from gastos where cancelado_en is null')).n)
+    ok(g.cancelado_por === id(PRUEBA) && g.motivo_cancelacion === 'Se capturó dos veces' && despues === antes - 1, 'un gasto se cancela con motivo y deja de contar')
+    const e = await intenta(() => q("update gastos set monto = 1 where id = $1", [gasto]))
+    ok(/ya está cancelado/.test(e?.message), 'y ya no se edita')
+  })
+  ok(/permission denied/.test(await intentaCon(['finanzas.editar'], 'delete from gastos where id = $1', [gasto])), 'borrar un gasto ya no se puede')
+
+  const v = seed.vehicles[0]
+  await comoCon(['mantenimiento.corregir_km', 'bitacora.ver'], async () => {
+    const otra = await one("insert into registros_km (vehiculo_id, fecha, km, origen) values ($1, hoy_merida(), $2, 'manual') returning id", [id(v.id), v.currentKm + 90000])
+    const subio = (await one('select km_actual from vehiculos where id = $1', [id(v.id)])).km_actual
+    await q("select corregir_km($1, $2, 'Se tecleó un 9 de más')", [otra.id, v.currentKm + 100])
+    const quedo = (await one('select km_actual from vehiculos where id = $1', [id(v.id)])).km_actual
+    const acc = (await one("select accion from auditoria where tabla = 'registros_km' and registro_id = $1 and operacion = 'cambio'", [otra.id]))?.accion
+    ok(subio === v.currentKm + 90000 && quedo === v.currentKm + 100 && acc === 'Corrigió km: Se tecleó un 9 de más',
+      'una lectura mal capturada se corrige con motivo y el km del coche se recalcula', JSON.stringify({ subio, quedo, acc }))
+  })
+  const entrega = await one("select id from registros_km where origen = 'entrega' limit 1")
+  ok(/parte de una renta/.test(await intentaCon(['mantenimiento.corregir_km'], "select corregir_km($1, 1, 'x')", [entrega.id])), 'las de entrega y recepción no se tocan')
+}
+
+console.log('\nPermisos por módulo · plantillas')
+{
+  const crea = "select guardar_plantilla(null, 'Patio', 'Recepción de coches', $1, true) id"
+  const t = await comoCon(['usuarios.editar', 'inspecciones.editar'], async () => {
+    const { id: tid } = await one(crea, [['inspecciones.editar']])
+    return one('select permisos, activa from plantillas_permisos where id = $1', [tid])
+  })
+  ok(t.permisos.join() === 'inspecciones.ver,inspecciones.editar' && t.activa, 'se crea una plantilla con lo que requiere cada permiso', JSON.stringify(t))
+  ok(/que tú no tienes/.test(await intentaCon(['usuarios.editar'], crea, [['finanzas.ver']])), 'nadie pone en una plantilla permisos que no tiene')
+  ok(/Sin permiso/.test(await intentaCon(['usuarios.ver'], crea, [[]])), 'usuarios.ver las consulta pero no las edita')
+  const n = await comoCon(['usuarios.ver'], async () => cuenta('plantillas_permisos'))
+  ok(n === seed.templates.length, 'usuarios.ver sí las consulta', String(n))
+}
+
+console.log('\nPermisos por módulo · migración de los permisos de antes')
+{
+  // Base con las migraciones anteriores, usuarios con los permisos viejos y luego la migración nueva.
+  const vieja = await baseDePrueba({ hasta: '20261122000100' })
+  const alta = async (uid, correo, rol, permisos) => {
+    await vieja.query('insert into auth.users (id, email) values ($1, $2)', [uid, correo])
+    await vieja.query('update usuarios set rol = $2, permisos = $3, activo = true where id = $1', [uid, rol, permisos])
+  }
+  const [op, ad, su] = [randomUUID(), randomUUID(), randomUUID()]
+  await alta(op, 'op@x.mx', 'operador', ['finanzas'])
+  await alta(ad, 'ad@x.mx', 'admin', ['auditoria', 'bajas', 'cancelar_pagos', 'catalogos', 'corregir_registros', 'editar_rentas', 'finanzas', 'orion', 'usuarios'])
+  await alta(su, 'su@x.mx', 'superadmin', [])
+  await aplicarMigraciones(vieja, { desde: '20261122000100' })
+  const r = Object.fromEntries((await vieja.query('select id, rol, permisos from usuarios')).rows.map((x) => [x.id, x]))
+  const operador = seed.templates.find((t) => t.name === 'Operador').permissions
+  ok(r[op].rol === 'admin' && r[op].permisos.join() === withRequired([...operador, 'finanzas.editar']).join(),
+    'un operador pasa a admin con la plantilla Operador más sus permisos sueltos', r[op].permisos.join())
+  ok(r[ad].rol === 'admin' && r[ad].permisos.length === PERMISSIONS.length, 'un admin con todo conserva todo', r[ad].permisos.join())
+  ok(r[su].rol === 'superadmin' && r[su].permisos.length === 0, 'el superadmin no cambia')
+  await vieja.close()
 }
 
 await db.close()

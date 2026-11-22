@@ -1,5 +1,5 @@
 // Reglas de negocio derivadas. En producción vivirían en el backend (servicios/consultas SQL).
-import type { Data, Driver, MileageRecord, Rental, Service, Vehicle } from '../data/types'
+import type { Data, Driver, MileageRecord, Permission, Rental, Service, Vehicle } from '../data/types'
 import { CURRENT_MONDAY, TODAY, addDays, diffDays, fecha } from './format'
 
 export const MAINTENANCE_INTERVAL = 10000
@@ -94,9 +94,9 @@ export function driverWarnings(d: Data, dr: Driver): string[] {
 /** Coches que siguen en la flota (los dados de baja solo cuentan para historial y finanzas). */
 export const inFleet = (v: Vehicle) => v.status !== 'baja'
 
-/** Avisos internos que se muestran en el dashboard. */
+/** Avisos internos que se muestran en el dashboard. `perm`: además de poder abrir `to`, lo que hace falta para verlo. */
 export function alerts(d: Data) {
-  const out: { level: 'alta' | 'media'; text: string; to: string }[] = []
+  const out: { level: 'alta' | 'media'; text: string; to: string; perm?: Permission }[] = []
   d.vehicles.filter(inFleet).forEach((v) => {
     const m = maintenanceStatus(v, d.services, d.mileage)
     if (m.level === 'vencido') out.push({ level: 'alta', text: `${carName(v)} ${v.plates}: servicio vencido (${m.since.toLocaleString('es-MX')} km desde el último)`, to: `/flota/${v.id}` })
@@ -111,7 +111,7 @@ export function alerts(d: Data) {
     const bal = driverBalance(d, dr.id).balance
     // "Más de una semana" con la tarifa de su renta activa, o de la última si ya devolvió el coche.
     const last = active ?? d.rentals.filter((r) => r.driverId === dr.id).sort((a, b) => (a.startDate < b.startDate ? 1 : -1))[0]
-    if (last && bal > last.weeklyRate) out.push({ level: 'alta', text: `${dr.name}: adeuda ${Math.round(bal).toLocaleString('es-MX')} MXN (más de una semana)`, to: `/conductores/${dr.id}` })
+    if (last && bal > last.weeklyRate) out.push({ level: 'alta', text: `${dr.name}: adeuda ${Math.round(bal).toLocaleString('es-MX')} MXN (más de una semana)`, to: `/conductores/${dr.id}`, perm: 'cobranza.ver' })
   })
   d.incidents.filter((i) => i.status === 'abierto').forEach((i) => {
     const v = d.vehicles.find((x) => x.id === i.vehicleId)!

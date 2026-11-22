@@ -56,7 +56,7 @@ npx supabase functions deploy usuarios
    - **Authentication → URL Configuration:** pon la URL de Netlify como *Site URL*.
    - **Integrations → Cron:** confirma que existe el job `generar-cargos`. Si `pg_cron` no estaba habilitado al hacer el push, habilítalo ahí y vuelve a correr el bloque de cron de la migración 0400 en el SQL Editor.
 4. Sube la Edge Function (`npx supabase functions deploy usuarios`).
-5. Crea **solo la primera cuenta** en **Authentication → Users → Add user**, con correo y contraseña. En *User metadata* puedes poner `{"nombre": "Ana Canul"}`. Nace como **operador inactivo**; hazla superadmin desde el SQL Editor:
+5. Crea **solo la primera cuenta** en **Authentication → Users → Add user**, con correo y contraseña. En *User metadata* puedes poner `{"nombre": "Ana Canul"}`. Nace **inactivo y sin permisos**; hazla superadmin desde el SQL Editor:
    ```sql
    update usuarios set rol = 'superadmin', permisos = '{}', activo = true where correo = 'ana@empresa.mx';
    ```
@@ -103,22 +103,24 @@ Vistas: `v_saldos_rentas`, `v_saldos_conductores`, `v_saldos_vehiculos`, `v_mant
 | Altas y ediciones simples (coches, conductores, servicios, incidentes, inspecciones, km, pagos, gastos) | `insert` / `update` directo. `registrado_por` se llena solo con el usuario de la sesión |
 | Iniciar renta | `rpc('iniciar_renta', { p_vehiculo_id, p_conductor_id, p_tarifa_semanal, p_deposito, p_fecha_inicio?, p_km_entrega?, p_notas? })` |
 | Finalizar renta | `rpc('finalizar_renta', { p_renta_id, p_km_devolucion, p_deposito_estado, p_fecha_fin? })` |
-| Editar tarifa y depósito (admin) | `rpc('editar_renta', { p_renta_id, p_tarifa_semanal, p_deposito })` |
-| Cancelar pago (admin) | `rpc('cancelar_pago', { p_pago_id, p_motivo })` |
+| Editar tarifa y depósito (`rentas.tarifa`) | `rpc('editar_renta', { p_renta_id, p_tarifa_semanal, p_deposito })` |
+| Cancelar pago (`cobranza.cancelar_pago`) | `rpc('cancelar_pago', { p_pago_id, p_motivo })` |
 | Botón "Generar cargos de la semana" | `rpc('generar_cargos')` (también corre solo cada noche) |
 | Subir foto o documento | `storage.from('archivos').upload('fotos/<archivo_id>.jpg', blob, { upsert: true })` y después `insert` en `archivos` |
 
 ## Permisos (RLS)
 
-| | Sin sesión | Inactivo | Operador | Admin |
-|---|---|---|---|---|
-| Flota, conductores, rentas, cobranza, mantenimiento, incidentes, inspecciones | — | — | consulta y captura | consulta y captura |
-| Iniciar y finalizar rentas, registrar pagos, generar cargos | — | — | ✔ | ✔ |
-| Editar tarifas, cancelar pagos, borrar km erróneo, corregir cargos | — | — | — | ✔ |
-| Gastos, auditoría, Orión, catálogo de servicios | — | — | — | ✔ |
-| Usuarios | — | solo su perfil | consulta | consulta y edita |
+Roles: **superadmin** (todo, sin lista) y **admin** (solo los permisos de su lista). Los permisos son `modulo.ver`,
+`modulo.editar` y algunas acciones especiales; el catálogo completo está en `catalogo_permisos` y en docs/MODULOS.md (módulo 1).
 
-Nada se borra por la API, salvo referencias, fotos, gastos y (admin) registros de km: las demás tablas no tienen política de `delete`.
+| | Sin sesión | Inactivo | Activo sin permisos | Con el permiso |
+|---|---|---|---|---|
+| Coches (sin precio), conductores, km, catálogos, GPS, qué coche tiene quién (`rentas_basicas()`) | — | — | consulta | consulta |
+| Rentas, cargos, pagos, servicios, incidentes, inspecciones, gastos, bitácora, Orión, plantillas | — | — | — | `ver` del módulo (algunas tablas las lee más de un módulo: ver `definir_acceso` en la migración) |
+| Capturar o editar (tablas y RPC) | — | — | — | `editar` del módulo o la acción especial |
+| Usuarios | — | solo su perfil | consulta los nombres | `usuarios.editar` por `guardar_usuario` |
+
+Nada se borra por la API: `authenticated` no tiene DELETE en ninguna tabla. Lo capturado mal se corrige o se cancela con motivo.
 
 ## Reglas que garantiza la base
 
@@ -126,7 +128,7 @@ Aunque la app tenga un error, la base no deja guardar datos que rompan estas reg
 
 - **Una renta activa por coche y por conductor.** Hay índices únicos parciales y, además, restricciones `EXCLUDE` que impiden que dos rentas se traslapen en fechas, incluso al capturar historial atrasado.
 - **"Rentado" no se pone a mano.** Iniciar una renta pasa el coche a rentado, y solo si estaba disponible. Finalizarla lo regresa a disponible. Una renta finalizada no se reabre, y nunca se le cambia el coche ni el conductor.
-- **El kilometraje no retrocede.** `vehiculos.km_actual` lo mantiene un trigger y se recalcula si se borra una captura errónea.
+- **El kilometraje no retrocede.** `vehiculos.km_actual` lo mantiene un trigger y se recalcula si se corrige una captura errónea (`corregir_km`).
 - **Pagos:** no se editan ni se borran. Solo se cancelan, una vez y con motivo. El saldo siempre se calcula (cargos − pagos vigentes).
 - **Cargos idempotentes:** `generar_cargos` crea las semanas que falten. Correrla dos veces no duplica nada y, si la tarea no corrió unos días, se pone al día.
 - **Inspecciones e incidentes ligados a una renta deben ser del mismo coche** que esa renta. Una entrega y una recepción por renta.
@@ -141,7 +143,7 @@ Aunque la app tenga un error, la base no deja guardar datos que rompan estas reg
 5. **Un documento vigente por tipo y conductor.** El archivo anterior se queda en `archivos`.
 6. **Los cargos los corrige un admin editando el monto**, a diferencia de los pagos. Si el cliente quiere "cancelar con motivo", se agrega igual que en `pagos`.
 7. **Cambio de coche a mitad de renta** (pregunta 8): por ahora es finalizar la renta y abrir otra.
-8. **Columnas sensibles:** RLS filtra filas, no columnas. Un operador puede leer `vehiculos.precio_compra` y los costos de servicios por la API, aunque la app no se los muestre. Si importa, se mueve a una tabla aparte solo para admin.
+8. **Permisos por módulo** (migración `20261122000100`): cada tabla tiene sus políticas estándar con `definir_acceso(tabla, leer, escribir, ops, condición)` y cada RPC exige su permiso con `exigir_permiso('modulo.accion')`. El catálogo está en `catalogo_permisos` y debe coincidir con `src/data/permissions.ts` (lo revisa `npm run db:test`). Para un permiso nuevo: agrégalo en los dos lados, úsalo en `definir_acceso` o en la RPC y corre las pruebas. Nadie tiene DELETE desde la app. El precio de compra va por columnas: solo llega con `precios_compra()` (permiso `finanzas.ver`).
 
 ## Pendiente
 

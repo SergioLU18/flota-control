@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
+import { can } from '../data/permissions'
 import { Badge, Card, Modal, PageHeader, Progress, Stat, StatusBadge, Tabs } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { ExpenseForm } from '../components/forms'
@@ -16,8 +17,9 @@ type SortKey = 'income' | 'costs' | 'profit' | 'profitPerMonth' | 'occupancy' | 
 const pct = (x: number) => `${Math.round(x * 100)}%`
 
 export default function Finance() {
-  const { data } = useStore()
+  const { data, user } = useStore()
   const L = useLookup()
+  const canEdit = can(user, 'finanzas.editar')
   const periods = useMemo(() => financePeriods(), [])
   const [pk, setPk] = useState('last12')
   const period = periods.find((x) => x.key === pk)!
@@ -55,7 +57,7 @@ export default function Finance() {
         actions={<>
           <Select label="Periodo" tour="periodo" value={pk} onChange={setPk} searchable={false}
             options={periods.map((x, i) => ({ value: x.key, label: x.label, group: i < 3 ? 'Rangos' : 'Mes' }))} />
-          <button className="btn btn-primary" data-tour="btn-registrar-gasto" onClick={() => setAdding(true)}><Icon name="plus" />Registrar gasto</button>
+          {canEdit && <button className="btn btn-primary" data-tour="btn-registrar-gasto" onClick={() => setAdding(true)}><Icon name="plus" />Registrar gasto</button>}
         </>} />
 
       <div className="stats" data-tour="indicadores">
@@ -144,14 +146,16 @@ export default function Finance() {
             options={[{ value: '', label: 'Todas las categorías' }, ...(Object.keys(EXPENSE_LABEL) as ExpenseCategory[]).map((c) => ({ value: c, label: EXPENSE_LABEL[c] }))]} />
         }>
           <div className="table-wrap"><table className="table compact">
-            <thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th>Coche</th><th className="num">Monto</th><th>Registró</th><th></th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th>Coche</th><th className="num">Monto</th><th>Registró</th>{canEdit && <th></th>}</tr></thead>
             <tbody>{expenses.slice(0, 100).map((e) => {
               const v = e.vehicleId ? L.vehicle(e.vehicleId) : undefined
               return (
-                <tr key={e.id}><td>{fecha(e.date)}</td><td>{e.concept}</td><td className="muted small">{EXPENSE_LABEL[e.category]}</td>
+                <tr key={e.id} className={e.voided ? 'voided' : ''}><td>{fecha(e.date)}</td>
+                  <td>{e.concept}{e.voided && <div className="small"><Badge tone="red">Cancelado</Badge> <span className="muted">{e.voided.reason} · {L.user(e.voided.userId)?.name}</span></div>}</td>
+                  <td className="muted small">{EXPENSE_LABEL[e.category]}</td>
                   <td>{v ? <Link to={`/flota/${v.id}`}>{v.model} {v.plates}</Link> : <span className="muted">General</span>}</td>
                   <td className="num">{mxn(e.amount)}</td><td className="muted small">{L.user(e.userId)?.name}</td>
-                  <td className="row-actions"><button className="btn btn-sm btn-ghost" onClick={() => setEditing(e)}>Editar</button></td></tr>
+                  {canEdit && <td className="row-actions">{!e.voided && <button className="btn btn-sm btn-ghost" onClick={() => setEditing(e)}>Editar</button>}</td>}</tr>
               )
             })}</tbody>
           </table></div>
