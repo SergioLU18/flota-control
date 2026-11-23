@@ -443,7 +443,7 @@ console.log('\nPermisos · usuario nuevo')
     'al crear la cuenta nace un perfil inactivo y sin permisos')
   await como('nuevo', async () => {
     ok((await cuenta('vehiculos')) === 0 && (await cuenta('usuarios')) === 1, 'inactivo no ve nada salvo su propio perfil')
-    ok(/Sin permiso/.test((await intenta(() => q('select generar_cargos()')))?.message), 'ni genera cargos')
+    ok(/permission denied/.test((await intenta(() => q('select generar_cargos()')))?.message), 'ni genera cargos')
   })
 }
 
@@ -510,7 +510,10 @@ console.log('\nCorrección de cargos')
     const corregido = num((await one('select saldo from v_saldos_rentas where renta_id = $1', [renta])).saldo)
     await q("select cancelar_cargo($1, 'Semana que no se usó el coche')", [cargo])
     const cancelado = num((await one('select saldo from v_saldos_rentas where renta_id = $1', [renta])).saldo)
+    // generar_cargos ya no la llama la app, solo la tarea programada (sin rol de la API).
+    await db.exec('reset role')
     const regenera = (await one("select generar_cargos('2026-10-08', $1) n", [renta])).n
+    await db.exec('set local role authenticated')
     const acc = (await q("select accion from auditoria where tabla = 'cargos' and operacion = 'cambio' and registro_id = $1 order by id", [cargo])).map((x) => x.accion)
     ok(antes - corregido === 500 && corregido - cancelado === monto - 500 && regenera === 0,
       'corregir baja el saldo, cancelar lo quita y generar_cargos no lo vuelve a crear', JSON.stringify({ antes, corregido, cancelado, regenera }))
@@ -731,6 +734,7 @@ console.log('\nPermisos por módulo · escritura')
     ['cobranza.corregir', "select cancelar_cargo($1, 'x')", [u()]],
     ['mantenimiento.editar', 'select registrar_servicio($1, $2)', [u(), {}]],
     ['mantenimiento.corregir_km', "select corregir_km($1, 1, 'x')", [u()]],
+    ['mantenimiento.editar', "select editar_servicio($1, $2, 'x')", [u(), {}]],
     ['incidentes.editar', 'select registrar_incidente($1, $2)', [u(), {}]],
     ['incidentes.editar', "select agregar_fotos_incidente($1, '[]'::jsonb)", [u()]],
     ['inspecciones.editar', 'select registrar_inspeccion($1, $2)', [u(), {}]],
@@ -823,6 +827,93 @@ console.log('\nPermisos por módulo · migración de los permisos de antes')
   ok(r[ad].rol === 'admin' && r[ad].permisos.length === PERMISSIONS.length, 'un admin con todo conserva todo', r[ad].permisos.join())
   ok(r[su].rol === 'superadmin' && r[su].permisos.length === 0, 'el superadmin no cambia')
   await vieja.close()
+}
+
+console.log('\nCargos de los lunes')
+{
+  ok(/permission denied/.test(await intentaCon(['cobranza.editar'], 'select generar_cargos()')), 'la app ya no genera cargos: solo la tarea programada')
+  // La tarea corre hasta el domingo de la semana: el lunes crea la semana de cada renta activa, empiece el día que empiece.
+  const sabado = '2026-10-24', lunes = '2026-10-26', domingo = '2026-11-01'
+  await enTransaccion(async () => {
+    const activas = num((await one("select count(*) n from rentas where estado = 'activa'")).n)
+    await q('select generar_cargos($1)', [sabado]) // al día hasta antes de esa semana
+    const n = (await one('select generar_cargos($1) n', [domingo])).n
+    const fuera = num((await one("select count(*) n from cargos where tipo = 'renta' and periodo_inicio > $1", [domingo])).n)
+    const enSemana = num((await one("select count(*) n from cargos where tipo = 'renta' and periodo_inicio between $1 and $2", [lunes, domingo])).n)
+    ok(n === activas && fuera === 0 && enSemana === activas, `el lunes crea las ${activas} semanas que empiezan de lunes a domingo, ninguna después`, JSON.stringify({ n, fuera, enSemana }))
+    ok((await one('select generar_cargos($1) n', [domingo])).n === 0, 'las demás noches de la semana no crean nada')
+  })
+  // Una semana cobrada el lunes que empieza después de la devolución se cancela sola al finalizar.
+  await enTransaccion(async () => {
+    const r = await one("select id, fecha_inicio, vehiculo_id from rentas where estado = 'activa' order by fecha_inicio limit 1")
+    await q('select generar_cargos($1, $2)', [domingo, r.id])
+    const ultima = await one("select id, periodo_inicio from cargos where renta_id = $1 and tipo = 'renta' order by periodo_inicio desc limit 1", [r.id])
+    const km = (await one('select km_actual from vehiculos where id = $1', [r.vehiculo_id])).km_actual
+    await q("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: id(ADMIN), role: 'authenticated' })])
+    const antesDeEmpezar = (await one("select ($1::date - 1)::text d", [ultima.periodo_inicio])).d
+    await q("select finalizar_renta($1, $2, 'devuelto', $3)", [r.id, km + 10, antesDeEmpezar])
+    const c = await one('select cancelado_en, motivo_cancelacion from cargos where id = $1', [ultima.id])
+    ok(c.cancelado_en && /antes de que empezara/.test(c.motivo_cancelacion), 'si la renta termina antes de que empiece la semana cobrada, esa semana se cancela', JSON.stringify(c))
+  })
+}
+
+console.log('\nLista negra')
+{
+  const conductor = id('d24')
+  ok(/Sin permiso/.test(await intentaCon(['conductores.editar'], "select vetar_conductor($1, 'x')", [conductor])), 'agregar a la lista negra pide su permiso')
+  ok(/permiso de lista negra/.test(await intentaCon(['conductores.editar'], "update conductores set vetado_en = now(), vetado_por = $2, motivo_veto = 'x' where id = $1", [conductor, id(PRUEBA)])),
+    'ni se puede marcar editando el conductor directo')
+  const bloqueo = await comoCon(['conductores.lista_negra', 'rentas.editar', 'bitacora.ver'], async () => {
+    await q("select vetar_conductor($1, 'Abandonó el coche')", [conductor])
+    const v = await one('select vetado_por, motivo_veto from conductores where id = $1', [conductor])
+    const acc = (await one("select accion from auditoria where tabla = 'conductores' and registro_id = $1 order by id desc limit 1", [conductor])).accion
+    await q('savepoint s')
+    const e = await intenta(() => q('select iniciar_renta($1, $2, 3000)', [id('v23'), conductor]))
+    await q('rollback to savepoint s')
+    await q("select quitar_veto($1, 'Pagó el adeudo')", [conductor])
+    const renta = await one('select iniciar_renta($1, $2, 3000) id', [id('v23'), conductor])
+    return { v, acc, e: e?.message, renta: !!renta.id }
+  })
+  ok(bloqueo.v.vetado_por === id(PRUEBA) && bloqueo.v.motivo_veto === 'Abandonó el coche' && bloqueo.acc === 'Agregó a lista negra: Abandonó el coche',
+    'se agrega con motivo y queda en la bitácora', JSON.stringify(bloqueo))
+  ok(/lista negra: Abandonó el coche/.test(bloqueo.e ?? ''), 'a quien está en la lista negra no se le renta', bloqueo.e)
+  ok(bloqueo.renta, 'al quitarlo (con motivo) se le vuelve a poder rentar')
+}
+
+console.log('\nGastos · quién autorizó')
+{
+  const g = await comoCon(['finanzas.editar'], async () => {
+    await q("insert into gastos (fecha, categoria, monto, concepto, autorizo) values ('2026-11-20', 'otro', 500, 'Lavado', 'Jorge Pech')")
+    return one("select autorizo, registrado_por from gastos where concepto = 'Lavado'")
+  })
+  ok(g.autorizo === 'Jorge Pech' && g.registrado_por === id(PRUEBA), 'el gasto guarda quién lo autorizó, aparte de quién lo registró', JSON.stringify(g))
+}
+
+console.log('\nServicios: editar y el primer contador que llegue')
+{
+  const s = seed.services.find((x) => x.resetsCounter)
+  const sid = (await one('select id from servicios where vehiculo_id = $1 and km = $2 and fecha = $3', [id(s.vehicleId), s.km, s.date])).id
+  const otroTipo = (await one('select id from tipos_servicio where not reinicia_contador limit 1')).id
+  const r = await comoCon(['mantenimiento.editar', 'bitacora.ver'], async () => {
+    await q("select editar_servicio($1, $2, 'La factura traía otro monto')", [sid, { tipo_servicio_id: otroTipo, fecha: s.date, km: s.km, costo: 1234, taller: 'Otro taller', notas: '', km_orion: 50000 }])
+    const x = await one('select costo, taller, reinicia_contador, km_orion from servicios where id = $1', [sid])
+    const acc = (await one("select accion from auditoria where tabla = 'servicios' and registro_id = $1 order by id desc limit 1", [sid])).accion
+    return { ...x, acc }
+  })
+  ok(num(r.costo) === 1234 && r.taller === 'Otro taller' && r.reinicia_contador === false && r.km_orion === 50000 && r.acc === 'Editó servicio: La factura traía otro monto',
+    'un servicio pasado se edita con motivo; si reinicia el contador lo decide el tipo', JSON.stringify(r))
+  ok(/motivo/.test(await intentaCon(['mantenimiento.editar'], "select editar_servicio($1, $2, ' ')", [sid, { tipo_servicio_id: otroTipo, fecha: s.date, km: s.km }])), 'sin motivo no se edita')
+
+  // La alerta: lo recorrido en el km capturado contra lo recorrido en Orión desde el servicio; manda el mayor.
+  const v = { id: 'vx', currentKm: 50000 }
+  const serv = [{ id: 's1', vehicleId: 'vx', date: '2026-09-01', km: 45000, resetsCounter: true, orionKm: 60000 }]
+  const capt = demo.maintenanceStatus(v, serv, [], [{ vehicleId: 'vx', odometer: 63000 }])
+  const orion = demo.maintenanceStatus(v, serv, [], [{ vehicleId: 'vx', odometer: 69500 }])
+  ok(capt.since === 5000 && capt.by === 'capturado' && orion.since === 9500 && orion.by === 'orion' && orion.level === 'proximo' && orion.nextKm === 50500,
+    'si Orión recorrió más desde el servicio, la alerta llega con Orión', JSON.stringify({ capt: capt.since, orion: orion.since, next: orion.nextKm }))
+  const sinBase = demo.maintenanceStatus(v, [{ ...serv[0], orionKm: undefined }], [{ vehicleId: 'vx', date: '2026-08-30', km: 61000, source: 'orion' }], [{ vehicleId: 'vx', odometer: 72000 }])
+  ok(sinBase.since === 11000 && sinBase.level === 'vencido', 'sin km de Orión en el servicio, cuenta desde la lectura de Orión anterior', String(sinBase.since))
+  ok(demo.maintenanceStatus(v, [{ ...serv[0], orionKm: undefined }], [], [{ vehicleId: 'vx', odometer: 99999 }]).by === 'capturado', 'sin ninguna base de Orión, solo cuenta el km capturado')
 }
 
 await db.close()

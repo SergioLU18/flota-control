@@ -4,9 +4,9 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore, type NewTire } from '../data/store'
 import { COLOR_HEX, SHOPS } from '../data/catalogs'
-import type { Charge, Driver, Expense, ExpenseCategory, Incident, MileageRecord, PaymentMethod, PhotoRef, Rental, ServiceType, Tire, Vehicle } from '../data/types'
+import type { Charge, DocType, Driver, Expense, Service, ExpenseCategory, Incident, MileageRecord, PaymentMethod, PhotoRef, Rental, ServiceType, Tire, Vehicle } from '../data/types'
 import { EXPENSE_LABEL } from '../lib/finance'
-import { activeRentalOf, activeRentalOfDriver, carName, depositLeft, driverWarnings, inFleet, rentalBalance, vehicleLabel } from '../lib/calc'
+import { DOC_LABEL, REQUIRED_DOCS, activeRentalOf, activeRentalOfDriver, blacklistMatches, carName, depositLeft, driverWarnings, inFleet, rentalBalance, vehicleLabel } from '../lib/calc'
 import { DatePicker, Select, type Option } from './pickers'
 import { can } from '../data/permissions'
 import { TODAY, fecha, fuelLabel, km, mxn } from '../lib/format'
@@ -105,7 +105,13 @@ export function RetireVehicleForm({ vehicle, onDone }: { vehicle: Vehicle; onDon
 
 // ---------- Conductor ----------
 export function DriverForm({ driver, onDone }: { driver?: Driver; onDone: (id: string) => void }) {
-  const { data, saveDriver } = useStore()
+  const { data, saveDriver, uploadDriverDocument } = useStore()
+  const isNew = !driver
+  // Alta: los documentos obligatorios se piden aquí y se suben en cuanto se guarda el conductor.
+  const [files, setFiles] = useState<Partial<Record<DocType, File>>>({})
+  // Si una subida falla después de guardar, reintentar actualiza el mismo conductor en vez de crear otro.
+  const [savedId, setSavedId] = useState('')
+  const [uploaded, setUploaded] = useState<DocType[]>([])
   const [d, setD] = useState<Driver>(driver ?? {
     id: '', name: '', phone: '', curp: '', address: '', licenseNumber: '', licenseExpires: '', createdAt: TODAY,
     documents: (['ine', 'licencia', 'no_penales', 'domicilio', 'referencias'] as const).map((type) => ({ type, uploaded: false })),
@@ -114,14 +120,34 @@ export function DriverForm({ driver, onDone }: { driver?: Driver; onDone: (id: s
   const [error, setError] = useState('')
   const set = <K extends keyof Driver>(k: K, val: Driver[K]) => setD({ ...d, [k]: val })
   const curpMatch = d.curp.length >= 10 ? data.drivers.find((x) => x.id !== d.id && x.curp && x.curp.slice(0, 10) === d.curp.toUpperCase().slice(0, 10)) : undefined
+  const vetoed = blacklistMatches(data, d)
 
   return (
-    <FormShell submit="Guardar conductor" error={error} onSubmit={async () => {
+    <FormShell submit={isNew ? 'Dar de alta' : 'Guardar conductor'} error={error} onSubmit={async () => {
       if (!d.name || !d.phone) return setError('Nombre y teléfono son obligatorios.')
       if (d.curp && !/^[A-Z0-9]{18}$/.test(d.curp)) return setError('La CURP debe tener 18 letras y números.')
+      if (isNew) {
+        const faltan = REQUIRED_DOCS.filter((t) => !files[t] && !uploaded.includes(t))
+        if (faltan.length) return setError(`Faltan documentos obligatorios: ${faltan.map((t) => DOC_LABEL[t]).join(', ')}.`)
+        if (d.references.filter((r) => r.name.trim() && r.phone.trim()).length < 2) return setError('Captura las 2 referencias familiares con nombre y teléfono.')
+      }
       setError('')
-      onDone(await saveDriver(d))
+      const id = await saveDriver({ ...d, id: d.id || savedId })
+      setSavedId(id)
+      for (const t of REQUIRED_DOCS) {
+        const f = files[t]
+        if (!f || uploaded.includes(t)) continue
+        try { await uploadDriverDocument(id, t, f, t === 'licencia' ? d.licenseExpires : undefined) }
+        catch (e) { return setError(`El conductor se guardó, pero no se pudo subir ${DOC_LABEL[t]}: ${(e as Error).message} Vuelve a intentar.`) }
+        setUploaded((u) => [...u, t])
+      }
+      onDone(id)
     }}>
+      {vetoed.length > 0 && (
+        <div className="banner banner-red field-full" style={{ margin: 0 }}>
+          <span><b>Coincide con la lista negra:</b> {vetoed.map((m) => `${m.driver.name} (${m.why.join(', ')}): ${m.driver.blacklisted!.reason}`).join(' · ')}</span>
+        </div>
+      )}
       <Field label="Nombre completo" full><input value={d.name} onChange={(e) => set('name', e.target.value)} /></Field>
       <Field label="Teléfono / WhatsApp"><input value={d.phone} onChange={(e) => set('phone', e.target.value)} /></Field>
       <Field label="Correo"><input type="email" value={d.email ?? ''} onChange={(e) => set('email', e.target.value)} /></Field>
@@ -140,6 +166,13 @@ export function DriverForm({ driver, onDone }: { driver?: Driver; onDone: (id: s
           </div>
         </Field>
       ))}
+      {isNew && REQUIRED_DOCS.map((t) => (
+        <Field key={t} label={`${DOC_LABEL[t]} (obligatorio)`}>
+          <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,application/pdf" disabled={uploaded.includes(t)}
+            onChange={(e) => { const f = e.target.files?.[0]; setFiles((x) => ({ ...x, [t]: f })) }} />
+        </Field>
+      ))}
+      {isNew && <p className="field-full muted small">La carta de no antecedentes y las demás se suben después desde su expediente.</p>}
       <Field label="Notas" full><textarea rows={2} value={d.notes ?? ''} onChange={(e) => set('notes', e.target.value)} /></Field>
     </FormShell>
   )
@@ -178,7 +211,7 @@ export function StartRentalForm({ vehicleId, driverId, onDone }: { vehicleId?: s
   const { data, user, startRental } = useStore()
   const nav = useNavigate()
   const available = data.vehicles.filter((v) => v.status === 'disponible')
-  const eligible = data.drivers.filter((d) => !activeRentalOfDriver(data, d.id))
+  const eligible = data.drivers.filter((d) => !d.blacklisted && !activeRentalOfDriver(data, d.id))
   const canInspect = can(user, 'inspecciones.editar')
   const [f, setF] = useState({ vehicleId: vehicleId ?? available[0]?.id ?? '', driverId: driverId ?? '', startDate: TODAY, weeklyRate: 3000, deposit: 5000, startKm: 0, inspect: canInspect })
   const [error, setError] = useState('')
@@ -329,7 +362,7 @@ export function ServiceForm({ vehicleId, onDone }: { vehicleId?: string; onDone:
   const types = data.serviceTypes.filter((x) => x.active)
   // El id se fija al abrir el formulario: si se reintenta tras un error de red, la base no duplica el servicio.
   const [id] = useState(() => crypto.randomUUID())
-  const [f, setF] = useState({ vehicleId: vehicleId ?? data.vehicles.find(inFleet)?.id ?? '', date: TODAY, km: 0, typeId: types[0]?.id ?? '', cost: 0, shop: SHOPS[0], notes: '' })
+  const [f, setF] = useState({ vehicleId: vehicleId ?? data.vehicles.find(inFleet)?.id ?? '', date: TODAY, km: 0, typeId: types[0]?.id ?? '', cost: 0, shop: SHOPS[0], notes: '', orionKm: 0 })
   const [tires, setTires] = useState({ positions: [] as Tire['position'][], brand: '', dotYear: new Date().getFullYear() })
   const [error, setError] = useState('')
   const v = data.vehicles.find((x) => x.id === f.vehicleId)
@@ -343,7 +376,9 @@ export function ServiceForm({ vehicleId, onDone }: { vehicleId?: string; onDone:
       const newTires: NewTire[] = tireChange ? tires.positions.map((position) => ({ position, brand: tires.brand, dotYear: tires.dotYear })) : []
       if (tireChange && newTires.length && !tires.brand.trim()) return setError('Escribe la marca de las llantas nuevas.')
       setError('')
-      await addService({ id, vehicleId: f.vehicleId, date: f.date, km: f.km || v.currentKm, cost: f.cost, shop: f.shop, notes: f.notes || undefined, resetsCounter: t.resetsCounter }, t.id, newTires); onDone()
+      const orionNow = data.gps.find((g) => g.vehicleId === f.vehicleId)?.odometer
+      const orionKm = f.orionKm || (f.date === TODAY && orionNow != null ? Math.round(orionNow) : undefined)
+      await addService({ id, vehicleId: f.vehicleId, date: f.date, km: f.km || v.currentKm, cost: f.cost, shop: f.shop, notes: f.notes || undefined, resetsCounter: t.resetsCounter, orionKm }, t.id, newTires); onDone()
     }}>
       <Field label="Coche" full>
         <Select label="Coche" value={f.vehicleId} onChange={(id) => setF({ ...f, vehicleId: id })} disabled={!!vehicleId}
@@ -355,6 +390,7 @@ export function ServiceForm({ vehicleId, onDone }: { vehicleId?: string; onDone:
       </Field>
       <Field label="Fecha"><DatePicker value={f.date} onChange={(date) => setF({ ...f, date })} /></Field>
       <Field label="Km"><input inputMode="numeric" value={f.km || ''} placeholder={String(v.currentKm)} onChange={(e) => setF({ ...f, km: num(e.target.value) })} /></Field>
+      <OrionKmField vehicleId={f.vehicleId} date={f.date} value={f.orionKm} onChange={(orionKm) => setF({ ...f, orionKm })} />
       <Field label="Costo (MXN)"><input inputMode="numeric" value={f.cost || ''} onChange={(e) => setF({ ...f, cost: num(e.target.value) })} /></Field>
       <Field label="Taller" full>
         <input list="shops" value={f.shop} onChange={(e) => setF({ ...f, shop: e.target.value })} />
@@ -375,6 +411,56 @@ export function ServiceForm({ vehicleId, onDone }: { vehicleId?: string; onDone:
         <Field label="Año DOT"><input inputMode="numeric" value={tires.dotYear || ''} onChange={(e) => setTires({ ...tires, dotYear: num(e.target.value) })} /></Field>
       </>}
       <Field label="Notas" full><textarea rows={2} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
+    </FormShell>
+  )
+}
+
+/**
+ * Km de Orión el día del servicio: desde ahí cuenta Orión para la alerta de 10,000 km. Si el servicio es de hoy y el
+ * coche tiene GPS, se toma solo; para uno pasado se captura (o queda vacío y se usa la lectura de Orión de esa fecha).
+ */
+function OrionKmField({ vehicleId, date, value, onChange }: { vehicleId: string; date: string; value: number; onChange: (km: number) => void }) {
+  const { data } = useStore()
+  const now = data.gps.find((g) => g.vehicleId === vehicleId)?.odometer
+  if (now == null && !value) return null
+  const auto = date === TODAY && now != null
+  return (
+    <Field label="Km en Orión (opcional)" hint={auto && !value ? `Se toma el de hoy: ${Math.round(now!).toLocaleString('es-MX')} km` : 'Lo que marcaba el GPS ese día'}>
+      <input inputMode="numeric" value={value || ''} placeholder={auto ? String(Math.round(now!)) : ''} onChange={(e) => onChange(num(e.target.value))} />
+    </Field>
+  )
+}
+
+/** Corrige un servicio ya registrado (permiso "mantenimiento.editar"). El motivo queda en la bitácora. */
+export function EditServiceForm({ service, onDone }: { service: Service; onDone: () => void }) {
+  const { data, editService } = useStore()
+  const types = data.serviceTypes.filter((x) => x.active || x.id === service.typeId)
+  const [f, setF] = useState({ typeId: service.typeId ?? '', date: service.date, km: service.km, cost: service.cost, shop: service.shop, notes: service.notes ?? '', orionKm: service.orionKm ?? 0, reason: '' })
+  const [error, setError] = useState('')
+  const t = types.find((x) => x.id === f.typeId)
+  return (
+    <FormShell submit="Guardar cambios" error={error} onSubmit={async () => {
+      if (!t) return setError('Elige el tipo de servicio.')
+      if (f.km <= 0) return setError('Escribe el km del servicio.')
+      if (!f.reason.trim()) return setError('Escribe el motivo del cambio.')
+      setError('')
+      await editService({ id: service.id, date: f.date, km: f.km, cost: f.cost, shop: f.shop, notes: f.notes || undefined, orionKm: f.orionKm || undefined }, t.id, f.reason.trim()); onDone()
+    }}>
+      <Field label="Tipo (catálogo)" hint={t?.resetsCounter ? 'Reinicia el contador de 10,000 km' : t?.hint}>
+        <Select label="Tipo de servicio" value={f.typeId} onChange={(typeId) => setF({ ...f, typeId })}
+          options={types.map((x) => ({ value: x.id, label: x.name, hint: x.resetsCounter ? 'reinicia 10k' : undefined }))} />
+      </Field>
+      <Field label="Fecha"><DatePicker value={f.date} onChange={(date) => setF({ ...f, date })} /></Field>
+      <Field label="Km"><input inputMode="numeric" value={f.km || ''} onChange={(e) => setF({ ...f, km: num(e.target.value) })} /></Field>
+      <OrionKmField vehicleId={service.vehicleId} date={f.date} value={f.orionKm} onChange={(orionKm) => setF({ ...f, orionKm })} />
+      <Field label="Costo (MXN)"><input inputMode="numeric" value={f.cost || ''} onChange={(e) => setF({ ...f, cost: num(e.target.value) })} /></Field>
+      <Field label="Taller" full>
+        <input list="shops-edit" value={f.shop} onChange={(e) => setF({ ...f, shop: e.target.value })} />
+        <datalist id="shops-edit">{SHOPS.map((s) => <option key={s} value={s} />)}</datalist>
+      </Field>
+      <Field label="Notas" full><textarea rows={2} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
+      <Field label="Motivo del cambio (obligatorio)" full><input value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} placeholder="Ej. el taller mandó la factura con otro monto" /></Field>
+      <p className="field-full muted small">El servicio no se borra: se corrige y el cambio queda en la bitácora. Si tuvo cambio de llantas, se mueven a la nueva fecha y km.</p>
     </FormShell>
   )
 }
@@ -523,7 +609,7 @@ export function ExpenseForm({ expense, onDone }: { expense?: Expense; onDone: ()
   const { data, saveExpense, voidExpense } = useStore()
   const [f, setF] = useState({
     date: expense?.date ?? TODAY, category: expense?.category ?? ('otro' as ExpenseCategory), vehicleId: expense?.vehicleId ?? '',
-    amount: expense?.amount ?? 0, concept: expense?.concept ?? '',
+    amount: expense?.amount ?? 0, concept: expense?.concept ?? '', authorizedBy: expense?.authorizedBy ?? '',
   })
   const [error, setError] = useState('')
   const [voiding, setVoiding] = useState(false)
@@ -536,8 +622,9 @@ export function ExpenseForm({ expense, onDone }: { expense?: Expense; onDone: ()
     <>
       <FormShell submit={expense ? 'Guardar cambios' : 'Guardar gasto'} error={error} onSubmit={async () => {
         if (!f.concept || f.amount <= 0) return setError('Escribe el concepto y un monto mayor a cero.')
+        if (!f.authorizedBy.trim()) return setError('Escribe quién autorizó el gasto.')
         setError('')
-        await saveExpense({ id: expense?.id, date: f.date, category: f.category, vehicleId: f.vehicleId || undefined, amount: f.amount, concept: f.concept }); onDone()
+        await saveExpense({ id: expense?.id, date: f.date, category: f.category, vehicleId: f.vehicleId || undefined, amount: f.amount, concept: f.concept, authorizedBy: f.authorizedBy }); onDone()
       }}>
         <Field label="Concepto" full><input value={f.concept} onChange={(e) => setF({ ...f, concept: e.target.value })} placeholder="Ej. seguro anual, verificación, lavado" /></Field>
         <Field label="Categoría">
@@ -550,6 +637,12 @@ export function ExpenseForm({ expense, onDone }: { expense?: Expense; onDone: ()
         </Field>
         <Field label="Fecha"><DatePicker value={f.date} onChange={(date) => setF({ ...f, date })} /></Field>
         <Field label="Monto (MXN)"><input inputMode="numeric" value={f.amount || ''} onChange={(e) => setF({ ...f, amount: num(e.target.value) })} /></Field>
+        <Field label="Autorizó" hint="Nombre de quien lo aprobó">
+          <input list="autorizo-nombres" value={f.authorizedBy} onChange={(e) => setF({ ...f, authorizedBy: e.target.value })} placeholder="Ej. Jorge Pech" />
+          <datalist id="autorizo-nombres">
+            {[...new Set([...data.users.filter((u) => u.active).map((u) => u.name), ...data.expenses.map((x) => x.authorizedBy).filter(Boolean) as string[]])].map((n) => <option key={n} value={n} />)}
+          </datalist>
+        </Field>
         <p className="field-full muted small">Los servicios de mantenimiento y los incidentes se registran en sus propios módulos y ya cuentan como costo.</p>
       </FormShell>
       {expense && (

@@ -23,7 +23,7 @@ export default function Dashboard() {
     .sort((a, b) => b.balance - a.balance)
 
   const upcoming = fleet
-    .map((v) => ({ v, m: maintenanceStatus(v, data.services, data.mileage) }))
+    .map((v) => ({ v, m: maintenanceStatus(v, data.services, data.mileage, data.gps) }))
     .sort((a, b) => a.m.remaining - b.m.remaining)
     .slice(0, 6)
 

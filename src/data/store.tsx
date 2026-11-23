@@ -171,6 +171,10 @@ function useStoreValue() {
       ))
     }),
 
+    /** Lista negra (permiso "conductores.lista_negra"): con motivo, queda en la bitácora. A quien está en ella no se le renta. */
+    blacklistDriver: (id: string, reason: string) => write(async () => { must(await supabase.rpc('vetar_conductor', { p_conductor_id: id, p_motivo: reason })) }),
+    unblacklistDriver: (id: string, reason: string) => write(async () => { must(await supabase.rpc('quitar_veto', { p_conductor_id: id, p_motivo: reason })) }),
+
     /** URL temporal (1 hora) para ver un archivo del bucket privado. */
     fileUrl: async (key: string) => must(await supabase.storage.from(BUCKET).createSignedUrl(key, 3600)).signedUrl,
 
@@ -188,9 +192,6 @@ function useStoreValue() {
     /** Depósito que quedó retenido: se devuelve o se aplica al adeudo. Regresa cuánto aplicó. */
     resolveDeposit: (rentalId: string, status: 'devuelto' | 'aplicado') => write(async () =>
       must(await supabase.rpc('resolver_deposito', { p_renta_id: rentalId, p_estado: status }))),
-
-    /** Idempotente: crea las semanas de renta que falten hasta hoy. Regresa cuántos cargos creó. */
-    generateWeeklyCharges: () => write(async () => must(await supabase.rpc('generar_cargos'))),
 
     addPayment: (p: Omit<Payment, 'id' | 'userId'>) => write(async () => {
       must(await supabase.from('pagos').insert({ renta_id: p.rentalId, fecha: p.date, monto: p.amount, metodo: p.method, notas: p.notes ?? '' }))
@@ -225,7 +226,7 @@ function useStoreValue() {
 
     /** Alta o edición de un gasto (permiso "finanzas.editar"). */
     saveExpense: (e: Omit<Expense, 'id' | 'userId'> & { id?: string }) => write(async () => {
-      const row = { fecha: e.date, categoria: e.category, vehiculo_id: e.vehicleId ?? null, monto: e.amount, concepto: e.concept }
+      const row = { fecha: e.date, categoria: e.category, vehiculo_id: e.vehicleId ?? null, monto: e.amount, concepto: e.concept, autorizo: e.authorizedBy?.trim() || null }
       must(e.id ? await supabase.from('gastos').update(row).eq('id', e.id) : await supabase.from('gastos').insert(row))
     }),
 
@@ -250,8 +251,17 @@ function useStoreValue() {
     addService: (s: Omit<Service, 'type'>, typeId: string, tires: NewTire[] = []) => write(async () => {
       must(await supabase.rpc('registrar_servicio', {
         p_id: s.id,
-        p_datos: { vehiculo_id: s.vehicleId, tipo_servicio_id: typeId, fecha: s.date, km: s.km, costo: s.cost, taller: s.shop, notas: s.notes ?? '', reinicia_contador: s.resetsCounter },
+        p_datos: { vehiculo_id: s.vehicleId, tipo_servicio_id: typeId, fecha: s.date, km: s.km, costo: s.cost, taller: s.shop, notas: s.notes ?? '', reinicia_contador: s.resetsCounter, km_orion: s.orionKm ?? null },
         p_llantas: tires.map((t) => ({ posicion: t.position, marca: t.brand.trim(), anio_dot: t.dotYear || null })),
+      }))
+    }),
+
+    /** Permiso "mantenimiento.editar". Corrige un servicio ya registrado; el motivo queda en la bitácora. */
+    editService: (s: Pick<Service, 'id' | 'date' | 'km' | 'cost' | 'shop' | 'notes' | 'orionKm'>, typeId: string, reason: string) => write(async () => {
+      must(await supabase.rpc('editar_servicio', {
+        p_id: s.id,
+        p_datos: { tipo_servicio_id: typeId, fecha: s.date, km: s.km, costo: s.cost, taller: s.shop, notas: s.notes ?? '', km_orion: s.orionKm ?? null },
+        p_motivo: reason,
       }))
     }),
 

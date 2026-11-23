@@ -220,6 +220,9 @@ export type Database = {
       }
       conductores: {
         Row: {
+          motivo_veto: string | null
+          vetado_en: string | null
+          vetado_por: string | null
           actualizado_en: string
           correo: string | null
           creado_en: string
@@ -233,6 +236,9 @@ export type Database = {
           telefono: string
         }
         Insert: {
+          motivo_veto?: string | null
+          vetado_en?: string | null
+          vetado_por?: string | null
           actualizado_en?: string
           correo?: string | null
           creado_en?: string
@@ -246,6 +252,9 @@ export type Database = {
           telefono?: string
         }
         Update: {
+          motivo_veto?: string | null
+          vetado_en?: string | null
+          vetado_por?: string | null
           actualizado_en?: string
           correo?: string | null
           creado_en?: string
@@ -379,6 +388,7 @@ export type Database = {
       }
       gastos: {
         Row: {
+          autorizo: string | null
           actualizado_en: string
           cancelado_en: string | null
           cancelado_por: string | null
@@ -393,6 +403,7 @@ export type Database = {
           vehiculo_id: string | null
         }
         Insert: {
+          autorizo?: string | null
           actualizado_en?: string
           cancelado_en?: string | null
           cancelado_por?: string | null
@@ -407,6 +418,7 @@ export type Database = {
           vehiculo_id?: string | null
         }
         Update: {
+          autorizo?: string | null
           actualizado_en?: string
           cancelado_en?: string | null
           cancelado_por?: string | null
@@ -1124,6 +1136,7 @@ export type Database = {
       }
       servicios: {
         Row: {
+          km_orion: number | null
           actualizado_en: string
           costo: number
           creado_en: string
@@ -1138,6 +1151,7 @@ export type Database = {
           vehiculo_id: string
         }
         Insert: {
+          km_orion?: number | null
           actualizado_en?: string
           costo?: number
           creado_en?: string
@@ -1152,6 +1166,7 @@ export type Database = {
           vehiculo_id: string
         }
         Update: {
+          km_orion?: number | null
           actualizado_en?: string
           costo?: number
           creado_en?: string
@@ -1533,6 +1548,10 @@ export type Database = {
         Args: { p_km: number; p_motivo: string; p_registro_id: string }
         Returns: undefined
       }
+      editar_servicio: {
+        Args: { p_datos: Json; p_id: string; p_motivo: string }
+        Returns: undefined
+      }
       editar_renta: {
         Args: {
           p_deposito: number
@@ -1607,6 +1626,10 @@ export type Database = {
         Args: { p_datos: Json; p_id: string; p_llantas?: Json }
         Returns: string
       }
+      quitar_veto: {
+        Args: { p_conductor_id: string; p_motivo: string }
+        Returns: undefined
+      }
       rentas_basicas: {
         Args: never
         Returns: {
@@ -1628,6 +1651,10 @@ export type Database = {
       rol_actual: { Args: never; Returns: string }
       tiene_alguno: { Args: { p_permisos: string[] }; Returns: boolean }
       tiene_permiso: { Args: { p_permiso: string }; Returns: boolean }
+      vetar_conductor: {
+        Args: { p_conductor_id: string; p_motivo: string }
+        Returns: undefined
+      }
       validar_usuario: {
         Args: { p_id: string; p_permisos: string[]; p_rol: string }
         Returns: undefined

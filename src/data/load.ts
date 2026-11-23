@@ -132,6 +132,7 @@ export async function loadData(): Promise<Data> {
     drivers: conductores.map((c): Driver => ({
       id: c.id, name: c.nombre, phone: c.telefono, email: c.correo ?? undefined, curp: c.curp ?? '', address: c.domicilio,
       licenseNumber: c.licencia_numero ?? '', licenseExpires: c.licencia_vence ?? '', notes: c.notas, createdAt: c.creado_en.slice(0, 10),
+      blacklisted: c.vetado_en ? { reason: c.motivo_veto ?? '', userId: c.vetado_por ?? '', at: c.vetado_en } : undefined,
       references: [...c.referencias_conductor].sort((a, b) => a.orden - b.orden).map((r) => ({ name: r.nombre, relation: r.parentesco, phone: r.telefono })),
       documents: DOC_TYPES.map((type) => {
         const doc = c.documentos_conductor.find((x) => x.tipo === type)
@@ -163,7 +164,7 @@ export async function loadData(): Promise<Data> {
     mileage: km.map((m) => ({ id: m.id, vehicleId: m.vehiculo_id, date: m.fecha, km: m.km, source: m.origen as Data['mileage'][number]['source'] })),
     services: servicios.map((s) => ({
       id: s.id, vehicleId: s.vehiculo_id, date: s.fecha, km: s.km, type: s.tipos_servicio?.nombre ?? '', cost: s.costo,
-      shop: s.taller, notes: s.notas || undefined, resetsCounter: s.reinicia_contador,
+      shop: s.taller, notes: s.notas || undefined, resetsCounter: s.reinicia_contador, typeId: s.tipo_servicio_id, orionKm: s.km_orion ?? undefined,
     })),
     incidents: incidentes.map((i) => ({
       id: i.id, vehicleId: i.vehiculo_id, driverId: i.conductor_id ?? undefined, date: i.fecha, type: i.tipo, description: i.descripcion,
@@ -176,7 +177,7 @@ export async function loadData(): Promise<Data> {
     })),
     expenses: gastos.map((e) => ({
       id: e.id, date: e.fecha, category: e.categoria as Data['expenses'][number]['category'], vehicleId: e.vehiculo_id ?? undefined,
-      amount: e.monto, concept: e.concepto, userId: e.registrado_por ?? '',
+      amount: e.monto, concept: e.concepto, userId: e.registrado_por ?? '', authorizedBy: e.autorizo ?? undefined,
       voided: e.cancelado_en ? { reason: e.motivo_cancelacion ?? '', userId: e.cancelado_por ?? '', at: e.cancelado_en } : undefined,
     })),
     orion: orionState(orion, gps),

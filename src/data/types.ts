@@ -89,6 +89,8 @@ export interface Driver {
   references: Reference[]
   notes?: string
   createdAt: string
+  /** Lista negra propia: no se le puede rentar. */
+  blacklisted?: { reason: string; userId: string; at: string }
 }
 
 export type DepositStatus = 'retenido' | 'devuelto' | 'aplicado'
@@ -162,6 +164,9 @@ export interface Service {
   shop: string
   notes?: string
   resetsCounter: boolean // reinicia el contador de 10,000 km
+  typeId?: string
+  /** Lo que marcaba el odómetro de Orión el día del servicio (no coincide con el tablero). */
+  orionKm?: number
 }
 
 export interface PhotoRef {
@@ -210,6 +215,8 @@ export interface Expense {
   amount: number
   concept: string
   userId: string
+  /** Quién autorizó el gasto (un nombre, no necesariamente un usuario). */
+  authorizedBy?: string
   /** Los gastos no se borran: se cancelan con motivo y dejan de contar. */
   voided?: { reason: string; userId: string; at: string }
 }

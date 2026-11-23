@@ -2,12 +2,12 @@ import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { BackLink, Badge, Card, Empty, Lightbox, Modal, PageHeader, Photo, Progress, Stat, StatusBadge, Tabs } from '../components/ui'
-import { EndRentalForm, IncidentForm, MileageForm, RetireVehicleForm, ServiceForm, StartRentalForm, TIRE_LABEL, VehicleForm } from '../components/forms'
+import { EditServiceForm, EndRentalForm, IncidentForm, MileageForm, RetireVehicleForm, ServiceForm, StartRentalForm, TIRE_LABEL, VehicleForm } from '../components/forms'
 import { CorrectKm } from './Maintenance'
 import { activeRentalOf, maintenanceStatus, rentalBalance, vehicleBalance, MAINTENANCE_INTERVAL } from '../lib/calc'
 import { fleetSince, vehicleRecovery } from '../lib/finance'
 import { fecha, fuelLabel, km, mxn } from '../lib/format'
-import type { PhotoRef } from '../data/types'
+import type { PhotoRef, Service } from '../data/types'
 import { can } from '../data/permissions'
 import { InspectionCompare } from './Inspections'
 import { Icon, type IconName } from '../components/Icon'
@@ -27,11 +27,12 @@ export default function VehicleDetail() {
   const [modal, setModal] = useState<ModalKind>(null)
   const [photo, setPhoto] = useState<PhotoRef | null>(null)
   const [error, setError] = useState('')
+  const [editingService, setEditingService] = useState<Service | null>(null)
   if (!v) return <Empty>No existe ese coche. <Link to="/flota">Volver a flota</Link></Empty>
 
   const r = activeRentalOf(data, v.id)
   const driver = r && L.driver(r.driverId)
-  const m = maintenanceStatus(v, data.services, data.mileage)
+  const m = maintenanceStatus(v, data.services, data.mileage, data.gps)
   const gps = data.gps.find((g) => g.vehicleId === v.id)
   const rentals = data.rentals.filter((x) => x.vehicleId === v.id).sort((a, b) => (a.startDate < b.startDate ? 1 : -1))
   const services = data.services.filter((s) => s.vehicleId === v.id).sort((a, b) => b.km - a.km)
@@ -118,7 +119,8 @@ export default function VehicleDetail() {
               <dt>Km Orión</dt><dd>{gps ? <OrionKm g={gps} currentKm={v.currentKm} inline /> : <span className="muted">Sin equipo GPS</span>}</dd>
               {gps && <><dt>GPS</dt><dd><StatusBadge value={gps.status} /> <span className="small muted">{hace(gps.reportedAt)}</span></dd></>}
               <dt>Último servicio</dt><dd>{m.last ? `${fecha(m.last.date)} · ${km(m.last.km)}` : <span className="warn">Ninguno registrado{m.fromFirstReading && ` · cuenta desde ${km(m.baseKm)}`}</span>}</dd>
-              <dt>Próximo servicio</dt><dd>{km(m.nextKm)} <StatusBadge value={m.level} /></dd>
+              <dt>Desde el servicio</dt><dd>{km(m.capturedSince)} capturado{m.orionSince != null && <> · {km(m.orionSince)} Orión</>}</dd>
+              <dt>Próximo servicio</dt><dd>{km(m.nextKm)} <StatusBadge value={m.level} />{m.by === 'orion' && <span className="small muted"> · llega antes por Orión</span>}</dd>
             </dl>
           </Card>
           {gps?.lat != null && (
@@ -181,9 +183,10 @@ export default function VehicleDetail() {
           <Card title="Servicios" actions={canMaintain && <button className="btn btn-sm" onClick={() => setModal('service')}><Icon name="plus" />Registrar servicio</button>} className="span-2">
             <div className="table-wrap">
               <table className="table">
-                <thead><tr><th>Fecha</th><th>Tipo</th><th className="num">Km</th><th>Taller</th><th className="num">Costo</th><th>Notas</th></tr></thead>
+                <thead><tr><th>Fecha</th><th>Tipo</th><th className="num">Km</th><th>Taller</th><th className="num">Costo</th><th>Notas</th>{canMaintain && <th></th>}</tr></thead>
                 <tbody>{services.map((s) => (
-                  <tr key={s.id}><td>{fecha(s.date)}</td><td>{s.type} {s.resetsCounter && <Badge tone="green">reinicia 10k</Badge>}</td><td className="num">{km(s.km)}</td><td>{s.shop}</td><td className="num">{mxn(s.cost)}</td><td className="muted small">{s.notes}</td></tr>
+                  <tr key={s.id}><td>{fecha(s.date)}</td><td>{s.type} {s.resetsCounter && <Badge tone="green">reinicia 10k</Badge>}</td><td className="num">{km(s.km)}</td><td>{s.shop}</td><td className="num">{mxn(s.cost)}</td><td className="muted small">{s.notes}</td>
+                    {canMaintain && <td className="row-actions"><button className="btn btn-sm btn-ghost" onClick={() => setEditingService(s)}>Editar</button></td>}</tr>
                 ))}</tbody>
               </table>
             </div>
@@ -238,6 +241,7 @@ export default function VehicleDetail() {
       <Modal open={modal === 'rent'} title="Nueva renta" onClose={() => setModal(null)}><StartRentalForm vehicleId={v.id} onDone={() => setModal(null)} /></Modal>
       <Modal open={modal === 'end' && !!r} title="Finalizar renta" onClose={() => setModal(null)}>{r && <EndRentalForm rental={r} onDone={() => setModal(null)} />}</Modal>
       <Modal open={modal === 'km'} title="Registrar kilometraje" onClose={() => setModal(null)}><MileageForm vehicleId={v.id} onDone={() => setModal(null)} /></Modal>
+      <Modal open={!!editingService} title="Editar servicio" onClose={() => setEditingService(null)}>{editingService && <EditServiceForm service={editingService} onDone={() => setEditingService(null)} />}</Modal>
       <Modal open={modal === 'service'} title="Registrar servicio" onClose={() => setModal(null)}><ServiceForm vehicleId={v.id} onDone={() => setModal(null)} /></Modal>
       <Modal open={modal === 'incident'} title="Registrar incidente" onClose={() => setModal(null)} wide><IncidentForm vehicleId={v.id} onDone={() => setModal(null)} /></Modal>
       <Lightbox photo={photo} onClose={() => setPhoto(null)} />

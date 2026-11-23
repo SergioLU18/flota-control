@@ -17,11 +17,10 @@ type Tab = 'conductores' | 'coches' | 'pagos' | 'cargos'
 const METHOD: Record<PaymentMethod, string> = { efectivo: 'efectivo', transferencia: 'transferencia', deposito: 'depósito aplicado' }
 
 export default function Billing() {
-  const { data, user, generateWeeklyCharges, voidPayment } = useStore()
+  const { data, user, voidPayment } = useStore()
   const L = useLookup()
   const [tab, setTab] = useState<Tab>('conductores')
   const [paying, setPaying] = useState(false)
-  const [msg, setMsg] = useState('')
   const [voiding, setVoiding] = useState<Payment | null>(null)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
@@ -70,18 +69,8 @@ export default function Billing() {
 
   return (
     <>
-      <PageHeader module="cobranza" title="Cobranza" subtitle="Solo se registra lo que ya se pagó; no hay cobro en línea."
-        actions={canEdit && <>
-          <button className="btn" data-tour="btn-generar-cargos" disabled={busy} onClick={async () => {
-            setBusy(true); setError('')
-            try {
-              const n = await generateWeeklyCharges()
-              setMsg(n ? `Se generaron ${n} cargos de renta pendientes hasta hoy.` : 'Los cargos ya estaban al día. No se duplicó nada.')
-            } catch (e) { setError((e as Error).message) } finally { setBusy(false) }
-          }}>Generar cargos de la semana</button>
-          <button className="btn btn-primary" data-tour="btn-registrar-pago" onClick={() => setPaying(true)}><Icon name="plus" />Registrar pago</button>
-        </>} />
-      {msg && <div className="banner banner-green" onClick={() => setMsg('')}>{msg}</div>}
+      <PageHeader module="cobranza" title="Cobranza" subtitle="Los cargos de la semana se generan solos cada lunes. Solo se registra lo que ya se pagó; no hay cobro en línea."
+        actions={canEdit && <button className="btn btn-primary" data-tour="btn-registrar-pago" onClick={() => setPaying(true)}><Icon name="plus" />Registrar pago</button>} />
       {error && <div className="banner banner-red" onClick={() => setError('')}>{error}</div>}
 
       <div className="stats" data-tour="indicadores">

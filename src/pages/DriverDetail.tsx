@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
-import { BackLink, Badge, Card, Empty, Modal, PageHeader, Stat, StatusBadge, Tabs } from '../components/ui'
+import { BackLink, Badge, Card, Empty, Field, Modal, PageHeader, Stat, StatusBadge, Tabs } from '../components/ui'
 import { ChargeForm, CorrectChargeForm, DepositForm, DriverForm, PaymentForm, StartRentalForm } from '../components/forms'
-import { carName, activeRentalOfDriver, driverBalance, licenseStatus, rentalBalance } from '../lib/calc'
+import { DOC_LABEL, carName, activeRentalOfDriver, driverBalance, licenseStatus, rentalBalance } from '../lib/calc'
 import { TODAY, fecha, mes, mxn } from '../lib/format'
 import { downloadCsv } from '../lib/files'
 import { Select } from '../components/pickers'
@@ -11,18 +11,17 @@ import type { Charge, DocType, DriverDocument, Rental } from '../data/types'
 import { can } from '../data/permissions'
 import { Icon } from '../components/Icon'
 
-const DOC_LABEL: Record<DocType, string> = {
-  ine: 'INE', licencia: 'Licencia de conducir', no_penales: 'Carta de no antecedentes penales', domicilio: 'Comprobante de domicilio', referencias: '2 referencias familiares',
-}
 type Tab = 'expediente' | 'cuenta' | 'estado' | 'rentas'
 
 export default function DriverDetail() {
   const { id } = useParams()
-  const { data, user, uploadDriverDocument, fileUrl } = useStore()
+  const { data, user, uploadDriverDocument, fileUrl, blacklistDriver, unblacklistDriver } = useStore()
   const L = useLookup()
   const d = data.drivers.find((x) => x.id === id)
   const [tab, setTab] = useState<Tab>('expediente')
-  const [modal, setModal] = useState<'edit' | 'pay' | 'rent' | 'charge' | null>(null)
+  const [modal, setModal] = useState<'edit' | 'pay' | 'rent' | 'charge' | 'veto' | null>(null)
+  const [vetoReason, setVetoReason] = useState('')
+  const [vetoError, setVetoError] = useState('')
   const [deposit, setDeposit] = useState<Rental | null>(null)
   const [correcting, setCorrecting] = useState<Charge | null>(null)
   const [notice, setNotice] = useState('')
@@ -32,6 +31,7 @@ export default function DriverDetail() {
   const seesMoney = can(user, 'cobranza.ver') // saldos, cargos y pagos
   const canCharge = can(user, 'cobranza.editar')
   const canCorrect = can(user, 'cobranza.corregir')
+  const canVeto = can(user, 'conductores.lista_negra')
   const [month, setMonth] = useState(TODAY.slice(0, 7))
   const [preview, setPreview] = useState<(DriverDocument & { url?: string }) | null>(null)
   const [docError, setDocError] = useState('')
@@ -81,9 +81,16 @@ export default function DriverDetail() {
           {canCharge && rentals.length > 0 && <button className="btn" onClick={() => setModal('charge')}>Agregar cargo</button>}
           {/* Sin coche pero con adeudo de una renta anterior: también se le cobra desde aquí. */}
           {canCharge && (active || bal.balance > 0) && <button className={`btn ${active ? 'btn-primary' : ''}`} onClick={() => setModal('pay')}>Registrar pago</button>}
-          {canRent && !active && <button className="btn btn-primary" onClick={() => setModal('rent')}>Asignar coche</button>}
+          {canRent && !active && !d.blacklisted && <button className="btn btn-primary" onClick={() => setModal('rent')}>Asignar coche</button>}
+          {canVeto && <button className={`btn ${d.blacklisted ? '' : 'btn-danger'}`} onClick={() => { setVetoReason(''); setVetoError(''); setModal('veto') }}>
+            {d.blacklisted ? 'Quitar de lista negra' : 'Lista negra'}</button>}
         </>} />
 
+      {d.blacklisted && (
+        <div className="banner banner-red">
+          <span><b>En la lista negra</b> desde el {fecha(d.blacklisted.at.slice(0, 10))} ({L.user(d.blacklisted.userId)?.name ?? 'sistema'}): {d.blacklisted.reason}. No se le puede rentar.</span>
+        </div>
+      )}
       {notice && <div className="banner banner-green" onClick={() => setNotice('')}>{notice}</div>}
       <div className="stats" data-tour="indicadores">
         {seesMoney && <Stat label="Saldo / adeudo" value={mxn(bal.balance)} tone={bal.balance > 0 ? 'red' : 'green'} icon="wallet" />}
@@ -205,6 +212,24 @@ export default function DriverDetail() {
       <Modal open={!!correcting} title="Corregir cargo" onClose={() => setCorrecting(null)}>{correcting && <CorrectChargeForm charge={correcting} onDone={() => setCorrecting(null)} />}</Modal>
       <Modal open={!!deposit} title="Resolver depósito" onClose={() => setDeposit(null)}>
         {deposit && <DepositForm rental={deposit} onDone={(applied) => { setDeposit(null); setNotice(applied ? `Se aplicaron ${mxn(applied)} del depósito al adeudo.` : 'Depósito actualizado.') }} />}
+      </Modal>
+      <Modal open={modal === 'veto'} title={d.blacklisted ? 'Quitar de la lista negra' : 'Agregar a la lista negra'} onClose={() => setModal(null)}>
+        <form className="form" onSubmit={async (e) => {
+          e.preventDefault()
+          if (!vetoReason.trim()) return setVetoError('Escribe el motivo.')
+          try {
+            await (d.blacklisted ? unblacklistDriver : blacklistDriver)(d.id, vetoReason.trim())
+            setModal(null)
+          } catch (err) { setVetoError((err as Error).message) }
+        }}>
+          <p className="muted small">{d.blacklisted
+            ? 'Se le podrá volver a rentar. El motivo queda en la bitácora.'
+            : `A ${d.name.split(' ')[0]} ya no se le podrá rentar y, si alguien lo vuelve a dar de alta con la misma CURP, teléfono, licencia o nombre, la app avisa. El motivo queda en la bitácora.`}</p>
+          <Field label="Motivo (obligatorio)"><input value={vetoReason} onChange={(e) => setVetoReason(e.target.value)} autoFocus
+            placeholder={d.blacklisted ? 'Ej. se aclaró el adeudo' : 'Ej. abandonó el coche, adeudo sin pagar, daños intencionales'} /></Field>
+          {vetoError && <p className="form-error">{vetoError}</p>}
+          <div className="form-actions"><button className={`btn ${d.blacklisted ? 'btn-primary' : 'btn-danger'}`} type="submit">{d.blacklisted ? 'Quitar de la lista negra' : 'Agregar a la lista negra'}</button></div>
+        </form>
       </Modal>
       <Modal open={modal === 'rent'} title="Asignar coche" onClose={() => setModal(null)}><StartRentalForm driverId={d.id} onDone={() => setModal(null)} /></Modal>
     </>

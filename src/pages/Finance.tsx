@@ -146,7 +146,7 @@ export default function Finance() {
             options={[{ value: '', label: 'Todas las categorías' }, ...(Object.keys(EXPENSE_LABEL) as ExpenseCategory[]).map((c) => ({ value: c, label: EXPENSE_LABEL[c] }))]} />
         }>
           <div className="table-wrap"><table className="table compact">
-            <thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th>Coche</th><th className="num">Monto</th><th>Registró</th>{canEdit && <th></th>}</tr></thead>
+            <thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th>Coche</th><th className="num">Monto</th><th>Autorizó</th><th>Registró</th>{canEdit && <th></th>}</tr></thead>
             <tbody>{expenses.slice(0, 100).map((e) => {
               const v = e.vehicleId ? L.vehicle(e.vehicleId) : undefined
               return (
@@ -154,7 +154,7 @@ export default function Finance() {
                   <td>{e.concept}{e.voided && <div className="small"><Badge tone="red">Cancelado</Badge> <span className="muted">{e.voided.reason} · {L.user(e.voided.userId)?.name}</span></div>}</td>
                   <td className="muted small">{EXPENSE_LABEL[e.category]}</td>
                   <td>{v ? <Link to={`/flota/${v.id}`}>{v.model} {v.plates}</Link> : <span className="muted">General</span>}</td>
-                  <td className="num">{mxn(e.amount)}</td><td className="muted small">{L.user(e.userId)?.name}</td>
+                  <td className="num">{mxn(e.amount)}</td><td className="small">{e.authorizedBy ?? <span className="muted">—</span>}</td><td className="muted small">{L.user(e.userId)?.name}</td>
                   {canEdit && <td className="row-actions">{!e.voided && <button className="btn btn-sm btn-ghost" onClick={() => setEditing(e)}>Editar</button>}</td>}</tr>
               )
             })}</tbody>

@@ -21,7 +21,7 @@ Este documento explica qué hace cada módulo y qué reglas sigue. Cada sección
 | Módulo | Ver | Editar | Acciones especiales |
 |---|---|---|---|
 | Flota | Lista de coches y su expediente | Alta, edición y mandar a taller | Dar de baja o reactivar |
-| Conductores | Expediente, documentos y referencias | Alta, edición y documentos | |
+| Conductores | Expediente, documentos y referencias | Alta, edición y documentos | Lista negra |
 | Rentas | Rentas con tarifa y depósito | Iniciar y finalizar rentas, resolver el depósito | Cambiar tarifa y depósito de una renta activa |
 | Cobranza | Cargos, pagos y saldos | Registrar pagos, cargos extra y generar las semanas | Cancelar pagos · Corregir o cancelar cargos |
 | Mantenimiento | Servicios, llantas, km y alertas | Registrar servicios, llantas y lecturas de km | Catálogo de tipos de servicio · Corregir una lectura de km |
@@ -68,12 +68,14 @@ Reglas: nadie otorga un permiso que no tiene (ni lo pone en una plantilla), nadi
 **Qué hace**
 - Contacto: nombre, teléfono o WhatsApp, correo y domicilio.
 - Licencia: número y vigencia, con aviso si está vencida, vence en menos de 30 días o no tiene vigencia capturada. La lista se filtra por "Licencia por revisar".
-- Documentos (archivos opcionales):
-  - INE
-  - Licencia
-  - Carta de no antecedentes penales
-  - Comprobante de domicilio
-  - 2 referencias familiares (nombre, parentesco y teléfono)
+- Documentos:
+  - **Obligatorios al dar de alta:** INE, licencia y comprobante de domicilio (foto o PDF), y 2 referencias familiares con nombre y teléfono.
+  - Después, desde el expediente: carta de no antecedentes penales y el documento de referencias. Cualquier documento se puede reemplazar.
+  - A los conductores que se dieron de alta antes de pedirlos, la app les avisa lo que falta al rentarles (no lo impide).
+- **Lista negra propia** (permiso Conductores · lista negra): se agrega o se quita a alguien con motivo, y queda en la bitácora.
+  - A quien está en la lista negra no se le puede rentar: la base lo rechaza.
+  - Al dar de alta a alguien, la app avisa si su CURP, teléfono, licencia o nombre coinciden con alguien de la lista negra.
+  - Por ahora es solo la lista propia; no hay consulta externa (PLD).
 - Historial de coches que ha rentado, con fechas, tarifa, km recorridos, depósito y saldo.
 - **Cargos extra** al conductor (daños, multas, limpieza…), ligados a una de sus rentas y, si vienen de un incidente, al incidente. Aparecen en su estado de cuenta y en su saldo.
 - Movimientos y **estado de cuenta mensual** (cargos, pagos y saldo), imprimible o en PDF y exportable a Excel.
@@ -86,7 +88,7 @@ Reglas: nadie otorga un permiso que no tiene (ni lo pone en una plantilla), nadi
 
 **Qué hace**
 - **Iniciar renta:** coche disponible + conductor + fecha de inicio + tarifa semanal + depósito + km de entrega (propone el último capturado; se puede escribir el del tablero o usar el de Orión si es mayor).
-  - Si el conductor tiene la licencia vencida, por vencer o sin capturar, documentos faltantes o deuda de rentas anteriores, se avisa antes de entregar (no lo impide).
+  - Si el conductor tiene la licencia vencida, por vencer o sin capturar, documentos faltantes o deuda de rentas anteriores, se avisa antes de entregar (no lo impide). Si está en la lista negra, no se le puede rentar.
   - Al iniciar, el coche pasa a "rentado" y se genera el primer cargo semanal.
   - Ofrece hacer en ese momento la inspección de entrega con fotos.
 - **Finalizar renta:** fecha de fin, km de devolución (igual que el de entrega: editable, con opción de usar Orión) y qué se hace con el depósito (se devuelve, se aplica al adeudo o daños, o queda retenido).
@@ -111,7 +113,9 @@ Reglas: nadie otorga un permiso que no tiene (ni lo pone en una plantilla), nadi
 **Qué hace**
 - **Cargos semanales:** un cargo por cada renta activa y cada semana.
   - Cada semana se cuenta desde el día en que empezó la renta (semana 1, semana 2…), no desde el lunes.
-  - Una tarea automática los genera cada noche (00:05, hora de Mérida); el botón "Generar cargos de la semana" hace lo mismo al momento.
+  - Se generan solos **cada lunes a las 00:05** (hora de Mérida): la semana de cada renta activa que empieza entre ese lunes y el domingo. No hay botón: nadie los genera a mano. La tarea corre todas las noches para ponerse al día si alguna vez falla, pero solo el lunes crea cargos nuevos.
+  - Al iniciar una renta se cobra su primera semana en ese momento.
+  - Si una renta se finaliza antes de que empiece una semana que ya se cobró el lunes, esa semana se cancela sola.
   - Nunca se duplica un cargo: si la semana ya se cobró, no se vuelve a generar.
 - **Registrar un pago:** renta, fecha, monto, método (efectivo o transferencia) y notas, por ejemplo el folio. Se guarda quién lo registró.
   - Si ya hay un pago de esa renta con la misma fecha y monto, pide confirmar (casi siempre es una captura doble).
@@ -141,10 +145,13 @@ Reglas: nadie otorga un permiso que no tiene (ni lo pone en una plantilla), nadi
   - Junto al km de cada coche se muestra hace cuántos días fue la última lectura capturada; con más de 2 semanas se marca en ámbar.
   - El km del coche es el del último registro, y no se acepta un km menor que el anterior.
   - Una lectura capturada mal no se borra: se corrige su valor con motivo (permiso Mantenimiento · corregir km) y el km del coche se recalcula. Las de entrega y recepción son parte de la renta y no se tocan.
-- **Servicios:** fecha, km, tipo, costo, taller y notas.
+- **Servicios:** fecha, km, tipo, costo, taller y notas, y lo que marcaba Orión ese día (si es de hoy se toma solo del GPS).
+  - Un servicio ya registrado se puede **editar** (permiso Mantenimiento · editar) con motivo obligatorio, que queda en la bitácora. No se borra. Si tuvo cambio de llantas, las llantas se mueven a la nueva fecha y km.
 - **Catálogo de tipos de servicio** (servicio de 10,000 km, frenos y balatas, llantas, alineación, carrocería, suspensión y otro). Con el permiso Mantenimiento · catálogos se agregan, se editan y se desactivan desde la app; un tipo desactivado ya no se ofrece, pero su historial se conserva.
 - **Cambio de llantas** con marca y año DOT.
-- **Alerta cada 10,000 km**, contados desde el último servicio que reinicia el contador.
+- **Alerta cada 10,000 km**, contados desde el último servicio que reinicia el contador, con **el primer contador que llegue**: el km capturado o el odómetro de Orión.
+  - Orión no marca lo mismo que el tablero, así que se compara lo que avanzó cada uno desde el servicio. Orión cuenta desde lo que marcaba el día del servicio o, si no se guardó, desde su lectura más cercana anterior. Sin ninguna de las dos, solo cuenta el km capturado.
+  - Cuando manda Orión, la pantalla lo dice ("según Orión") junto con lo que lleva el km capturado.
   - Pasa a **Próximo** a los 9,000 km y a **Vencido** a los 10,000 km.
   - Un coche sin ningún servicio registrado cuenta desde su primera lectura de km y se marca "Sin servicio registrado".
   - Aparece en el dashboard, en el listado de mantenimiento y en la ficha del coche.
@@ -235,7 +242,7 @@ Reglas: nadie otorga un permiso que no tiene (ni lo pone en una plantilla), nadi
   - Utilidad promedio por mes y ocupación (porcentaje de días rentado desde que está en la flota).
   - Cuánto de su precio de compra ya recuperó con la utilidad acumulada y en cuántos meses terminaría de recuperarlo a ese ritmo.
   - El coche más y el menos rentable por mes. Así se ven los coches parados que solo generan gasto.
-- **Gastos:** captura de los costos que no son servicios ni incidentes (seguro, refrendo, GPS, renta del patio…), ligados a un coche o generales del negocio. Un gasto mal capturado se cancela con motivo (no se borra) y deja de contar.
+- **Gastos:** captura de los costos que no son servicios ni incidentes (seguro, refrendo, GPS, renta del patio…), ligados a un coche o generales del negocio, con el nombre de **quién lo autorizó** (obligatorio) aparte de quién lo registró. Un gasto mal capturado se cancela con motivo (no se borra) y deja de contar.
 
 **Reglas**
 - Los costos de un coche son su mantenimiento, sus incidentes a cargo de la empresa y sus gastos propios. Los gastos generales cuentan en el estado de resultados, pero no se reparten entre coches.

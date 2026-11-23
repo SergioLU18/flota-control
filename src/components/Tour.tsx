@@ -122,8 +122,6 @@ const GUIAS: Record<string, Paso[]> = {
     { ruta: '/rentas', t: 'tab-finalizada', titulo: 'Rentas pasadas', texto: <>Pulsa <b>Finalizadas</b>: el historial, con el saldo que haya quedado pendiente.</>, avance: 'click' },
   ],
   cobranza: [
-    { ruta: '/cobranza', t: 'btn-generar-cargos', titulo: 'Cargos de la semana',
-      texto: 'Crea el cargo semanal de cada renta activa hasta hoy. Si ya estaban, no duplica nada.' },
     abrir('btn-registrar-pago', 'Registrar pago', 'Registrar un pago', <>Pulsa <b>Registrar pago</b>.</>, '/cobranza'),
     formulario('Lo que ya se cobró',
       <>Elige la renta, la fecha, el monto y el método: <b>efectivo</b> o <b>transferencia</b>. Anota el folio o quién recibió el efectivo. No hay cobro en línea: solo se registra lo que ya se pagó.</>),
@@ -203,7 +201,7 @@ const GUIAS: Record<string, Paso[]> = {
  */
 const REQUIERE: Record<string, Permission> = {
   'btn-nuevo-coche': 'flota.editar', 'btn-nuevo-conductor': 'conductores.editar', 'btn-nueva-renta': 'rentas.editar',
-  'btn-generar-cargos': 'cobranza.editar', 'btn-registrar-pago': 'cobranza.editar', 'btn-registrar-km': 'mantenimiento.editar',
+'btn-registrar-pago': 'cobranza.editar', 'btn-registrar-km': 'mantenimiento.editar',
   'btn-registrar-servicio': 'mantenimiento.editar', 'btn-registrar-incidente': 'incidentes.editar', 'btn-nueva-inspeccion': 'inspecciones.editar',
   'form-inspeccion': 'inspecciones.editar', 'btn-registrar-gasto': 'finanzas.editar', 'btn-nuevo-usuario': 'usuarios.editar',
   adeudos: 'cobranza.ver', 'proximos-mant': 'mantenimiento.ver',
