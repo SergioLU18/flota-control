@@ -2,7 +2,7 @@ import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { BackLink, Badge, Card, Empty, Lightbox, Modal, PageHeader, Photo, Progress, Stat, StatusBadge, Tabs } from '../components/ui'
-import { EditServiceForm, EndRentalForm, IncidentForm, MileageForm, RetireVehicleForm, ServiceForm, StartRentalForm, TIRE_LABEL, VehicleForm } from '../components/forms'
+import { EditRentalForm, EditServiceForm, EndRentalForm, IncidentForm, MileageForm, RetireVehicleForm, ServiceForm, StartRentalForm, TIRE_LABEL, VehicleForm } from '../components/forms'
 import { CorrectKm } from './Maintenance'
 import { activeRentalOf, insuranceStatus, insuranceText, maintenanceStatus, rentalBalance, vehicleBalance, MAINTENANCE_INTERVAL } from '../lib/calc'
 import { fleetSince, vehicleRecovery } from '../lib/finance'
@@ -17,7 +17,7 @@ import { VehicleInsurance } from './Insurance'
 const GpsMap = lazy(() => import('../components/GpsMap'))
 
 type Tab = 'resumen' | 'historial' | 'km' | 'seguro' | 'mantenimiento' | 'incidentes' | 'inspecciones' | 'finanzas'
-type ModalKind = 'edit' | 'baja' | 'rent' | 'end' | 'km' | 'service' | 'incident' | null
+type ModalKind = 'edit' | 'baja' | 'rent' | 'end' | 'rate' | 'km' | 'service' | 'incident' | null
 
 export default function VehicleDetail() {
   const { id } = useParams()
@@ -48,6 +48,7 @@ export default function VehicleDetail() {
   const canRetire = can(user, 'flota.baja')
   const seesRentals = can(user, 'rentas.ver') // tarifa y depósito
   const canRent = can(user, 'rentas.editar')
+  const canRate = can(user, 'rentas.tarifa')
   const seesMoney = can(user, 'cobranza.ver') // saldos
   const seesFinance = can(user, 'finanzas.ver')
   const canMaintain = can(user, 'mantenimiento.editar')
@@ -111,7 +112,7 @@ export default function VehicleDetail() {
               <dl className="dl">
                 <dt>Conductor</dt><dd><Link to={`/conductores/${driver.id}`}>{driver.name}</Link></dd>
                 <dt>Desde</dt><dd>{fecha(r.startDate)}</dd>
-                {seesRentals && <><dt>Tarifa</dt><dd>{mxn(r.weeklyRate)} / semana</dd></>}
+                {seesRentals && <><dt>Tarifa</dt><dd>{mxn(r.weeklyRate)} / semana{canRate && <> · <button className="link" onClick={() => setModal('rate')}>Cambiar</button></>}</dd></>}
                 {seesRentals && <><dt>Depósito</dt><dd>{mxn(r.deposit)} <StatusBadge value={r.depositStatus} /></dd></>}
                 {seesMoney && <><dt>Saldo</dt><dd className={rentalBalance(data, r.id).balance > 0 ? 'neg' : 'pos'}>{mxn(rentalBalance(data, r.id).balance)}</dd></>}
               </dl>
@@ -248,6 +249,7 @@ export default function VehicleDetail() {
       <Modal open={modal === 'baja'} title="Dar de baja" onClose={() => setModal(null)}><RetireVehicleForm vehicle={v} onDone={() => setModal(null)} /></Modal>
       <Modal open={modal === 'rent'} title="Nueva renta" onClose={() => setModal(null)}><StartRentalForm vehicleId={v.id} onDone={() => setModal(null)} /></Modal>
       <Modal open={modal === 'end' && !!r} title="Finalizar renta" onClose={() => setModal(null)}>{r && <EndRentalForm rental={r} onDone={() => setModal(null)} />}</Modal>
+      <Modal open={modal === 'rate' && !!r} title="Cambiar tarifa y depósito" onClose={() => setModal(null)}>{r && <EditRentalForm rental={r} onDone={() => setModal(null)} />}</Modal>
       <Modal open={modal === 'km'} title="Registrar kilometraje" onClose={() => setModal(null)}><MileageForm vehicleId={v.id} onDone={() => setModal(null)} /></Modal>
       <Modal open={!!editingService} title="Editar servicio" onClose={() => setEditingService(null)}>{editingService && <EditServiceForm service={editingService} onDone={() => setEditingService(null)} />}</Modal>
       <Modal open={modal === 'service'} title="Registrar servicio" onClose={() => setModal(null)}><ServiceForm vehicleId={v.id} onDone={() => setModal(null)} /></Modal>

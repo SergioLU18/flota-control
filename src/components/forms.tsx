@@ -83,6 +83,7 @@ export function VehicleForm({ vehicle, onDone }: { vehicle?: Vehicle; onDone: ()
       </Field>
       {/* Solo con el permiso de finanzas: sin él, la base ni lo envía ni deja cambiarlo. */}
       {seesPrice && <Field label="Precio de compra" hint="Para el cálculo inversión vs. generado"><input inputMode="numeric" value={v.purchasePrice || ''} onChange={(e) => set('purchasePrice', num(e.target.value))} /></Field>}
+      {vehicle?.status === 'rentado' && <p className="field-full muted small">La tarifa semanal no es del coche sino de su renta: se cambia en el Resumen del coche (Renta actual → Tarifa → Cambiar) o en Rentas.</p>}
       <Field label="Fecha de compra" hint={vehicle && !vehicle.purchaseDate ? <span className="warn">Sin capturar: Finanzas no puede ubicar la inversión</span> : undefined}><DatePicker label="Fecha de compra" value={v.purchaseDate} onChange={(d) => set('purchaseDate', d)} max={TODAY} clearable placeholder="Sin capturar" /></Field>
       <Field label="ID de equipo Orión" hint="Opcional"><input value={v.orionDeviceId ?? ''} onChange={(e) => set('orionDeviceId', e.target.value || undefined)} /></Field>
       <Field label="Notas" full><textarea rows={2} value={v.notes} onChange={(e) => set('notes', e.target.value)} /></Field>
