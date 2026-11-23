@@ -127,6 +127,8 @@ function NewInspectionForm() {
       <form className="form card" data-tour="form-inspeccion" onSubmit={async (e) => {
         e.preventDefault()
         if (busy) return
+        const missing = ANGLES.filter((a) => !photos.some((p) => p.label === a))
+        if (missing.length) return setError(`Faltan fotos obligatorias: ${missing.join(', ')}.`)
         setBusy(true); setError('')
         try {
           await addInspection({ ...f, id, km: f.km || v.currentKm, rentalId, photos })
@@ -152,7 +154,7 @@ function NewInspectionForm() {
           {/* div y no Field (<label>): un clic en el título activaría el primer botón del indicador. */}
           <div className="field"><span>Combustible</span><FuelGauge value={f.fuel} onChange={(fuel) => setF({ ...f, fuel })} /></div>
           <Field label="Observaciones" full><textarea rows={3} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="Golpes, rayones, limpieza, accesorios (gato, refacción, tarjeta de circulación)…" /></Field>
-          <Field label="Fotos (toca cada recuadro para abrir la cámara)" full><PhotoInput photos={photos} onChange={setPhotos} labels={ANGLES} /></Field>
+          <Field label={`Fotos: las ${ANGLES.length} de los recuadros son obligatorias; con "Más fotos" se agregan las que hagan falta`} full><PhotoInput photos={photos} onChange={setPhotos} labels={ANGLES} /></Field>
         </div>
         {error && <p className="form-error">{error}</p>}
         <div className="form-actions"><button className="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Subiendo fotos…' : 'Guardar inspección'}</button></div>

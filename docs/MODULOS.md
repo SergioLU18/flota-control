@@ -199,7 +199,8 @@ Reglas: nadie otorga un permiso que no tiene (ni lo pone en una plantilla), nadi
 
 **Qué hace**
 - Inspección de **entrega** y de **recepción**: km, nivel de combustible, observaciones y varias fotos.
-  - Fotos guiadas: frente, trasera, lateral izquierdo, lateral derecho, interior y tablero.
+  - **6 fotos obligatorias**: frente, trasera, lateral izquierdo, lateral derecho, interior y tablero. Sin ellas no se guarda la inspección.
+  - **Más fotos**: además de las 6 se agregan las que hagan falta (un golpe, la llanta, los accesorios…). Se guardan como "Adicional 1", "Adicional 2"… y se pueden quitar antes de guardar.
 - Pensada para el **iPad o el teléfono**: cada recuadro abre la cámara.
 - Las fotos se reducen antes de subirse para que carguen rápido aun con poca señal.
 - **Galería histórica por coche:** cada renta muestra lado a lado "cómo se entregó" y "cómo regresó".

@@ -471,15 +471,19 @@ export function EditServiceForm({ service, onDone }: { service: Service; onDone:
 export function PhotoInput({ photos, onChange, labels }: { photos: PhotoRef[]; onChange: (p: PhotoRef[]) => void; labels?: string[] }) {
   const [busy, setBusy] = useState(false)
   const [info, setInfo] = useState('')
+  // Con `labels`, las fotos que no son de un recuadro fijo son adicionales: "Adicional 1", "Adicional 2"…
+  const extras = labels ? photos.filter((p) => !labels.includes(p.label)) : []
+  const nextExtra = () => Math.max(0, ...extras.map((p) => Number(/^Adicional (\d+)$/.exec(p.label)?.[1] ?? 0))) + 1
   const add = async (files: FileList | null, label?: string) => {
     if (!files?.length) return
     setBusy(true)
     const out: PhotoRef[] = []
     let before = 0, after = 0
+    let n = labels && !label ? nextExtra() : 0
     for (const file of Array.from(files)) {
       const c = await compressImage(file)
       before += c.originalKb; after += c.kb
-      out.push({ id: crypto.randomUUID(), label: label ?? file.name.replace(/\.\w+$/, ''), url: c.url })
+      out.push({ id: crypto.randomUUID(), label: label ?? (labels ? `Adicional ${n++}` : file.name.replace(/\.\w+$/, '')), url: c.url })
     }
     const kept = label ? photos.filter((p) => p.label !== label) : photos
     onChange([...kept, ...out])
@@ -499,6 +503,13 @@ export function PhotoInput({ photos, onChange, labels }: { photos: PhotoRef[]; o
               </label>
             )
           })}
+          {extras.map((p) => (
+            <div key={p.id} className="photo-extra">
+              <Photo photo={p} />
+              <button type="button" className="photo-remove" aria-label={`Quitar ${p.label}`} title="Quitar foto" onClick={() => onChange(photos.filter((x) => x.id !== p.id))}><Icon name="close" /></button>
+            </div>
+          ))}
+          <label className="photo-slot"><span><Icon name="plus" />Más fotos</span><input type="file" accept="image/*" multiple hidden onChange={(e) => { add(e.target.files); e.target.value = '' }} /></label>
         </div>
       ) : (
         <div className="photo-grid">
