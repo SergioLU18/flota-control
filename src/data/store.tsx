@@ -5,7 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { Session } from '@supabase/supabase-js'
 import { BUCKET, must, supabase } from '../lib/supabase'
 import { EMPTY, loadAudit, loadAuditAll, loadData, loadGps, loadProfile } from './load'
-import type { Charge, Data, DocType, Driver, Expense, Incident, Inspection, Payment, PermissionTemplate, PhotoRef, Rental, Service, ServiceType, Tire, User, Vehicle } from './types'
+import type { Charge, Data, DocType, Driver, Expense, Incident, Inspection, Payment, PermissionTemplate, PhotoRef, Policy, Rental, Service, ServiceType, Tire, User, Vehicle } from './types'
 import { TODAY, nowIso, todayInMerida } from '../lib/format'
 import type { Json } from '../lib/database.types'
 
@@ -174,6 +174,27 @@ function useStoreValue() {
     /** Lista negra (permiso "conductores.lista_negra"): con motivo, queda en la bitácora. A quien está en ella no se le renta. */
     blacklistDriver: (id: string, reason: string) => write(async () => { must(await supabase.rpc('vetar_conductor', { p_conductor_id: id, p_motivo: reason })) }),
     unblacklistDriver: (id: string, reason: string) => write(async () => { must(await supabase.rpc('quitar_veto', { p_conductor_id: id, p_motivo: reason })) }),
+
+    /**
+     * Alta o edición de una póliza (permiso "flota.seguros"). `file`: el PDF o la foto; en una edición sin archivo se
+     * conserva el que tenía. `expense` (solo en el alta, permiso "finanzas.editar"): el pago, como gasto de seguro ligado.
+     */
+    savePolicy: (p: Omit<Policy, 'id' | 'userId' | 'fileKey' | 'voided'> & { id?: string }, file?: File, expense?: { amount: number; date: string; authorizedBy: string }) =>
+      write(async () => {
+        const ext = file?.name.split('.').pop()?.toLowerCase() || 'pdf'
+        const archivo_id = file ? await uploadFile(file, file.type || 'application/pdf', (id) => `polizas/${p.vehicleId}/${id}.${ext}`) : null
+        return must(await supabase.rpc('guardar_poliza', {
+          p_id: p.id ?? null,
+          p_datos: {
+            vehiculo_id: p.vehicleId, aseguradora: p.insurer.trim(), numero: p.number.trim(), cobertura: p.coverage,
+            vigencia_inicio: p.start, vigencia_fin: p.end, telefono_siniestros: p.claimsPhone.trim(), notas: p.notes, archivo_id,
+          },
+          p_gasto: expense ? { monto: expense.amount, fecha: expense.date, autorizo: expense.authorizedBy.trim() } : undefined,
+        }))
+      }),
+
+    /** No la borra: queda cancelada con su motivo y deja de contar como seguro. */
+    voidPolicy: (id: string, reason: string) => write(async () => { must(await supabase.rpc('cancelar_poliza', { p_id: id, p_motivo: reason })) }),
 
     /** URL temporal (1 hora) para ver un archivo del bucket privado. */
     fileUrl: async (key: string) => must(await supabase.storage.from(BUCKET).createSignedUrl(key, 3600)).signedUrl,

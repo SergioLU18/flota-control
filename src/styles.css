@@ -693,7 +693,7 @@ input[type="checkbox"]:focus { box-shadow: 0 0 0 3px var(--accent-ring); border:
 .vc-wide { grid-column: 1 / -1; }
 .vt-car { display: flex; gap: 8px; align-items: center; white-space: nowrap; }
 .vt-car .swatch { margin-top: 0; }
-.dl { display: grid; grid-template-columns: max-content 1fr; gap: 0; margin: 4px 0 0; }
+.dl { display: grid; grid-template-columns: max-content 1fr; gap: 0; margin: 4px 0 0; align-content: start; }
 .dl dt { padding-right: 16px; }
 .dl dt, .dl dd { padding: 8px 0; border-bottom: 1px solid var(--line); }
 .dl dt:last-of-type, .dl dd:last-of-type { border-bottom: 0; }

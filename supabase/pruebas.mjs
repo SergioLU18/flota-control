@@ -127,15 +127,21 @@ for (const ins of seed.inspections) {
   })
   await fotos(ins.photos, { inspeccion_id: id(ins.id) })
 }
+for (const p of seed.policies) {
+  await insert('polizas', {
+    id: id(p.id), vehiculo_id: id(p.vehicleId), aseguradora: p.insurer, numero: p.number, cobertura: p.coverage, vigencia_inicio: p.start, vigencia_fin: p.end,
+    telefono_siniestros: p.claimsPhone, archivo_id: await archivo(`polizas/${id(p.vehicleId)}/${randomUUID()}.pdf`), registrado_por: id(p.userId),
+  })
+}
 for (const e of seed.expenses) {
-  await insert('gastos', { fecha: e.date, categoria: e.category, vehiculo_id: id(e.vehicleId), monto: e.amount, concepto: e.concept, registrado_por: id(e.userId) })
+  await insert('gastos', { fecha: e.date, categoria: e.category, vehiculo_id: id(e.vehicleId), monto: e.amount, concepto: e.concept, registrado_por: id(e.userId), poliza_id: id(e.policyId) })
 }
 
 const conteos = await one(`select
   (select count(*) from vehiculos) vehiculos, (select count(*) from conductores) conductores, (select count(*) from rentas) rentas,
   (select count(*) from cargos) cargos, (select count(*) from pagos) pagos, (select count(*) from registros_km) km,
   (select count(*) from servicios) servicios, (select count(*) from inspecciones) inspecciones, (select count(*) from fotos) fotos,
-  (select count(*) from gastos) gastos, (select count(*) from auditoria) auditoria`)
+  (select count(*) from gastos) gastos, (select count(*) from polizas) polizas, (select count(*) from auditoria) auditoria`)
 console.log(`Demo cargada en ${Date.now() - t0} ms:`, Object.entries(conteos).map(([k, v]) => `${v} ${k}`).join(', '))
 
 // ============================================================
@@ -739,6 +745,8 @@ console.log('\nPermisos por módulo · escritura')
     ['incidentes.editar', "select agregar_fotos_incidente($1, '[]'::jsonb)", [u()]],
     ['inspecciones.editar', 'select registrar_inspeccion($1, $2)', [u(), {}]],
     ['finanzas.editar', "select cancelar_gasto($1, 'x')", [u()]],
+    ['flota.seguros', 'select guardar_poliza(null, $1)', [{}]],
+    ['flota.seguros', "select cancelar_poliza($1, 'x')", [u()]],
     ['usuarios.editar', "select guardar_usuario($1, 'x', 'admin', '{}', true)", [u()]],
     ['usuarios.editar', "select guardar_plantilla(null, 'Prueba', '', '{}', true)", []],
   ]
@@ -914,6 +922,61 @@ console.log('\nServicios: editar y el primer contador que llegue')
   const sinBase = demo.maintenanceStatus(v, [{ ...serv[0], orionKm: undefined }], [{ vehicleId: 'vx', date: '2026-08-30', km: 61000, source: 'orion' }], [{ vehicleId: 'vx', odometer: 72000 }])
   ok(sinBase.since === 11000 && sinBase.level === 'vencido', 'sin km de Orión en el servicio, cuenta desde la lectura de Orión anterior', String(sinBase.since))
   ok(demo.maintenanceStatus(v, [{ ...serv[0], orionKm: undefined }], [], [{ vehicleId: 'vx', odometer: 99999 }]).by === 'capturado', 'sin ninguna base de Orión, solo cuenta el km capturado')
+}
+
+console.log('\nSeguros')
+{
+  const v = id('v23')
+  const datos = (extra = {}) => ({ vehiculo_id: v, aseguradora: 'Qualitas', numero: 'Q-123', cobertura: 'amplia', vigencia_inicio: '2026-11-20', vigencia_fin: '2027-11-19', telefono_siniestros: '800 800 2880', ...extra })
+  const n = await comoCon([], async () => cuenta('polizas'))
+  ok(n === seed.policies.length, 'las pólizas las ve todo el personal, sin permisos', String(n))
+  ok(/row-level security/.test(await intentaCon(['flota.seguros'], "insert into polizas (vehiculo_id, aseguradora, numero, vigencia_inicio, vigencia_fin) values ($1, 'x', 'y', '2026-01-01', '2026-12-31')", [v])),
+    'no se escriben directo en la tabla: solo con sus RPC')
+  ok(/Sin permiso/.test(await intentaCon(['flota.seguros'], 'select guardar_poliza(null, $1, $2)', [datos(), { monto: 9000, autorizo: 'Jorge' }])),
+    'capturar el pago junto con la póliza pide además finanzas.editar')
+  ok(/polizas_check/.test(await intentaCon(['flota.seguros'], 'select guardar_poliza(null, $1)', [datos({ vigencia_fin: '2026-11-20' })])), 'el fin de la vigencia va después del inicio')
+
+  const r = await comoCon(['flota.seguros', 'finanzas.editar', 'bitacora.ver'], async () => {
+    const pdf = await archivo('polizas/prueba.pdf', PRUEBA)
+    const { pid } = await one('select guardar_poliza(null, $1, $2) pid', [datos({ archivo_id: pdf }), { monto: 9100, fecha: '2026-11-18', autorizo: 'Jorge Pech' }])
+    const gasto = await one('select categoria, monto, fecha::text, autorizo, vehiculo_id, concepto from gastos where poliza_id = $1', [pid])
+    await q('select guardar_poliza($1, $2)', [pid, datos({ numero: 'Q-124', notas: 'deducible 5%' })])
+    const editada = await one('select numero, notas, archivo_id from polizas where id = $1', [pid])
+    await q('savepoint s')
+    const sinMotivo = await intenta(() => q("select cancelar_poliza($1, ' ')", [pid]))
+    await q('rollback to savepoint s')
+    await q("select cancelar_poliza($1, 'Era de otro coche')", [pid])
+    const cancelada = await one('select cancelado_por, motivo_cancelacion from polizas where id = $1', [pid])
+    await q('savepoint s2')
+    const otraVez = await intenta(() => q('select guardar_poliza($1, $2)', [pid, datos()]))
+    await q('rollback to savepoint s2')
+    const bit = await q("select accion, modulo from auditoria where tabla = 'polizas' and registro_id = $1 order by id", [pid])
+    return { pdf, gasto, editada, sinMotivo: sinMotivo?.message, cancelada, otraVez: otraVez?.message, bit }
+  })
+  ok(r.gasto?.categoria === 'seguro' && num(r.gasto.monto) === 9100 && r.gasto.fecha === '2026-11-18' && r.gasto.autorizo === 'Jorge Pech' && r.gasto.vehiculo_id === v
+    && r.gasto.concepto === 'Póliza Qualitas Q-123', 'con finanzas.editar, el pago queda como gasto de seguro ligado a la póliza', JSON.stringify(r.gasto))
+  ok(r.editada.numero === 'Q-124' && r.editada.notas === 'deducible 5%' && r.editada.archivo_id === r.pdf, 'al editarla sin archivo nuevo se conserva el PDF', JSON.stringify(r.editada))
+  ok(/motivo/.test(r.sinMotivo ?? '') && r.cancelada.cancelado_por === id(PRUEBA) && r.cancelada.motivo_cancelacion === 'Era de otro coche',
+    'no se borra: se cancela con motivo', JSON.stringify(r.cancelada))
+  ok(/cancelada/.test(r.otraVez ?? ''), 'una póliza cancelada ya no se edita', r.otraVez)
+  ok(r.bit.map((b) => b.accion).join() === 'Registró póliza,Editó póliza,Canceló póliza: Era de otro coche' && r.bit.every((b) => b.modulo === 'flota'),
+    'todo queda en la bitácora, en el módulo de flota', JSON.stringify(r.bit))
+
+  // Vigencia (la calcula la app): renovaciones encadenadas, aviso 30 días antes, vencida y sin póliza.
+  const pol = (start, end, extra = {}) => ({ id: start, vehicleId: 'vx', insurer: 'X', number: '1', coverage: 'amplia', start, end, claimsPhone: '', notes: '', userId: 'u1', ...extra })
+  const st = (policies, today = '2026-11-23') => demo.insuranceStatus({ policies }, 'vx', today)
+  const vig = st([pol('2026-06-01', '2027-05-31')])
+  const pronto = st([pol('2025-12-10', '2026-12-09')])
+  const renovada = st([pol('2025-12-10', '2026-12-09'), pol('2026-12-10', '2027-12-09')])
+  const hueco = st([pol('2025-12-10', '2026-12-09'), pol('2026-12-15', '2027-12-14')])
+  const vencida = st([pol('2025-11-01', '2026-10-31')])
+  const cancelada = st([pol('2026-06-01', '2027-05-31', { voided: { reason: 'x', userId: 'u1', at: '' } })])
+  ok(vig.level === 'vigente' && pronto.level === 'por_vencer' && pronto.days === 16, 'vigente, y por vencer 30 días antes', JSON.stringify([vig.level, pronto.level, pronto.days]))
+  ok(renovada.level === 'vigente' && renovada.until === '2027-12-09' && hueco.level === 'por_vencer' && hueco.until === '2026-12-09',
+    'una renovación que empieza al día siguiente quita el aviso; si deja días sin seguro, no', JSON.stringify([renovada.until, hueco.until]))
+  ok(vencida.level === 'vencida' && cancelada.level === 'sin_poliza' && st([]).level === 'sin_poliza', 'vencida, y una cancelada no cuenta')
+  ok(st([pol('2026-12-01', '2027-11-30')]).level === 'sin_poliza' && st([pol('2025-11-01', '2026-10-31'), pol('2026-12-01', '2027-11-30')]).level === 'vencida',
+    'una que todavía no empieza no cubre hoy')
 }
 
 await db.close()

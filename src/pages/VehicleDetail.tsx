@@ -1,10 +1,10 @@
 import { lazy, Suspense, useState, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useLookup, useStore } from '../data/store'
 import { BackLink, Badge, Card, Empty, Lightbox, Modal, PageHeader, Photo, Progress, Stat, StatusBadge, Tabs } from '../components/ui'
 import { EditServiceForm, EndRentalForm, IncidentForm, MileageForm, RetireVehicleForm, ServiceForm, StartRentalForm, TIRE_LABEL, VehicleForm } from '../components/forms'
 import { CorrectKm } from './Maintenance'
-import { activeRentalOf, maintenanceStatus, rentalBalance, vehicleBalance, MAINTENANCE_INTERVAL } from '../lib/calc'
+import { activeRentalOf, insuranceStatus, insuranceText, maintenanceStatus, rentalBalance, vehicleBalance, MAINTENANCE_INTERVAL } from '../lib/calc'
 import { fleetSince, vehicleRecovery } from '../lib/finance'
 import { fecha, fuelLabel, km, mxn } from '../lib/format'
 import type { PhotoRef, Service } from '../data/types'
@@ -12,10 +12,11 @@ import { can } from '../data/permissions'
 import { InspectionCompare } from './Inspections'
 import { Icon, type IconName } from '../components/Icon'
 import { CapturedKm, OrionKm, hace, lastReading } from '../components/gps'
+import { VehicleInsurance } from './Insurance'
 
 const GpsMap = lazy(() => import('../components/GpsMap'))
 
-type Tab = 'resumen' | 'historial' | 'km' | 'mantenimiento' | 'incidentes' | 'inspecciones' | 'finanzas'
+type Tab = 'resumen' | 'historial' | 'km' | 'seguro' | 'mantenimiento' | 'incidentes' | 'inspecciones' | 'finanzas'
 type ModalKind = 'edit' | 'baja' | 'rent' | 'end' | 'km' | 'service' | 'incident' | null
 
 export default function VehicleDetail() {
@@ -23,7 +24,9 @@ export default function VehicleDetail() {
   const { data, user, setVehicleStatus } = useStore()
   const L = useLookup()
   const v = data.vehicles.find((x) => x.id === id)
-  const [tab, setTab] = useState<Tab>('resumen')
+  // ?tab=seguro abre directo esa pestaña (los avisos del dashboard llegan así).
+  const [params] = useSearchParams()
+  const [tab, setTab] = useState<Tab>((params.get('tab') as Tab | null) ?? 'resumen')
   const [modal, setModal] = useState<ModalKind>(null)
   const [photo, setPhoto] = useState<PhotoRef | null>(null)
   const [error, setError] = useState('')
@@ -33,6 +36,7 @@ export default function VehicleDetail() {
   const r = activeRentalOf(data, v.id)
   const driver = r && L.driver(r.driverId)
   const m = maintenanceStatus(v, data.services, data.mileage, data.gps)
+  const ins = insuranceStatus(data, v.id)
   const gps = data.gps.find((g) => g.vehicleId === v.id)
   const rentals = data.rentals.filter((x) => x.vehicleId === v.id).sort((a, b) => (a.startDate < b.startDate ? 1 : -1))
   const services = data.services.filter((s) => s.vehicleId === v.id).sort((a, b) => b.km - a.km)
@@ -59,13 +63,14 @@ export default function VehicleDetail() {
       return items
     }),
     ...services.map((s) => ({ date: s.date, icon: 'wrench' as IconName, text: <>{s.type} en {s.shop} · {km(s.km)} · {mxn(s.cost)}</> })),
+    ...data.policies.filter((p) => p.vehicleId === v.id && !p.voided).map((p) => ({ date: p.start, icon: 'umbrella' as IconName, text: <>Póliza {p.insurer} {p.number} · vigente hasta {fecha(p.end)}</> })),
     ...incidents.map((i) => ({ date: i.date, icon: 'alert' as IconName, text: <>{i.type}: {i.description} ({mxn(i.cost)})</> })),
     ...inspections.map((i) => ({ date: i.date, icon: 'camera' as IconName, text: <>Inspección de {i.kind === 'entrega' ? 'entrega' : 'recepción'} · {i.photos.length} fotos · combustible {fuelLabel(i.fuel)}</> })),
     { date: fleetSince(v), icon: 'car' as IconName, text: <>{v.purchaseDate ? 'Compra' : 'Alta en el sistema'}{seesFinance && v.purchasePrice ? ` · ${mxn(v.purchasePrice)}` : ''}</> },
   ].sort((a, b) => (a.date < b.date ? 1 : -1))
 
   const tabs: [Tab, string][] = [
-    ['resumen', 'Resumen'], ['historial', 'Historial'], ['km', 'Kilometraje'], ['mantenimiento', 'Mantenimiento y llantas'],
+    ['resumen', 'Resumen'], ['historial', 'Historial'], ['km', 'Kilometraje'], ['seguro', 'Seguro'], ['mantenimiento', 'Mantenimiento y llantas'],
     ['incidentes', `Incidentes (${incidents.length})`], ['inspecciones', `Inspecciones (${inspections.length})`],
     ...(seesFinance ? [['finanzas', 'Rentabilidad'] as [Tab, string]] : []),
   ]
@@ -138,6 +143,7 @@ export default function VehicleDetail() {
               <dt>Placas</dt><dd>{v.plates}</dd>
               <dt>Color</dt><dd>{v.color}</dd>
               <dt>VIN / serie</dt><dd>{v.vin}</dd>
+              <dt>Seguro</dt><dd><button className="link" onClick={() => setTab('seguro')}><StatusBadge value={ins.level} /></button> <span className="small muted">{insuranceText(ins)}{(ins.current ?? ins.last) && ` · ${(ins.current ?? ins.last)!.insurer}`}</span></dd>
               <dt>Notas</dt><dd>{v.notes || <span className="muted">—</span>}</dd>
             </dl>
           </Card>
@@ -177,6 +183,8 @@ export default function VehicleDetail() {
           </table>
         </Card>
       )}
+
+      {tab === 'seguro' && <VehicleInsurance vehicle={v} />}
 
       {tab === 'mantenimiento' && (
         <div className="grid-2">

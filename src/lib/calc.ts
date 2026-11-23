@@ -1,5 +1,5 @@
 // Reglas de negocio derivadas. En producción vivirían en el backend (servicios/consultas SQL).
-import type { Data, DocType, Driver, GpsPosition, MileageRecord, Permission, Rental, Service, Vehicle } from '../data/types'
+import type { Coverage, Data, DocType, Driver, GpsPosition, MileageRecord, Permission, Policy, Rental, Service, Vehicle } from '../data/types'
 import { CURRENT_MONDAY, TODAY, addDays, diffDays, fecha } from './format'
 
 export const MAINTENANCE_INTERVAL = 10000
@@ -137,6 +137,49 @@ export function driverWarnings(d: Data, dr: Driver): string[] {
   return out
 }
 
+// ---------- Seguros ----------
+/** Días antes del vencimiento en que empieza el aviso. */
+export const INSURANCE_WARN_DAYS = 30
+export type InsuranceLevel = 'vigente' | 'por_vencer' | 'vencida' | 'sin_poliza'
+export const COVERAGE_LABEL: Record<Coverage, string> = { amplia: 'Amplia', limitada: 'Limitada', rc: 'Responsabilidad civil', otra: 'Otra' }
+
+/**
+ * Seguro de un coche hoy. `current`: la póliza vigente; `until`: hasta cuándo está cubierto contando las renovaciones
+ * ya registradas (una póliza que empieza a más tardar el día siguiente de que termina la otra); `days`: días que faltan.
+ * Sin póliza vigente: `last` es la última que tuvo y `next` una que todavía no empieza.
+ */
+export function insuranceStatus(d: Pick<Data, 'policies'>, vehicleId: string, today = TODAY) {
+  const list = d.policies.filter((p) => p.vehicleId === vehicleId && !p.voided)
+  const byEnd = [...list].sort((a, b) => (a.end < b.end ? 1 : -1))
+  const current = byEnd.find((p) => p.start <= today && p.end >= today)
+  const last = byEnd.find((p) => p.end < today)
+  const next = [...list].sort((a, b) => (a.start < b.start ? -1 : 1)).find((p) => p.start > today)
+  if (!current) {
+    const level: InsuranceLevel = list.some((p) => p.start <= today) ? 'vencida' : 'sin_poliza'
+    return { level, current, last, next, until: undefined as string | undefined, days: undefined as number | undefined, renewal: undefined as Policy | undefined }
+  }
+  let until = current.end
+  let renewal: Policy | undefined
+  for (let grew = true; grew;) {
+    grew = false
+    const p = list.find((x) => x.start <= addDays(until, 1) && x.end > until)
+    if (p) { until = p.end; renewal ??= p; grew = true }
+  }
+  const days = diffDays(until, today)
+  const level: InsuranceLevel = days <= INSURANCE_WARN_DAYS ? 'por_vencer' : 'vigente'
+  return { level, current, last, next, until, days, renewal }
+}
+export type InsuranceStatus = ReturnType<typeof insuranceStatus>
+
+const enDias = (d: number) => (d === 0 ? 'hoy' : `en ${d} día${d === 1 ? '' : 's'}`)
+
+/** "Vigente hasta el 3 dic 2026 (en 10 días)", "Vencido desde el 1 nov 2026", "Sin póliza registrada". */
+export function insuranceText(s: InsuranceStatus) {
+  if (s.level === 'sin_poliza') return s.next ? `Sin seguro hasta el ${fecha(s.next.start)}` : 'Sin póliza registrada'
+  if (s.level === 'vencida') return `Vencido desde el ${fecha(addDays(s.last!.end, 1))}${s.next ? ` · la nueva empieza el ${fecha(s.next.start)}` : ''}`
+  return `Vigente hasta el ${fecha(s.until!)}${s.level === 'por_vencer' ? ` (vence ${enDias(s.days!)})` : ''}`
+}
+
 /** Coches que siguen en la flota (los dados de baja solo cuentan para historial y finanzas). */
 export const inFleet = (v: Vehicle) => v.status !== 'baja'
 
@@ -148,6 +191,16 @@ export function alerts(d: Data) {
     if (m.level === 'vencido') out.push({ level: 'alta', text: `${carName(v)} ${v.plates}: servicio vencido (${m.since.toLocaleString('es-MX')} km desde el último${m.by === 'orion' ? ', según Orión' : ''})`, to: `/flota/${v.id}` })
     else if (m.level === 'proximo') out.push({ level: 'media', text: `${carName(v)} ${v.plates}: servicio en ${m.remaining.toLocaleString('es-MX')} km${m.by === 'orion' ? ' según Orión' : ''}`, to: `/flota/${v.id}` })
   })
+  const uninsured: Vehicle[] = []
+  d.vehicles.filter(inFleet).forEach((v) => {
+    const s = insuranceStatus(d, v.id)
+    const to = `/flota/${v.id}?tab=seguro`
+    if (s.level === 'sin_poliza') uninsured.push(v)
+    else if (s.level === 'vencida') out.push({ level: 'alta', text: `${carName(v)} ${v.plates}: seguro vencido desde el ${fecha(addDays(s.last!.end, 1))}${activeRentalOf(d, v.id) ? ' y está rentado' : ''}`, to })
+    else if (s.level === 'por_vencer') out.push({ level: 'media', text: `${carName(v)} ${v.plates}: el seguro vence ${enDias(s.days!)} (${fecha(s.until!)})`, to })
+  })
+  if (uninsured.length === 1) out.push({ level: 'media', text: `${carName(uninsured[0])} ${uninsured[0].plates}: no tiene póliza de seguro registrada`, to: `/flota/${uninsured[0].id}?tab=seguro` })
+  else if (uninsured.length) out.push({ level: 'media', text: `${uninsured.length} coches sin póliza de seguro registrada`, to: '/seguros?estado=sin_poliza' })
   d.drivers.forEach((dr) => {
     const active = activeRentalOfDriver(d, dr.id)
     const ls = licenseStatus(dr)

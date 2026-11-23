@@ -18,7 +18,7 @@ const NOUN: Record<string, string> = {
   vehiculos: 'coche', llantas: 'llanta', conductores: 'conductor', referencias_conductor: 'referencia', documentos_conductor: 'documento',
   rentas: 'renta', cargos: 'cargo', pagos: 'pago', registros_km: 'lectura de km', tipos_servicio: 'tipo de servicio', servicios: 'servicio',
   incidentes: 'incidente', inspecciones: 'inspección', fotos: 'foto', gastos: 'gasto', usuarios: 'usuario',
-  plantillas_permisos: 'plantilla de permisos',
+  plantillas_permisos: 'plantilla de permisos', polizas: 'póliza',
 }
 const ALTA: Record<string, string> = {
   vehiculos: 'Dio de alta', conductores: 'Dio de alta', usuarios: 'Dio de alta', fotos: 'Agregó', documentos_conductor: 'Subió', cargos: 'Generó',
@@ -109,6 +109,10 @@ export function auditSubject(e: AuditEntry, d: Data): string {
     }
     case 'gastos': return d.expenses.find((x) => x.id === id)?.concept ?? str(r.concepto) ?? ''
     case 'usuarios': return L.user(id) ?? str(r.nombre) ?? ''
+    case 'polizas': {
+      const p = d.policies.find((x) => x.id === id)
+      return join(p ? `${p.insurer} ${p.number}` : join(str(r.aseguradora), str(r.numero)), L.vehicle(p?.vehicleId ?? r.vehiculo_id))
+    }
     case 'plantillas_permisos': return d.templates.find((t) => t.id === id)?.name ?? str(r.nombre) ?? ''
     default: return ''
   }
@@ -130,7 +134,9 @@ export function relatedIds(q: string, d: Data, max = 40): string[] {
 // ---------- Campos ----------
 
 const FIELD_LABEL: Record<string, string> = {
-  activo: 'Activo', anio: 'Año', anio_dot: 'Año DOT', archivo_id: 'Archivo', cancelado_en: 'Cancelado el', cancelado_por: 'Canceló',
+  activo: 'Activo', aseguradora: 'Aseguradora', autorizo: 'Autorizó', cobertura: 'Cobertura', numero: 'Número de póliza', poliza_id: 'Póliza',
+  telefono_siniestros: 'Teléfono de siniestros', vigencia_inicio: 'Vigencia desde', vigencia_fin: 'Vigencia hasta', km_orion: 'Km Orión',
+  motivo_veto: 'Motivo (lista negra)', vetado_en: 'En lista negra desde', vetado_por: 'Agregó a lista negra', anio: 'Año', anio_dot: 'Año DOT', archivo_id: 'Archivo', cancelado_en: 'Cancelado el', cancelado_por: 'Canceló',
   categoria: 'Categoría', cerrado_en: 'Cerrado el', cerrado_por: 'Cerró', color: 'Color', combustible: 'Combustible', con_danio: 'Con daño',
   concepto: 'Concepto', conductor_id: 'Conductor', correo: 'Correo', costo: 'Costo', creada_por: 'Creó', creado_en: 'Creado el', creado_por: 'Creó',
   curp: 'CURP', deposito: 'Depósito', deposito_estado: 'Estado del depósito', descripcion: 'Descripción', domicilio: 'Domicilio', estado: 'Estado',
@@ -149,7 +155,7 @@ const fieldLabel = (k: string) => FIELD_LABEL[k] ?? (k.charAt(0).toUpperCase() +
 
 const MONEY = new Set(['monto', 'tarifa_semanal', 'deposito', 'precio_compra', 'costo'])
 const KM = new Set(['km', 'km_entrega', 'km_devolucion', 'km_instalacion', 'km_retiro'])
-const USER_REF = new Set(['registrado_por', 'creada_por', 'creado_por', 'finalizada_por', 'cancelado_por', 'cerrado_por', 'subido_por'])
+const USER_REF = new Set(['registrado_por', 'creada_por', 'creado_por', 'finalizada_por', 'cancelado_por', 'cerrado_por', 'subido_por', 'vetado_por'])
 // Los ids propios no dicen nada a quien lee; el registro ya está en la columna "Sobre".
 const HIDDEN = new Set(['id'])
 
@@ -163,7 +169,7 @@ function formatValue(k: string, v: unknown, d: Data): string {
   if (USER_REF.has(k)) return L.user(v) ?? 'Usuario'
   if (k === 'tipo_servicio_id') return d.serviceTypes.find((t) => t.id === v)?.name ?? 'Tipo de servicio'
   if (k === 'archivo_id') return 'Archivo adjunto'
-  if (k === 'inspeccion_id' || k === 'incidente_id' || k === 'servicio_id') return 'Sí'
+  if (k === 'inspeccion_id' || k === 'incidente_id' || k === 'servicio_id' || k === 'poliza_id') return 'Sí'
   if (k === 'permisos' && Array.isArray(v)) return v.length ? v.map((p) => PERMISSIONS.find((x) => x.key === p)?.label ?? p).join(', ') : 'Ninguno'
   if (k === 'combustible') return fuelLabel(Number(v))
   if (k === 'tipo' && typeof v === 'string' && v in DOC_LABEL) return DOC_LABEL[v as DocType]

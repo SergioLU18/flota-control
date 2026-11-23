@@ -4,7 +4,7 @@ import { DEMO_TODAY as TODAY, addDays, mondayOf } from '../lib/format'
 import { COLOR_HEX, SHOPS } from './catalogs'
 import { ALL_PERMISSIONS, withRequired, type Permission } from './permissions'
 import type {
-  PermissionTemplate, AuditEntry, Charge, Data, Driver, Expense, GpsPosition, Incident, Inspection, MileageRecord, Payment, PhotoRef, Rental, Service, Tire, User, Vehicle,
+  PermissionTemplate, AuditEntry, Charge, Data, Driver, Expense, GpsPosition, Incident, Inspection, MileageRecord, Payment, PhotoRef, Policy, Rental, Service, Tire, User, Vehicle,
 } from './types'
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -36,9 +36,9 @@ const daysForKm = (k: number) => Math.round((k / KM_PER_WEEK) * 7)
 const KM_SINCE: Record<number, number> = { 1: 10450, 4: 11200, 6: 9300, 11: 9650, 18: 9100 }
 
 // Las mismas plantillas que siembra la migración 20261122000100_permisos_por_modulo.sql.
-const OPERADOR: Permission[] = withRequired(['flota.editar', 'conductores.editar', 'rentas.editar', 'cobranza.editar', 'mantenimiento.editar', 'incidentes.editar', 'inspecciones.editar'])
+const OPERADOR: Permission[] = withRequired(['flota.editar', 'flota.seguros', 'conductores.editar', 'rentas.editar', 'cobranza.editar', 'mantenimiento.editar', 'incidentes.editar', 'inspecciones.editar'])
 export const templates: PermissionTemplate[] = [
-  { id: 't1', name: 'Operador', description: 'Operación diaria: flota, conductores, rentas, cobranza, taller, incidentes e inspecciones.', permissions: OPERADOR, active: true },
+  { id: 't1', name: 'Operador', description: 'Operación diaria: flota y seguros, conductores, rentas, cobranza, taller, incidentes e inspecciones.', permissions: OPERADOR, active: true },
   { id: 't2', name: 'Consulta', description: 'Ve la operación diaria sin poder cambiar nada. Sin rentas, cobranza ni finanzas.',
     permissions: withRequired(['flota.ver', 'conductores.ver', 'mantenimiento.ver', 'incidentes.ver', 'inspecciones.ver']), active: true },
   { id: 't3', name: 'Contabilidad', description: 'Finanzas, cobranza y rentas, y la bitácora para revisar movimientos.',
@@ -223,10 +223,27 @@ const monthsFrom = (from: string) => {
   for (let m = from.slice(0, 7) + '-01'; m <= TODAY; m = addDays(m, 32).slice(0, 7) + '-01') out.push(m)
   return out
 }
+// Cada año, su póliza y el gasto con que se pagó. Para que se vean los avisos: C-3 se quedó sin renovar, C-5 vence
+// en unos días, C-9 ya tiene la renovación registrada y C-7 nunca tuvo póliza capturada.
+const policies: Policy[] = []
+const INSURERS = [['Qualitas', '800 800 2880'], ['GNP', '55 5227 9000'], ['HDI', '800 019 6000'], ['AXA', '800 900 1292']]
+const nextYear = (d: string) => `${Number(d.slice(0, 4)) + 1}${d.slice(4)}`
 vehicles.forEach((v, i) => {
-  for (let d = v.purchaseDate; d <= TODAY; d = `${Number(d.slice(0, 4)) + 1}${d.slice(4)}`) {
-    expenses.push({ id: `e-${v.id}-seg-${d}`, date: d, category: 'seguro', vehicleId: v.id, amount: 8500 + (i % 4) * 600, concept: 'Seguro anual de cobertura amplia', userId: 'u1' })
+  if (i === 6) return
+  for (let d = v.purchaseDate; d <= TODAY; d = nextYear(d)) {
+    const [insurer, claimsPhone] = INSURERS[i % 4]
+    const p: Policy = { id: `pol-${v.id}-${d}`, vehicleId: v.id, insurer, number: `${insurer.slice(0, 2).toUpperCase()}-${d.slice(0, 4)}-${pad(i + 1)}${pad(Number(d.slice(5, 7)))}`,
+      coverage: i % 5 === 3 ? 'limitada' : 'amplia', start: d, end: addDays(nextYear(d), -1), claimsPhone, notes: '', userId: 'u1' }
+    if (nextYear(d) > TODAY) {
+      if (i === 2) { p.start = addDays(TODAY, -380); p.end = addDays(TODAY, -15) }
+      if (i === 4) p.end = addDays(TODAY, 12)
+      if (i === 8) { p.end = addDays(TODAY, 20); policies.push({ ...p, id: `${p.id}-ren`, start: addDays(TODAY, 21), end: addDays(TODAY, 385), number: `${p.number}-R` }) }
+    }
+    policies.push(p)
+    expenses.push({ id: `e-${v.id}-seg-${d}`, date: d, category: 'seguro', vehicleId: v.id, amount: 8500 + (i % 4) * 600, concept: `Póliza ${p.insurer} ${p.number}`, userId: 'u1', policyId: p.id })
   }
+})
+vehicles.forEach((v) => {
   if (v.purchaseDate < '2026-02-15') expenses.push({ id: `e-${v.id}-ref`, date: '2026-02-15', category: 'refrendo', vehicleId: v.id, amount: 1150, concept: 'Refrendo vehicular 2026', userId: 'u2' })
   if (v.orionDeviceId) monthsFrom(addDays(v.purchaseDate, 31)).forEach((m) => {
     expenses.push({ id: `e-${v.id}-gps-${m}`, date: m, category: 'gps', vehicleId: v.id, amount: 280, concept: 'Mensualidad GPS Orión', userId: 'u2' })
@@ -316,7 +333,7 @@ export const audit: AuditEntry[] = auditRaw
   .map(({ t, ...a }, i, all) => ({ ...a, id: String(all.length - i), at: new Date(t).toISOString() }))
 
 export const seed: Data = {
-  users, vehicles, drivers, rentals, charges, payments, mileage, services, incidents, inspections, expenses, templates,
+  users, vehicles, drivers, rentals, charges, payments, mileage, services, incidents, inspections, expenses, templates, policies,
   orion: { status: 'conectado', lastSync: `${TODAY}T11:56:00-06:00`, syncs: [] },
   // Posiciones de ejemplo: el odómetro de Orión va adelante del km capturado (o atrás, en los que se instaló tarde).
   gps: [

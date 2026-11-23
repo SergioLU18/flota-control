@@ -4,12 +4,12 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore, type NewTire } from '../data/store'
 import { COLOR_HEX, SHOPS } from '../data/catalogs'
-import type { Charge, DocType, Driver, Expense, Service, ExpenseCategory, Incident, MileageRecord, PaymentMethod, PhotoRef, Rental, ServiceType, Tire, Vehicle } from '../data/types'
+import type { Charge, Coverage, DocType, Driver, Expense, Service, ExpenseCategory, Incident, MileageRecord, PaymentMethod, PhotoRef, Policy, Rental, ServiceType, Tire, Vehicle } from '../data/types'
 import { EXPENSE_LABEL } from '../lib/finance'
-import { DOC_LABEL, REQUIRED_DOCS, activeRentalOf, activeRentalOfDriver, blacklistMatches, carName, depositLeft, driverWarnings, inFleet, rentalBalance, vehicleLabel } from '../lib/calc'
+import { COVERAGE_LABEL, DOC_LABEL, REQUIRED_DOCS, activeRentalOf, activeRentalOfDriver, blacklistMatches, carName, depositLeft, driverWarnings, inFleet, insuranceStatus, insuranceText, rentalBalance, vehicleLabel } from '../lib/calc'
 import { DatePicker, Select, type Option } from './pickers'
 import { can } from '../data/permissions'
-import { TODAY, fecha, fuelLabel, km, mxn } from '../lib/format'
+import { TODAY, addDays, fecha, fuelLabel, km, mxn } from '../lib/format'
 import { Field, Photo } from './ui'
 import { compressImage } from '../lib/files'
 import { Icon } from './Icon'
@@ -238,6 +238,7 @@ export function StartRentalForm({ vehicleId, driverId, onDone }: { vehicleId?: s
           options={eligible.map((x) => ({ value: x.id, label: x.name, hint: x.phone }))} />
       </Field>
       <DriverWarnings driver={driver} />
+      <InsuranceWarning vehicleId={v?.id} />
       <Field label="Fecha de inicio"><DatePicker label="Fecha de inicio" value={f.startDate} onChange={(startDate) => setF({ ...f, startDate })} /></Field>
       {v ? <KmInput label="Km de entrega" vehicle={v} value={f.startKm} onChange={(startKm) => setF({ ...f, startKm })} /> : <Field label="Km de entrega"><input disabled /></Field>}
       <Field label="Tarifa semanal (MXN)"><input inputMode="numeric" value={f.weeklyRate} onChange={(e) => setF({ ...f, weeklyRate: num(e.target.value) })} /></Field>
@@ -791,5 +792,116 @@ export function ServiceTypeForm({ type, onDone }: { type?: ServiceType; onDone: 
       <label className="check field-full"><input type="checkbox" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} /> Activo (desactivado ya no se ofrece al registrar servicios; el historial se conserva)</label>
       {/llanta/i.test(f.name) && <p className="field-full muted small">Los tipos con "llanta" en el nombre piden las posiciones, marca y año DOT de las llantas nuevas.</p>}
     </FormShell>
+  )
+}
+
+// ---------- Seguros (permiso "flota.seguros") ----------
+const oneYear = (start: string) => addDays(`${Number(start.slice(0, 4)) + 1}${start.slice(4)}`, -1)
+const COMMON_INSURERS = ['Qualitas', 'GNP', 'HDI', 'AXA', 'Chubb', 'Mapfre', 'Banorte', 'Zurich', 'Atlas', 'Afirme']
+
+/** Aviso (no bloquea) al rentar un coche sin seguro vigente. */
+function InsuranceWarning({ vehicleId }: { vehicleId?: string }) {
+  const { data } = useStore()
+  if (!vehicleId) return null
+  const s = insuranceStatus(data, vehicleId)
+  if (s.level === 'vigente') return null
+  return (
+    <div className={`banner ${s.level === 'por_vencer' ? 'banner-amber' : 'banner-red'} field-full`} style={{ margin: 0 }}>
+      <span><b>Seguro:</b> {insuranceText(s)}.{s.level !== 'por_vencer' && ' Se puede rentar, pero el coche saldría sin seguro.'}</span>
+    </div>
+  )
+}
+
+/**
+ * Alta de una póliza, renovación (`renew`: copia aseguradora, cobertura y teléfono, y empieza al día siguiente de que
+ * termina) o edición (`policy`, con opción de cancelarla con motivo: no se borran).
+ */
+export function PolicyForm({ vehicleId, policy, renew, onDone }: { vehicleId?: string; policy?: Policy; renew?: Policy; onDone: () => void }) {
+  const { data, user, savePolicy, voidPolicy } = useStore()
+  const base = policy ?? renew
+  const start = policy?.start ?? (renew ? (renew.end >= TODAY ? addDays(renew.end, 1) : TODAY) : TODAY)
+  const [f, setF] = useState({
+    vehicleId: base?.vehicleId ?? vehicleId ?? '', insurer: base?.insurer ?? '', number: policy?.number ?? '',
+    coverage: base?.coverage ?? ('amplia' as Coverage), start, end: policy?.end ?? oneYear(start),
+    claimsPhone: base?.claimsPhone ?? '', notes: policy?.notes ?? '',
+  })
+  const [file, setFile] = useState<File | null>(null)
+  const canPay = !policy && can(user, 'finanzas.editar')
+  const [pay, setPay] = useState({ on: canPay, amount: 0, date: start, authorizedBy: '' })
+  const [error, setError] = useState('')
+  const [voiding, setVoiding] = useState(false)
+  const [reason, setReason] = useState('')
+  const insurers = [...new Set([...data.policies.map((p) => p.insurer), ...COMMON_INSURERS])]
+  // Al mover el inicio, el fin se mueve con él mientras siga siendo "un año" (si ya lo cambiaron a mano, se respeta).
+  const setStart = (s: string) => setF({ ...f, start: s, end: f.end === oneYear(f.start) || f.end <= s ? oneYear(s) : f.end })
+  const voidIt = () => {
+    if (!reason.trim()) return setError('Escribe el motivo de la cancelación.')
+    voidPolicy(policy!.id, reason.trim()).then(onDone, (e: Error) => setError(e.message))
+  }
+
+  return (
+    <>
+      <FormShell submit={policy ? 'Guardar cambios' : renew ? 'Registrar renovación' : 'Registrar póliza'} error={error} onSubmit={async () => {
+        if (!f.vehicleId) return setError('Elige el coche.')
+        if (!f.insurer.trim() || !f.number.trim()) return setError('Escribe la aseguradora y el número de póliza.')
+        if (f.end <= f.start) return setError('El fin de la vigencia debe ser después del inicio.')
+        if (file && file.size > 10 * 1024 * 1024) return setError('El archivo pesa más de 10 MB.')
+        if (pay.on && canPay && pay.amount <= 0) return setError('Escribe lo que costó el seguro, o desmarca "Registrar el pago".')
+        if (pay.on && canPay && !pay.authorizedBy.trim()) return setError('Escribe quién autorizó el pago.')
+        setError('')
+        await savePolicy({ id: policy?.id, vehicleId: f.vehicleId, insurer: f.insurer, number: f.number, coverage: f.coverage, start: f.start, end: f.end, claimsPhone: f.claimsPhone, notes: f.notes },
+          file ?? undefined, pay.on && canPay ? { amount: pay.amount, date: pay.date, authorizedBy: pay.authorizedBy } : undefined)
+        onDone()
+      }}>
+        {!vehicleId && !base && (
+          <Field label="Coche" full>
+            <Select label="Coche" value={f.vehicleId} onChange={(id) => setF({ ...f, vehicleId: id })} placeholder="Elige el coche…" searchable
+              options={vehicleOptions(data.vehicles.filter(inFleet))} />
+          </Field>
+        )}
+        <Field label="Aseguradora">
+          <input list="aseguradoras" value={f.insurer} onChange={(e) => setF({ ...f, insurer: e.target.value })} placeholder="Ej. Qualitas" />
+          <datalist id="aseguradoras">{insurers.map((n) => <option key={n} value={n} />)}</datalist>
+        </Field>
+        <Field label="Número de póliza"><input value={f.number} onChange={(e) => setF({ ...f, number: e.target.value })} /></Field>
+        <Field label="Cobertura">
+          <Select<Coverage> label="Cobertura" value={f.coverage} onChange={(coverage) => setF({ ...f, coverage })}
+            options={(Object.keys(COVERAGE_LABEL) as Coverage[]).map((c) => ({ value: c, label: COVERAGE_LABEL[c] }))} />
+        </Field>
+        <Field label="Teléfono de siniestros" hint="Al que se llama si hay un choque">
+          <input inputMode="tel" value={f.claimsPhone} onChange={(e) => setF({ ...f, claimsPhone: e.target.value })} placeholder="Ej. 800 800 2880" />
+        </Field>
+        <Field label="Vigencia desde"><DatePicker label="Vigencia desde" value={f.start} onChange={setStart} /></Field>
+        <Field label="Vigencia hasta" hint="Último día cubierto"><DatePicker label="Vigencia hasta" value={f.end} min={addDays(f.start, 1)} onChange={(end) => setF({ ...f, end })} /></Field>
+        <Field label={policy?.fileKey ? 'Reemplazar archivo de la póliza' : 'Archivo de la póliza'} full
+          hint={policy?.fileKey ? 'Si no eliges otro, se queda el que tiene' : 'PDF o foto. Si aún no lo tienes, se puede subir después'}>
+          <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp,image/heic" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        </Field>
+        <Field label="Notas" full><input value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="Ej. deducible 5%, agente, forma de pago" /></Field>
+        {canPay && <>
+          <label className="check field-full"><input type="checkbox" checked={pay.on} onChange={(e) => setPay({ ...pay, on: e.target.checked })} /> Registrar el pago como gasto de seguro (Finanzas)</label>
+          {pay.on && <>
+            <Field label="Costo (MXN)"><input inputMode="numeric" value={pay.amount || ''} onChange={(e) => setPay({ ...pay, amount: num(e.target.value) })} /></Field>
+            <Field label="Fecha del pago"><DatePicker label="Fecha del pago" value={pay.date} onChange={(date) => setPay({ ...pay, date })} /></Field>
+            <Field label="Autorizó" hint="Nombre de quien aprobó el pago">
+              <input list="autorizo-poliza" value={pay.authorizedBy} onChange={(e) => setPay({ ...pay, authorizedBy: e.target.value })} placeholder="Ej. Jorge Pech" />
+              <datalist id="autorizo-poliza">
+                {[...new Set([...data.users.filter((u) => u.active).map((u) => u.name), ...data.expenses.map((x) => x.authorizedBy).filter(Boolean) as string[]])].map((n) => <option key={n} value={n} />)}
+              </datalist>
+            </Field>
+          </>}
+        </>}
+        {policy && <p className="field-full muted small">Para una nueva vigencia usa "Renovar": así esta póliza se queda en el historial. Lo que costó se corrige en Finanzas.</p>}
+      </FormShell>
+      {policy && (
+        <div className="form-danger-zone">
+          {voiding ? <>
+            <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Motivo (obligatorio): se capturó en otro coche, la aseguradora la canceló…" autoFocus />
+            <button className="btn btn-sm" onClick={() => setVoiding(false)}>No</button>
+            <button className="btn btn-sm btn-danger" onClick={voidIt}>Cancelar póliza</button>
+          </> : <button className="btn btn-sm btn-ghost" onClick={() => setVoiding(true)}>Cancelar póliza</button>}
+        </div>
+      )}
+    </>
   )
 }

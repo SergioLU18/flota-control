@@ -60,6 +60,26 @@ export interface Vehicle {
   tires: Tire[]
 }
 
+export type Coverage = 'amplia' | 'limitada' | 'rc' | 'otra'
+
+/** Póliza de seguro de un coche. Al renovar se registra otra; nada se borra (se cancela con motivo). */
+export interface Policy {
+  id: string
+  vehicleId: string
+  insurer: string
+  number: string
+  coverage: Coverage
+  start: string
+  /** Último día de vigencia. */
+  end: string
+  claimsPhone: string
+  notes: string
+  /** PDF o foto de la póliza en el bucket; la URL firmada se pide al abrirlo. */
+  fileKey?: string
+  userId: string
+  voided?: { reason: string; userId: string; at: string }
+}
+
 export type DocType = 'ine' | 'licencia' | 'no_penales' | 'domicilio' | 'referencias'
 
 export interface DriverDocument {
@@ -217,6 +237,8 @@ export interface Expense {
   userId: string
   /** Quién autorizó el gasto (un nombre, no necesariamente un usuario). */
   authorizedBy?: string
+  /** Póliza que se pagó con este gasto. */
+  policyId?: string
   /** Los gastos no se borran: se cancelan con motivo y dejan de contar. */
   voided?: { reason: string; userId: string; at: string }
 }
@@ -307,4 +329,5 @@ export interface Data {
   gps: GpsPosition[]
   serviceTypes: ServiceType[]
   templates: PermissionTemplate[]
+  policies: Policy[]
 }

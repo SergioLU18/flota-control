@@ -9,6 +9,7 @@ import Login, { Pending, Splash } from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Vehicles from './pages/Vehicles'
 import VehicleDetail from './pages/VehicleDetail'
+import Insurance from './pages/Insurance'
 import Drivers from './pages/Drivers'
 import DriverDetail from './pages/DriverDetail'
 import Rentals from './pages/Rentals'
@@ -30,6 +31,7 @@ import './lib/theme'
 const PAGES: Record<string, { path: string; element: ReactNode }[]> = {
   dashboard: [{ path: '', element: <Dashboard /> }],
   flota: [{ path: 'flota', element: <Vehicles /> }, { path: 'flota/:id', element: <VehicleDetail /> }],
+  seguros: [{ path: 'seguros', element: <Insurance /> }],
   conductores: [{ path: 'conductores', element: <Drivers /> }, { path: 'conductores/:id', element: <DriverDetail /> }],
   rentas: [{ path: 'rentas', element: <Rentals /> }],
   cobranza: [{ path: 'cobranza', element: <Billing /> }],

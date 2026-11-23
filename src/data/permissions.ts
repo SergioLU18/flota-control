@@ -23,6 +23,7 @@ export const PERMISSIONS = [
   { key: 'flota.ver', module: 'flota', label: 'Ver', requires: [], hint: 'Lista de coches y su expediente con todo su historial' },
   { key: 'flota.editar', module: 'flota', label: 'Editar', requires: ['flota.ver'], hint: 'Alta y edición de coches y mandarlos a taller' },
   { key: 'flota.baja', module: 'flota', label: 'Dar de baja', requires: ['flota.editar'], hint: 'Dar de baja un coche de la flota o reactivarlo' },
+  { key: 'flota.seguros', module: 'flota', label: 'Seguros', requires: ['flota.ver'], hint: 'Registrar, renovar y cancelar pólizas de seguro y subir su PDF' },
   { key: 'conductores.ver', module: 'conductores', label: 'Ver', requires: [], hint: 'Expediente del conductor: contacto, licencia, documentos y referencias' },
   { key: 'conductores.editar', module: 'conductores', label: 'Editar', requires: ['conductores.ver'], hint: 'Alta y edición de conductores y sus documentos' },
   { key: 'conductores.lista_negra', module: 'conductores', label: 'Lista negra', requires: ['conductores.editar'], hint: 'Agregar o quitar a un conductor de la lista negra, con motivo (ya no se le puede rentar)' },

@@ -20,6 +20,8 @@ export const MODULES: ModuleInfo[] = [
     summary: 'Resumen del día: coches por estado, ingresos de la semana y del mes, adeudos, próximos mantenimientos y avisos internos.' },
   { key: 'flota', path: '/flota', label: 'Flota', icon: 'car', anchor: '2-flota-vehículos', perm: 'flota.ver',
     summary: 'Alta y edición de coches, estado (disponible, rentado o en taller) y expediente completo de cada coche con todo su historial.' },
+  { key: 'seguros', path: '/seguros', label: 'Seguros', icon: 'umbrella', anchor: '21-seguros', perm: 'flota.ver',
+    summary: 'Pólizas de cada coche con su PDF, aseguradora, vigencia y teléfono de siniestros, y aviso 30 días antes de que venza cada una.' },
   { key: 'conductores', path: '/conductores', label: 'Conductores', icon: 'user', anchor: '3-conductores', perm: 'conductores.ver',
     summary: 'Expediente del conductor: contacto, licencia, documentos, referencias, coches que ha rentado y estado de cuenta.' },
   { key: 'rentas', path: '/rentas', label: 'Rentas', icon: 'key', anchor: '4-rentas', perm: 'rentas.ver',

@@ -6,7 +6,7 @@ import type { AuditEntry, AuditFilter, AuditOp, Data, DocType, Driver, GpsPositi
 
 export const EMPTY: Data = {
   users: [], vehicles: [], drivers: [], rentals: [], charges: [], payments: [], mileage: [], services: [],
-  incidents: [], inspections: [], expenses: [], orion: { status: 'pendiente', syncs: [] }, gps: [], serviceTypes: [], templates: [],
+  incidents: [], inspections: [], expenses: [], orion: { status: 'pendiente', syncs: [] }, gps: [], serviceTypes: [], templates: [], policies: [],
 }
 
 const DOC_TYPES: DocType[] = ['ine', 'licencia', 'no_penales', 'domicilio', 'referencias']
@@ -61,7 +61,7 @@ export async function loadData(): Promise<Data> {
   const fotos = 'fotos(id, etiqueta, con_danio, orden, archivos(clave))'
   const [
     usuarios, vehiculos, llantas, conductores, rentasBasicas, rentas, cargos, pagos, km, servicios,
-    incidentes, inspecciones, gastos, orion, tipos, precios, gps, plantillas,
+    incidentes, inspecciones, gastos, orion, tipos, precios, gps, plantillas, polizas,
   ] = await Promise.all([
     all((a, b) => supabase.from('usuarios').select('id, nombre, correo, rol, permisos, activo').order('nombre').range(a, b)),
     // Sin precio_compra: solo lo lee quien tiene el permiso de finanzas, con precios_compra().
@@ -85,6 +85,7 @@ export async function loadData(): Promise<Data> {
     supabase.rpc('precios_compra').then(must),
     loadGps(),
     supabase.from('plantillas_permisos').select('*').order('orden').then(must),
+    all((a, b) => supabase.from('polizas').select('*, archivos(clave)').order('id').range(a, b)),
   ])
   const precio = new Map(precios.map((p) => [p.vehiculo_id, p.precio_compra ?? 0]))
 
@@ -177,7 +178,7 @@ export async function loadData(): Promise<Data> {
     })),
     expenses: gastos.map((e) => ({
       id: e.id, date: e.fecha, category: e.categoria as Data['expenses'][number]['category'], vehicleId: e.vehiculo_id ?? undefined,
-      amount: e.monto, concept: e.concepto, userId: e.registrado_por ?? '', authorizedBy: e.autorizo ?? undefined,
+      amount: e.monto, concept: e.concepto, userId: e.registrado_por ?? '', authorizedBy: e.autorizo ?? undefined, policyId: e.poliza_id ?? undefined,
       voided: e.cancelado_en ? { reason: e.motivo_cancelacion ?? '', userId: e.cancelado_por ?? '', at: e.cancelado_en } : undefined,
     })),
     orion: orionState(orion, gps),
@@ -185,6 +186,12 @@ export async function loadData(): Promise<Data> {
     serviceTypes: tipos.map((t) => ({ id: t.id, name: t.nombre, resetsCounter: t.reinicia_contador, hint: t.descripcion, active: t.activo, order: t.orden })),
     templates: plantillas.map((t) => ({
       id: t.id, name: t.nombre, description: t.descripcion, permissions: t.permisos as User['permissions'], active: t.activa,
+    })),
+    policies: polizas.map((p) => ({
+      id: p.id, vehicleId: p.vehiculo_id, insurer: p.aseguradora, number: p.numero, coverage: p.cobertura as Data['policies'][number]['coverage'],
+      start: p.vigencia_inicio, end: p.vigencia_fin, claimsPhone: p.telefono_siniestros, notes: p.notas, fileKey: p.archivos?.clave,
+      userId: p.registrado_por ?? '',
+      voided: p.cancelado_en ? { reason: p.motivo_cancelacion ?? '', userId: p.cancelado_por ?? '', at: p.cancelado_en } : undefined,
     })),
   }
 }

@@ -399,6 +399,7 @@ export type Database = {
           id: string
           monto: number
           motivo_cancelacion: string | null
+          poliza_id: string | null
           registrado_por: string | null
           vehiculo_id: string | null
         }
@@ -414,6 +415,7 @@ export type Database = {
           id?: string
           monto: number
           motivo_cancelacion?: string | null
+          poliza_id?: string | null
           registrado_por?: string | null
           vehiculo_id?: string | null
         }
@@ -429,10 +431,18 @@ export type Database = {
           id?: string
           monto?: number
           motivo_cancelacion?: string | null
+          poliza_id?: string | null
           registrado_por?: string | null
           vehiculo_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "gastos_poliza_id_fkey"
+            columns: ["poliza_id"]
+            isOneToOne: false
+            referencedRelation: "polizas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "gastos_registrado_por_fkey"
             columns: ["registrado_por"]
@@ -912,6 +922,92 @@ export type Database = {
           permisos?: string[]
         }
         Relationships: []
+      }
+      polizas: {
+        Row: {
+          actualizado_en: string
+          archivo_id: string | null
+          aseguradora: string
+          cancelado_en: string | null
+          cancelado_por: string | null
+          cobertura: string
+          creado_en: string
+          id: string
+          motivo_cancelacion: string | null
+          notas: string
+          numero: string
+          registrado_por: string | null
+          telefono_siniestros: string
+          vehiculo_id: string
+          vigencia_fin: string
+          vigencia_inicio: string
+        }
+        Insert: {
+          actualizado_en?: string
+          archivo_id?: string | null
+          aseguradora: string
+          cancelado_en?: string | null
+          cancelado_por?: string | null
+          cobertura?: string
+          creado_en?: string
+          id?: string
+          motivo_cancelacion?: string | null
+          notas?: string
+          numero: string
+          registrado_por?: string | null
+          telefono_siniestros?: string
+          vehiculo_id: string
+          vigencia_fin: string
+          vigencia_inicio: string
+        }
+        Update: {
+          actualizado_en?: string
+          archivo_id?: string | null
+          aseguradora?: string
+          cancelado_en?: string | null
+          cancelado_por?: string | null
+          cobertura?: string
+          creado_en?: string
+          id?: string
+          motivo_cancelacion?: string | null
+          notas?: string
+          numero?: string
+          registrado_por?: string | null
+          telefono_siniestros?: string
+          vehiculo_id?: string
+          vigencia_fin?: string
+          vigencia_inicio?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "polizas_archivo_id_fkey"
+            columns: ["archivo_id"]
+            isOneToOne: false
+            referencedRelation: "archivos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_cancelado_por_fkey"
+            columns: ["cancelado_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_registrado_por_fkey"
+            columns: ["registrado_por"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "polizas_vehiculo_id_fkey"
+            columns: ["vehiculo_id"]
+            isOneToOne: false
+            referencedRelation: "vehiculos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       referencias_conductor: {
         Row: {
@@ -1651,6 +1747,14 @@ export type Database = {
       rol_actual: { Args: never; Returns: string }
       tiene_alguno: { Args: { p_permisos: string[] }; Returns: boolean }
       tiene_permiso: { Args: { p_permiso: string }; Returns: boolean }
+      guardar_poliza: {
+        Args: { p_datos: Json; p_gasto?: Json; p_id: string | null }
+        Returns: string
+      }
+      cancelar_poliza: {
+        Args: { p_id: string; p_motivo: string }
+        Returns: undefined
+      }
       vetar_conductor: {
         Args: { p_conductor_id: string; p_motivo: string }
         Returns: undefined

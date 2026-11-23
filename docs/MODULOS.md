@@ -20,7 +20,7 @@ Este documento explica qué hace cada módulo y qué reglas sigue. Cada sección
 
 | Módulo | Ver | Editar | Acciones especiales |
 |---|---|---|---|
-| Flota | Lista de coches y su expediente | Alta, edición y mandar a taller | Dar de baja o reactivar |
+| Flota | Lista de coches, su expediente y sus pólizas de seguro | Alta, edición y mandar a taller | Dar de baja o reactivar · Seguros (registrar, renovar y cancelar pólizas) |
 | Conductores | Expediente, documentos y referencias | Alta, edición y documentos | Lista negra |
 | Rentas | Rentas con tarifa y depósito | Iniciar y finalizar rentas, resolver el depósito | Cambiar tarifa y depósito de una renta activa |
 | Cobranza | Cargos, pagos y saldos | Registrar pagos, cargos extra y generar las semanas | Cancelar pagos · Corregir o cancelar cargos |
@@ -36,7 +36,7 @@ Editar incluye ver, y cada acción especial incluye editar: al marcar una, la ap
 
 **Lo que ve todo el personal activo**, sin permisos: el dashboard (con las tarjetas de los módulos que tiene), la documentación y los datos básicos que usan todos los módulos: coches (sin precio de compra), conductores, kilometraje, catálogos y qué coche tiene cada conductor (sin tarifa ni depósito). Las tarifas, los saldos, los pagos y las finanzas solo los ve quien tiene el permiso de ese módulo.
 
-**Nada se borra:** lo capturado mal se corrige o se cancela con motivo (pagos, cargos, gastos y lecturas de km), y lo que ya no se usa se desactiva (usuarios, plantillas y tipos de servicio). Todo queda en la bitácora.
+**Nada se borra:** lo capturado mal se corrige o se cancela con motivo (pagos, cargos, gastos, pólizas y lecturas de km), y lo que ya no se usa se desactiva (usuarios, plantillas y tipos de servicio). Todo queda en la bitácora.
 
 Reglas: nadie otorga un permiso que no tiene (ni lo pone en una plantilla), nadie cambia sus propios permisos ni se desactiva, y solo un superadmin nombra o toca a otro superadmin.
 
@@ -54,10 +54,32 @@ Reglas: nadie otorga un permiso que no tiene (ni lo pone en una plantilla), nadi
 - Vista de detalle con pestañas.
   - *Resumen*: renta actual, estado del mantenimiento, km capturado junto al km de Orión, mapa con su ubicación y datos del coche.
   - *Historial*: la historia del vehículo en una sola línea de tiempo (rentas, devoluciones, servicios, incidentes e inspecciones).
-  - *Kilometraje*, *Mantenimiento y llantas*, *Incidentes* e *Inspecciones*.
+  - *Kilometraje*, *Seguro*, *Mantenimiento y llantas*, *Incidentes* e *Inspecciones*.
 - **Precio de compra**: solo lo ve y lo captura quien tiene el permiso de Finanzas.
 - **Rentabilidad** (permiso Finanzas · ver): ingresos, costos, utilidad acumulada, ocupación y qué porcentaje de su precio de compra ya recuperó. Ver el módulo 11.
 - Llantas actuales por posición, con marca, año DOT y km de instalación. Se registran con un servicio de "Cambio de llantas"; las que se quitan quedan en el historial como retiradas.
+
+### 2.1 Seguros
+
+**Para qué sirve:** que ningún coche ande sin seguro y tener a la mano la póliza cuando hay un siniestro.
+
+**Qué hace**
+- Cada coche tiene sus **pólizas**: aseguradora, número, cobertura (amplia, limitada, responsabilidad civil u otra), vigencia, teléfono de siniestros, notas y el **archivo de la póliza** (PDF o foto, hasta 10 MB). El archivo se puede subir después.
+- **Renovar** crea una póliza nueva con los datos de la anterior y la vigencia del año siguiente; la anterior se queda en el historial del coche.
+- La pantalla **Seguros** (menú) lista toda la flota con lo urgente primero: vencidos, sin póliza, por vencer y vigentes. Se filtra, se busca y se exporta a Excel.
+- En el expediente del coche, la pestaña *Seguro* muestra la póliza vigente y el historial de pólizas, y el *Resumen* dice si está vigente.
+- Al registrar una póliza, quien tiene el permiso de Finanzas (editar) puede capturar en el mismo paso lo que costó y quién lo autorizó: se guarda como gasto de seguro ligado a la póliza.
+
+**Avisos (dashboard)**
+- **Por vencer**: 30 días antes del último día de vigencia, si no hay una renovación registrada que empiece a más tardar al día siguiente.
+- **Vencido**: el coche ya no tiene póliza vigente (aviso rojo; dice si además está rentado).
+- **Sin póliza**: coches a los que nunca se les registró una.
+- Al **rentar** un coche sin seguro vigente o por vencer, el formulario lo avisa, pero deja rentar.
+
+**Reglas**
+- Los datos de la póliza los ve todo el personal (sirven para reportar un siniestro); lo que costó, solo quien ve Finanzas.
+- Registrar, editar, renovar y cancelar pide el permiso *Flota · Seguros*.
+- Las pólizas no se borran: una capturada por error se **cancela con motivo** y deja de contar. Su gasto, si tiene, se corrige o se cancela en Finanzas.
 
 ---
 
